@@ -22,7 +22,7 @@ public class DashboardSettingsService
 
     if (settings == null)
     {
-      settings = new DashboardSettings { Id = 1, Title = "Dashboard" };
+      settings = new DashboardSettings { Id = 1, Title = "Dashboard", Motto = "" };
       _context.DashboardSettings.Add(settings);
       await _context.SaveChangesAsync();
     }

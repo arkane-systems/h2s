@@ -1,7 +1,7 @@
-﻿namespace h2s.Data;
-
-using h2s.Models;
+﻿using h2s.Models;
 using Microsoft.EntityFrameworkCore;
+
+namespace h2s.Data;
 
 public class DashboardContext : DbContext
 {
@@ -14,12 +14,12 @@ public class DashboardContext : DbContext
   public DbSet<Link> Links => this.Set<Link> ();
   public DbSet<DashboardSettings> DashboardSettings => this.Set<DashboardSettings> ();
 
-  protected override void OnModelCreating(ModelBuilder modelBuilder)
+  protected override void OnModelCreating (ModelBuilder modelBuilder)
   {
-    base.OnModelCreating(modelBuilder);
+    base.OnModelCreating (modelBuilder);
 
     // Ensure only one DashboardSettings record can exist
-    modelBuilder.Entity<DashboardSettings> ()
-      .HasCheckConstraint ("CK_DashboardSettings_SingleRow", "Id = 1");
+    _ = modelBuilder.Entity<DashboardSettings> ()
+      .ToTable (t => t.HasCheckConstraint ("CK_DashboardSettings_SingleRow", "Id = 1"));
   }
 }
