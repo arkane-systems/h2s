@@ -28,7 +28,10 @@
             </div>
         </nav>
     </header>
-    <div class="container">
+
+    <div class="app-background" aria-hidden="true"></div>
+
+    <div class="container app-content">
         <main role="main" class="pb-3">
             @RenderBody()
         </main>
@@ -43,6 +46,47 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="https://cdn.jsdelivr.net/npm/trianglify@4.1.1/dist/trianglify.bundle.js"></script>
+    <script>
+        (function () {
+            const backgroundHost = document.querySelector('.app-background');
+            const header = document.querySelector('header');
+            const footer = document.querySelector('footer');
+            const trianglifyFactory = window.Trianglify || window.trianglify;
+
+            if (!backgroundHost || typeof trianglifyFactory !== 'function') {
+                return;
+            }
+
+            const renderPattern = () => {
+                const top = Math.max(header?.offsetHeight ?? 0, 0);
+                const footerHeight = Math.max(footer?.offsetHeight ?? 0, 0);
+                const pageHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+                const height = Math.max(pageHeight - top - footerHeight, 320);
+                const width = Math.max(document.documentElement.clientWidth, 320);
+
+                backgroundHost.style.top = `${top}px`;
+                backgroundHost.style.height = `${height}px`;
+
+                const pattern = trianglifyFactory({
+                    width,
+                    height,
+                    cellSize: 170,
+                    variance: 0.75,
+                    xColors: ['#1e1b4b', '#fbbf24']
+                });
+
+                backgroundHost.innerHTML = '';
+                const svg = pattern.toSVG();
+                svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                svg.classList.add('app-background-svg');
+                backgroundHost.appendChild(svg);
+            };
+
+            renderPattern();
+            window.addEventListener('resize', renderPattern);
+        })();
+    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

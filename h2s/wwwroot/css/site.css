@@ -29,3 +29,26 @@ body {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
 }
+
+header,
+footer,
+.app-content {
+  position: relative;
+  z-index: 1;
+}
+
+.app-background {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  overflow: hidden;
+}
+
+.app-background-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
