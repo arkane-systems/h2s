@@ -1,7 +1,15 @@
-﻿@using h2s.Services
+﻿@using h2s.Models
+@using h2s.Services
 @inject DashboardSettingsService SettingsService
 @{
     var settings = await SettingsService.GetSettingsAsync();
+    var colorModeInt = (int)settings.ColorMode;
+    var (colorModeIcon, colorModeTitle) = settings.ColorMode switch
+    {
+        ColorMode.Light => ("☀", "Light mode (click to switch to dark)"),
+        ColorMode.Dark  => ("☾", "Dark mode (click to switch to auto)"),
+        _               => ("◑", "Auto mode (click to switch to light)")
+    };
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -9,6 +17,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - h2s</title>
+    <!-- Apply theme before stylesheets load to prevent flash of unstyled content -->
+    <script>
+        (function () {
+            const mode = @colorModeInt;
+            // 0=Auto, 1=Light, 2=Dark
+            let theme = mode === 1 ? 'light' : mode === 2 ? 'dark'
+                : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', theme);
+        })();
+    </script>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -16,7 +34,7 @@
 </head>
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body-tertiary border-bottom box-shadow mb-3">
             <div class="container">
                 <a class="navbar-brand d-flex flex-column" asp-area="" asp-page="/Index">
                     <span><strong>h2s</strong> - @settings.Title</span>
@@ -34,13 +52,24 @@
                     </ul>
                     <ul class="navbar-nav">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
+                            <button id="color-mode-toggle"
+                                    class="nav-link btn btn-link px-2"
+                                    data-color-mode="@colorModeInt"
+                                    title="@colorModeTitle"
+                                    aria-label="@colorModeTitle">@colorModeIcon</button>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
                         </li>
                     </ul>
                 </div>
             </div>
         </nav>
     </header>
+
+    <form id="toggle-color-mode-form" action="/Admin/ToggleColorMode" method="post" style="display:none">
+        @Html.AntiForgeryToken()
+    </form>
 
     <div class="app-background" aria-hidden="true"></div>
 
@@ -62,16 +91,20 @@
     <script src="https://cdn.jsdelivr.net/npm/trianglify@4.1.1/dist/trianglify.bundle.js"></script>
     <script>
         (function () {
+            // Trianglify color palettes per theme
+            const trianglifyColors = {
+                light: ['#1e1b4b', '#fbbf24'],
+                dark:  ['#312e81', '#7c3aed']
+            };
+
             const backgroundHost = document.querySelector('.app-background');
             const header = document.querySelector('header');
             const footer = document.querySelector('footer');
             const trianglifyFactory = window.Trianglify || window.trianglify;
 
-            if (!backgroundHost || typeof trianglifyFactory !== 'function') {
-                return;
-            }
-
             const renderPattern = () => {
+                if (!backgroundHost || typeof trianglifyFactory !== 'function') return;
+
                 const top = Math.max(header?.offsetHeight ?? 0, 0);
                 const footerHeight = Math.max(footer?.offsetHeight ?? 0, 0);
                 const pageHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -81,12 +114,15 @@
                 backgroundHost.style.top = `${top}px`;
                 backgroundHost.style.height = `${height}px`;
 
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const colors = isDark ? trianglifyColors.dark : trianglifyColors.light;
+
                 const pattern = trianglifyFactory({
                     width,
                     height,
                     cellSize: 170,
                     variance: 0.75,
-                    xColors: ['#1e1b4b', '#fbbf24']
+                    xColors: colors
                 });
 
                 backgroundHost.innerHTML = '';
@@ -98,9 +134,70 @@
 
             renderPattern();
             window.addEventListener('resize', renderPattern);
+
+            // Watch for system theme changes in Auto mode
+            const toggleBtn = document.getElementById('color-mode-toggle');
+            const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            systemDarkQuery.addEventListener('change', () => {
+                const currentMode = parseInt(toggleBtn?.dataset.colorMode ?? '0', 10);
+                if (currentMode === 0) { // Auto
+                    const theme = systemDarkQuery.matches ? 'dark' : 'light';
+                    document.documentElement.setAttribute('data-bs-theme', theme);
+                    renderPattern();
+                }
+            });
+
+            // Color mode toggle button
+            const colorModeIcons  = ['◑', '☀', '☾'];
+            const colorModeTitles = [
+                'Auto mode (click to switch to light)',
+                'Light mode (click to switch to dark)',
+                'Dark mode (click to switch to auto)'
+            ];
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    const form  = document.getElementById('toggle-color-mode-form');
+                    const token = form?.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+                    fetch('/Admin/ToggleColorMode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'RequestVerificationToken': token ?? ''
+                        },
+                        body: token ? `__RequestVerificationToken=${encodeURIComponent(token)}` : ''
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        // data.colorMode is 'Auto', 'Light', or 'Dark'
+                        const modeMap = { Auto: 0, Light: 1, Dark: 2 };
+                        const newMode = modeMap[data.colorMode] ?? 0;
+
+                        toggleBtn.dataset.colorMode = newMode;
+                        toggleBtn.textContent = colorModeIcons[newMode];
+                        toggleBtn.title = colorModeTitles[newMode];
+                        toggleBtn.setAttribute('aria-label', colorModeTitles[newMode]);
+
+                        // Determine the effective theme
+                        let newTheme;
+                        if (newMode === 1) newTheme = 'light';
+                        else if (newMode === 2) newTheme = 'dark';
+                        else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
+
+                        document.documentElement.setAttribute('data-bs-theme', newTheme);
+                        renderPattern();
+                    })
+                    .catch(() => {
+                        // On failure fall back to a full page reload so the server-side state is shown
+                        window.location.reload();
+                    });
+                });
+            }
         })();
     </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
+
