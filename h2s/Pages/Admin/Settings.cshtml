@@ -22,9 +22,9 @@
     </div>
 
     <div class="mb-3">
-        <label asp-for="Settings.LocalDomain" class="form-label"></label>
-        <input asp-for="Settings.LocalDomain" class="form-control" />
-        <div class="form-text">Used to detect external links (example: intranet.local).</div>
+        <label asp-for="Settings.LocalDomain" class="form-label">Local domains</label>
+        <textarea asp-for="Settings.LocalDomain" class="form-control" rows="2"></textarea>
+        <div class="form-text">Used to detect external links. Enter one or more domains (comma, semicolon, space, or newline separated), e.g. <code>intranet.local, corp.example.com</code>.</div>
         <span asp-validation-for="Settings.LocalDomain" class="text-danger"></span>
     </div>
 

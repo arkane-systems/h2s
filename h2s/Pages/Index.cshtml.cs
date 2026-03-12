@@ -12,7 +12,7 @@ public class IndexModel : PageModel
   private readonly DashboardSettingsService _settingsService;
 
   public List<Category> Categories { get; set; } = new ();
-  public string LocalDomain { get; private set; } = "";
+  private HashSet<string> LocalDomains { get; set; } = new ();
 
   public IndexModel (DashboardContext context, DashboardSettingsService settingsService)
   {
@@ -29,12 +29,12 @@ public class IndexModel : PageModel
       .ToListAsync ();
 
     var settings = await this._settingsService.GetSettingsAsync ();
-    this.LocalDomain = NormalizeDomain (settings.LocalDomain);
+    this.LocalDomains = ParseLocalDomains (settings.LocalDomain);
   }
 
   public bool IsExternalLink (string url)
   {
-    if (string.IsNullOrWhiteSpace (this.LocalDomain))
+    if (this.LocalDomains.Count == 0)
     {
       return false;
     }
@@ -45,7 +45,29 @@ public class IndexModel : PageModel
     }
 
     var host = uri.Host.ToLowerInvariant ();
-    return host != this.LocalDomain && !host.EndsWith ($".{this.LocalDomain}");
+    var isInternal = this.LocalDomains.Any (domain => host == domain || host.EndsWith ($".{domain}"));
+    return !isInternal;
+  }
+
+  private static HashSet<string> ParseLocalDomains (string domains)
+  {
+    var parsedDomains = new HashSet<string> (StringComparer.OrdinalIgnoreCase);
+    if (string.IsNullOrWhiteSpace (domains))
+    {
+      return parsedDomains;
+    }
+
+    var separators = new[] { ',', ';', '\n', '\r', '\t', ' ' };
+    foreach (var value in domains.Split (separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+      var normalized = NormalizeDomain (value);
+      if (!string.IsNullOrWhiteSpace (normalized))
+      {
+        _ = parsedDomains.Add (normalized);
+      }
+    }
+
+    return parsedDomains;
   }
 
   private static string NormalizeDomain (string domain)
@@ -53,6 +75,11 @@ public class IndexModel : PageModel
     if (string.IsNullOrWhiteSpace (domain))
     {
       return "";
+    }
+
+    if (Uri.TryCreate (domain.Trim (), UriKind.Absolute, out var parsedUri) && !string.IsNullOrWhiteSpace (parsedUri.Host))
+    {
+      return parsedUri.Host.Trim ().TrimStart ('.').ToLowerInvariant ();
     }
 
     return domain.Trim ().TrimStart ('.').ToLowerInvariant ();
