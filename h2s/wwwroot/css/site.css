@@ -57,3 +57,18 @@ footer,
   height: 100%;
   display: block;
 }
+
+.icon-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 1.1rem;
+}
+
+.navbar-nav .btn.icon-nav-link {
+  border: 0;
+}

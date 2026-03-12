@@ -50,17 +50,17 @@
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav me-auto">
                     </ul>
-                    <ul class="navbar-nav">
+                    <ul class="navbar-nav align-items-center">
                         <li class="nav-item">
                             <button id="color-mode-toggle"
-                                    class="nav-link btn btn-link px-2"
+                                    class="nav-link icon-nav-link btn btn-link"
                                     data-color-mode="@colorModeInt"
                                     data-url="@Url.Page("/Admin/ToggleColorMode")"
                                     title="@colorModeTitle"
                                     aria-label="@colorModeTitle">@colorModeIcon</button>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
+                            <a class="nav-link icon-nav-link" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
                         </li>
                     </ul>
                 </div>
