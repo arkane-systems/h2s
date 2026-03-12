@@ -46,3 +46,24 @@ links, and growing to include more complex features over time.
 - When changing data shape, update models + `DashboardContext` + generate EF migration together.
 - When adding new application-level services, place them in `h2s/Services/` and register them as scoped in `Program.cs`.
 - Preserve existing namespace/folder conventions (`h2s.Pages.Admin.<Area>`, `h2s.Data`, `h2s.Models`, `h2s.Services`).
+
+## Dark mode / color mode
+
+The app supports three color modes (stored in `DashboardSettings.ColorMode`):
+- `Auto` (0) – follows the OS `prefers-color-scheme` media query.
+- `Light` (1) – always light.
+- `Dark` (2) – always dark.
+
+Bootstrap 5.3's `data-bs-theme` attribute is set on `<html>` by an inline script in `<head>` (before any CSS loads) so there is no flash of unstyled content. The JS in `_Layout.cshtml` then listens for system theme changes when the mode is `Auto`.
+
+### How to add dark-mode support to a new page element
+
+1. **Prefer Bootstrap utility classes** — most Bootstrap components (`bg-body`, `bg-body-tertiary`, `text-body`, `text-muted`, `border`, etc.) automatically invert when `data-bs-theme` changes. Use those instead of hard-coded colours wherever possible.
+2. **For custom CSS colours** — use Bootstrap CSS custom properties (e.g. `var(--bs-body-bg)`, `var(--bs-border-color)`, `var(--bs-link-color)`) which Bootstrap re-defines per theme. Avoid hard-coded hex values for anything that should change between modes.
+3. **For theme-specific overrides** — scope rules with the attribute selector, e.g.:
+   ```css
+   [data-bs-theme="dark"] .my-element { background: #1a1a2e; }
+   [data-bs-theme="light"] .my-element { background: #f8f9fa; }
+   ```
+4. **For JS-driven visuals** (like the Trianglify background) — read the current theme with `document.documentElement.getAttribute('data-bs-theme')` and branch on `'dark'` vs `'light'`. Re-render whenever the theme changes by hooking into `renderPattern()` (or an equivalent callback already called after each toggle).
+

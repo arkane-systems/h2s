@@ -1,0 +1,16 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+@foreach (var category in Model.Categories)
+{
+    <h2>@category.Name</h2>
+    <ul>
+        @foreach (var link in category.Links.OrderBy(l => l.SortOrder))
+        {
+            <li><a href="@link.Url">@link.Label</a></li>
+        }
+    </ul>
+}
