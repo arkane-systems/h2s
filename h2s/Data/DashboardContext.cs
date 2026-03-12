@@ -3,13 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Data;
 
-public class DashboardContext : DbContext
+public class DashboardContext (DbContextOptions<DashboardContext> options) : DbContext (options)
 {
-  public DashboardContext (DbContextOptions<DashboardContext> options)
-      : base (options)
-  {
-  }
-
   public DbSet<Category> Categories => this.Set<Category> ();
   public DbSet<Link> Links => this.Set<Link> ();
   public DbSet<DashboardSettings> DashboardSettings => this.Set<DashboardSettings> ();

@@ -1,0 +1,239 @@
+@page
+@model h2s.Pages.Admin.EditorModel
+@using System.Text.Json
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
+@{
+    ViewData["Title"] = "Editor";
+}
+
+<h1>Edit Categories and Links</h1>
+
+@if (HostEnvironment.IsDevelopment())
+{
+    <div id="editor-client-error" class="alert alert-danger d-none" role="alert"></div>
+}
+
+<section class="mb-5">
+    <h2 class="h4">Categories</h2>
+
+    <div id="category-message" class="alert d-none" role="alert"></div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h3 class="h5">Add Category</h3>
+            <form id="create-category-form" class="row g-3">
+                <div class="col-md-8">
+                    <label for="create-category-name" class="form-label">Name</label>
+                    <input id="create-category-name" name="name" class="form-control" required />
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input id="create-category-is-admin" name="isAdminCategory" type="checkbox" class="form-check-input" />
+                        <label for="create-category-is-admin" class="form-check-label">Admin category</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Add Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="edit-category-card" class="card mb-3 d-none">
+        <div class="card-body">
+            <h3 class="h5">Edit Category</h3>
+            <form id="edit-category-form" class="row g-3">
+                <input id="edit-category-id" name="id" type="hidden" />
+                <div class="col-md-8">
+                    <label for="edit-category-name" class="form-label">Name</label>
+                    <input id="edit-category-name" name="name" class="form-control" required />
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input id="edit-category-is-admin" name="isAdminCategory" type="checkbox" class="form-check-input" />
+                        <label for="edit-category-is-admin" class="form-check-label">Admin category</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button id="cancel-edit-category" type="button" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Admin</th>
+                    <th>Links</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="category-table-body">
+                @foreach (var category in Model.Categories)
+                {
+                    <tr data-category-id="@category.Id"
+                        data-category-name="@category.Name"
+                        data-category-admin="@category.IsAdminCategory.ToString().ToLowerInvariant()">
+                        <td>@category.Name</td>
+                        <td>@(category.IsAdminCategory ? "Yes" : "No")</td>
+                        <td>@category.Links.Count</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section>
+    <h2 class="h4">Links</h2>
+
+    <div id="link-message" class="alert d-none" role="alert"></div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h3 class="h5">Add Link</h3>
+            <form id="create-link-form" class="row g-3">
+                <div class="col-md-4">
+                    <label for="create-link-category-id" class="form-label">Category</label>
+                    <select id="create-link-category-id" name="categoryId" class="form-select" required>
+                        @foreach (var category in Model.Categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="create-link-label" class="form-label">Name</label>
+                    <input id="create-link-label" name="label" class="form-control" required />
+                </div>
+                <div class="col-md-4">
+                    <label for="create-link-url" class="form-label">URL</label>
+                    <input id="create-link-url" name="url" type="url" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                    <label for="create-link-description" class="form-label">Description</label>
+                    <input id="create-link-description" name="description" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                    <label for="create-link-icon-name" class="form-label">Icon name</label>
+                    <input id="create-link-icon-name" name="iconName" class="form-control" />
+                    <div id="create-link-icon-suggestion" class="form-text d-none">
+                        Suggested icon: <code id="create-link-icon-suggestion-name"></code>
+                        <button id="apply-link-icon-suggestion" type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline">Apply</button>
+                    </div>
+                    <div class="form-text"><a href="https://selfh.st/icons/">selfh.st</a> reference, e.g. <code>home-assistant</code>.</div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Add Link</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="edit-link-card" class="card mb-3 d-none">
+        <div class="card-body">
+            <h3 class="h5">Edit Link</h3>
+            <form id="edit-link-form" class="row g-3">
+                <input id="edit-link-id" name="id" type="hidden" />
+                <div class="col-md-4">
+                    <label for="edit-link-category-id" class="form-label">Category</label>
+                    <select id="edit-link-category-id" name="categoryId" class="form-select" required>
+                        @foreach (var category in Model.Categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="edit-link-label" class="form-label">Name</label>
+                    <input id="edit-link-label" name="label" class="form-control" required />
+                </div>
+                <div class="col-md-4">
+                    <label for="edit-link-url" class="form-label">URL</label>
+                    <input id="edit-link-url" name="url" type="url" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                    <label for="edit-link-description" class="form-label">Description</label>
+                    <input id="edit-link-description" name="description" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                    <label for="edit-link-icon-name" class="form-label">Icon name</label>
+                    <input id="edit-link-icon-name" name="iconName" class="form-control" />
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button id="cancel-edit-link" type="button" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Icon</th>
+                    <th>URL</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="link-table-body">
+                @foreach (var link in Model.Links)
+                {
+                    <tr data-link-id="@link.Id"
+                        data-link-category-id="@link.CategoryId"
+                        data-link-label="@link.Label"
+                        data-link-description="@link.Description"
+                        data-link-icon-name="@link.IconName"
+                        data-link-url="@link.Url">
+                        <td>@(link.Category?.Name ?? "")</td>
+                        <td>@link.Label</td>
+                        <td>@link.Description</td>
+                        <td>@link.IconName</td>
+                        <td class="text-break">@link.Url</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<form id="editor-antiforgery" method="post" class="d-none">
+    @Html.AntiForgeryToken()
+</form>
+
+@section Scripts {
+<script src="~/js/editor.js" asp-append-version="true"></script>
+<script>
+    initEditor({
+        urls: {
+            categories: '@Url.Page("/Admin/Editor", "Categories")',
+            createCategory: '@Url.Page("/Admin/Editor", "CreateCategory")',
+            updateCategory: '@Url.Page("/Admin/Editor", "UpdateCategory")',
+            deleteCategory: '@Url.Page("/Admin/Editor", "DeleteCategory")',
+            links: '@Url.Page("/Admin/Editor", "Links")',
+            createLink: '@Url.Page("/Admin/Editor", "CreateLink")',
+            updateLink: '@Url.Page("/Admin/Editor", "UpdateLink")',
+            deleteLink: '@Url.Page("/Admin/Editor", "DeleteLink")',
+            suggestIcon: '@Url.Page("/Admin/Editor", "SuggestIcon")'
+        },
+        initialCategories: @Html.Raw(JsonSerializer.Serialize(Model.Categories.Select(c => new { c.Id, c.Name, c.IsAdminCategory, LinkCount = c.Links.Count }))),
+        initialLinks: @Html.Raw(JsonSerializer.Serialize(Model.Links.Select(l => new { l.Id, l.CategoryId, CategoryName = l.Category != null ? l.Category.Name : "", IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false, l.Label, l.Description, l.IconName, l.Url })))
+    });
+</script>
+}

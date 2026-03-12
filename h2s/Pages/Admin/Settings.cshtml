@@ -22,7 +22,14 @@
     </div>
 
     <div class="mb-3">
-        <label asp-for="Settings.ColorMode" class="form-label"></label>
+        <label asp-for="Settings.LocalDomains" class="form-label">Local domains</label>
+        <textarea asp-for="Settings.LocalDomains" class="form-control" rows="2"></textarea>
+        <div class="form-text">Used to detect external links. Enter one or more domains (comma, semicolon, space, or newline separated), e.g. <code>intranet.local, corp.example.com</code>.</div>
+        <span asp-validation-for="Settings.LocalDomains" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Settings.ColorMode" class="form-label">Color mode</label>
         <select asp-for="Settings.ColorMode" class="form-select"
                 asp-items="Html.GetEnumSelectList<h2s.Models.ColorMode>()"></select>
     </div>

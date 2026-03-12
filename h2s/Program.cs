@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages ();
+builder.Services.AddMemoryCache ();
 builder.Services.AddDbContext<DashboardContext> (options =>
     options.UseSqlite (builder.Configuration.GetConnectionString ("h2s")));
 builder.Services.AddScoped<DashboardSettingsService> ();
