@@ -160,6 +160,11 @@ public class EditorModel : PageModel
       return BadRequest ("Link URL is required.");
     }
 
+    if (!IsValidWebUrl (normalizedUrl))
+    {
+      return BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
+    }
+
     if (!await _context.Categories.AnyAsync (c => c.Id == categoryId))
     {
       return BadRequest ("Selected category does not exist.");
@@ -207,6 +212,11 @@ public class EditorModel : PageModel
     if (string.IsNullOrWhiteSpace (normalizedUrl))
     {
       return BadRequest ("Link URL is required.");
+    }
+
+    if (!IsValidWebUrl (normalizedUrl))
+    {
+      return BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
     }
 
     var link = await _context.Links
@@ -291,6 +301,16 @@ public class EditorModel : PageModel
     .OrderBy (l => l.Category != null ? l.Category.IsAdminCategory : false)
     .ThenBy (l => l.Category != null ? l.Category.Name : string.Empty)
     .ThenBy (l => l.Label);
+
+  private static bool IsValidWebUrl (string url)
+  {
+    if (!Uri.TryCreate (url, UriKind.Absolute, out var uri))
+    {
+      return false;
+    }
+
+    return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+  }
 
   private static async Task<bool> IconExistsAsync (string url)
   {

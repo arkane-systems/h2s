@@ -116,7 +116,7 @@
                 </div>
                 <div class="col-md-4">
                     <label for="create-link-url" class="form-label">URL</label>
-                    <input id="create-link-url" name="url" class="form-control" required />
+                    <input id="create-link-url" name="url" type="url" class="form-control" required />
                 </div>
                 <div class="col-md-6">
                     <label for="create-link-description" class="form-label">Description</label>
@@ -158,7 +158,7 @@
                 </div>
                 <div class="col-md-4">
                     <label for="edit-link-url" class="form-label">URL</label>
-                    <input id="edit-link-url" name="url" class="form-control" required />
+                    <input id="edit-link-url" name="url" type="url" class="form-control" required />
                 </div>
                 <div class="col-md-6">
                     <label for="edit-link-description" class="form-label">Description</label>
@@ -317,6 +317,19 @@
         iconName: item.iconName ?? item.IconName ?? '',
         url: item.url ?? item.Url
     });
+
+    const isValidWebUrl = (value) => {
+        if (!value) {
+            return false;
+        }
+
+        try {
+            const parsed = new URL(value);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    };
 
     const sortCategories = (items) => items
         .slice()
@@ -618,6 +631,11 @@
             return;
         }
 
+        if (!isValidWebUrl(url)) {
+            setMessage(linkElements.message, 'URL must be a valid HTTP or HTTPS address.', true);
+            return;
+        }
+
         try {
             await postForm(urls.createLink, {
                 categoryId,
@@ -701,6 +719,11 @@
 
         if (!id || !categoryId || !label || !url) {
             setMessage(linkElements.message, 'Category, name, and URL are required.', true);
+            return;
+        }
+
+        if (!isValidWebUrl(url)) {
+            setMessage(linkElements.message, 'URL must be a valid HTTP or HTTPS address.', true);
             return;
         }
 
