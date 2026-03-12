@@ -4,22 +4,24 @@ using h2s.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace h2s.Pages.Admin;
 
 public class EditorModel : PageModel
 {
-  private const string IconsBaseUrl = "https://cdn.jsdelivr.net/gh/selfhst/icons";
   private static readonly HttpClient IconProbeClient = new ()
   {
     Timeout = TimeSpan.FromSeconds (4)
   };
 
   private readonly DashboardContext _context;
+  private readonly IMemoryCache _cache;
 
-  public EditorModel (DashboardContext context)
+  public EditorModel (DashboardContext context, IMemoryCache cache)
   {
     _context = context;
+    _cache = cache;
   }
 
   public List<Category> Categories { get; private set; } = new ();
@@ -61,6 +63,7 @@ public class EditorModel : PageModel
         l.Id,
         l.CategoryId,
         CategoryName = l.Category != null ? l.Category.Name : "",
+        IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false,
         l.Label,
         l.Description,
         l.IconName,
@@ -281,8 +284,13 @@ public class EditorModel : PageModel
       return new JsonResult (new { Found = false, SuggestedIconName = "" });
     }
 
-    var iconUrl = $"{IconsBaseUrl}/png/{suggestedIconName}.png";
-    var found = await IconExistsAsync (iconUrl);
+    var cacheKey = $"icon-exists:{suggestedIconName}";
+    var found = await _cache.GetOrCreateAsync (cacheKey, async entry =>
+    {
+      entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes (10);
+      var iconUrl = Link.BuildIconUrl (suggestedIconName);
+      return await IconExistsAsync (iconUrl);
+    });
 
     return new JsonResult (new
     {
