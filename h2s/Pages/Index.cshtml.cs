@@ -29,7 +29,7 @@ public class IndexModel : PageModel
       .ToListAsync ();
 
     var settings = await this._settingsService.GetSettingsAsync ();
-    this.LocalDomains = ParseLocalDomains (settings.LocalDomain);
+    this.LocalDomains = ParseLocalDomains (settings.LocalDomains);
   }
 
   public bool IsExternalLink (string url)
