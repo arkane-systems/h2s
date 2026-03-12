@@ -10,16 +10,19 @@ links, and growing to include more complex features over time.
 - Core domain is a simple dashboard model:
   - `Category` (`Id`, `Name`, `SortOrder`) in `h2s/Models/Category.cs`
   - `Link` (`CategoryId`, `Label`, `Url`, `SortOrder`) in `h2s/Models/Link.cs`
+  - `DashboardSettings` (`Id`, `Title`, `Motto`) in `h2s/Models/DashboardSettings.cs` — singleton row, always `Id = 1`
 - Data flow:
   1. Request hits Razor PageModel (`Pages/**/*.cshtml.cs`)
-  2. PageModel queries/updates `DashboardContext`
-  3. Views render via strongly typed models and tag helpers (`Pages/**/*.cshtml`)
+  2. For settings, PageModel calls `DashboardSettingsService` (`h2s/Services/DashboardSettingsService.cs`)
+  3. For categories/links, PageModel queries/updates `DashboardContext` directly
+  4. Views render via strongly typed models and tag helpers (`Pages/**/*.cshtml`)
 
 ## App structure and key patterns
 - Public dashboard is `Pages/Index.cshtml(.cs)`; it loads categories with links, sorted by `SortOrder`.
-- Admin CRUD lives under `Pages/Admin/Categories/*` and `Pages/Admin/Links/*`. These pages are intended for use in the development stage and will be replaced by a more robust admin UI in the future, but they should be kept functional and up-to-date for now.
-- Admin pages are scaffold-style Razor Pages: `OnGetAsync`/`OnPostAsync`, `[BindProperty]`, redirect back to `./Index` after writes.
-- `Link` pages populate category dropdowns via `ViewData["CategoryId"]` + `SelectList` (see `Pages/Admin/Links/Create.cshtml.cs`).
+- Admin section lives under `Pages/Admin/`. Currently it contains:
+  - `Settings.cshtml(.cs)` — edit the dashboard `Title` and `Motto` via `DashboardSettingsService`
+- Admin pages are scaffold-style Razor Pages: `OnGetAsync`/`OnPostAsync`, `[BindProperty]`, redirect back to the same page after writes.
+- `DashboardSettingsService` (`h2s/Services/DashboardSettingsService.cs`) encapsulates retrieval and update of the singleton `DashboardSettings` record; it auto-creates the record with defaults (`Title = "Dashboard"`, `Motto = ""`) if it does not exist.
 - Pipeline in `Program.cs` uses `.MapStaticAssets()` and `.MapRazorPages().WithStaticAssets()`; keep this when editing startup.
 
 ## Configuration and environment behavior
@@ -41,7 +44,8 @@ links, and growing to include more complex features over time.
 - Prefer Razor Pages patterns already used here (not MVC controllers or Blazor components).
 - Keep edits minimal and local; this codebase currently favors straightforward PageModel + EF queries.
 - When changing data shape, update models + `DashboardContext` + generate EF migration together.
-- Preserve existing namespace/folder conventions (`h2s.Pages.Admin.<Area>`, `h2s.Data`, `h2s.Models`).
+- When adding new application-level services, place them in `h2s/Services/` and register them as scoped in `Program.cs`.
+- Preserve existing namespace/folder conventions (`h2s.Pages.Admin.<Area>`, `h2s.Data`, `h2s.Models`, `h2s.Services`).
 
 ## Dark mode / color mode
 
