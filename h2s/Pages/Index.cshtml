@@ -6,6 +6,20 @@
     var hasRenderedRegularCategory = false;
 }
 
+<section class="home-search-box category-box border">
+    <div class="category-box-body">
+        <form class="home-search-form" action="https://www.bing.com/search" method="get" role="search">
+            <span class="home-search-icon" aria-hidden="true">⌕</span>
+            <input type="search"
+                   name="q"
+                   class="form-control home-search-input"
+                   placeholder="Search with Bing"
+                   aria-label="Search with Bing"
+                   required />
+        </form>
+    </div>
+</section>
+
 <div class="category-grid">
 @foreach (var category in Model.Categories)
 {
