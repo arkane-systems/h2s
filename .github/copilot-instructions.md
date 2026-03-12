@@ -39,6 +39,11 @@ links, and growing to include more complex features over time.
 - Launch profiles/ports are in `h2s/Properties/launchSettings.json`.
 - There is currently no test project in this workspace; validate changes with build + manual page checks.
 - In production, the app will be hosted in a container, built using the `h2s/Dockerfile`. The container expects the database file to be mounted at `/app/data/h2s.db`.
+- Container publish automation lives in `.github/workflows/publish-container.yml`:
+  - Triggered by tag pushes and manual runs.
+  - For tag pushes, publish only occurs when the tagged commit is on `master`.
+  - For manual runs, the workflow publishes using the latest git tag.
+  - Images are pushed to GitHub Container Registry (`ghcr.io/<owner>/<repo>`) with both `<tag>` and `latest` tags.
 
 ## Code-change guidance for agents
 - Prefer Razor Pages patterns already used here (not MVC controllers or Blazor components).
