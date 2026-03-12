@@ -22,6 +22,13 @@
     </div>
 
     <div class="mb-3">
+        <label asp-for="Settings.LocalDomain" class="form-label"></label>
+        <input asp-for="Settings.LocalDomain" class="form-control" />
+        <div class="form-text">Used to detect external links (example: intranet.local).</div>
+        <span asp-validation-for="Settings.LocalDomain" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
         <label asp-for="Settings.ColorMode" class="form-label"></label>
         <select asp-for="Settings.ColorMode" class="form-select"
                 asp-items="Html.GetEnumSelectList<h2s.Models.ColorMode>()"></select>

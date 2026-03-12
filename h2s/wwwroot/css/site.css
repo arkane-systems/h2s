@@ -127,6 +127,7 @@ footer,
 }
 
 .link-block {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -142,6 +143,22 @@ footer,
 .link-block:focus-visible {
   background-color: rgba(var(--bs-body-bg-rgb), 0.62);
   border-color: rgba(var(--bs-border-color-rgb), 0.9);
+}
+
+.link-external-flag {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bs-warning-text-emphasis);
+  background-color: rgba(var(--bs-warning-rgb), 0.12);
+  border: 1px solid rgba(var(--bs-warning-rgb), 0.28);
+  border-radius: 999px;
+  padding: 0.2rem 0.35rem;
 }
 
 .link-block-icon-wrap {

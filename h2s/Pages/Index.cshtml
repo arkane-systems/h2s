@@ -23,7 +23,13 @@
             <div class="link-block-list">
                 @foreach (var link in category.Links.OrderBy(l => l.Label))
                 {
+                    var isExternal = Model.IsExternalLink(link.Url);
+
                     <a class="link-block text-decoration-none text-body" href="@link.Url">
+                        @if (isExternal)
+                        {
+                            <span class="link-external-flag" title="External site" aria-label="External site">External</span>
+                        }
                         <div class="link-block-icon-wrap">
                             @if (!string.IsNullOrWhiteSpace(link.IconName))
                             {
