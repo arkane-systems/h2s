@@ -28,7 +28,7 @@ links, and growing to include more complex features over time.
 ## Configuration and environment behavior
 - Connection string key is `ConnectionStrings:h2s`.
 - Development DB path is absolute: `C:/Working/h2sdata/h2s.db` (`h2s/appsettings.Development.json`).
-- Production DB path is `/app/data/h2s.db` (`h2s/appSettings.Production.json`).
+- Production DB path is `/app/data/h2s.db` (`h2s/appsettings.Production.json`).
 - If adding new environments, keep the same connection string key and SQLite provider.
 
 ## Developer workflows
