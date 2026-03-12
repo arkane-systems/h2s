@@ -75,11 +75,10 @@ footer,
 
 .category-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 20rem);
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
   grid-auto-flow: row;
   gap: 1rem;
   align-items: start;
-  justify-content: start;
 }
 
 .category-grid-break {
@@ -90,7 +89,6 @@ footer,
 }
 
 .category-box {
-  width: 20rem;
   border-radius: 0.75rem;
   background-color: rgba(var(--bs-body-bg-rgb), 0.62);
   backdrop-filter: blur(5px);
