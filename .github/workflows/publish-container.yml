@@ -1,0 +1,84 @@
+name: Publish container image
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure tagged commit is on master
+        id: branch_check
+        shell: bash
+        run: |
+          SHOULD_PUBLISH=true
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            git fetch origin master --depth=1
+            if ! git merge-base --is-ancestor "${GITHUB_SHA}" "origin/master"; then
+              echo "Tag is not on master; image publish skipped."
+              SHOULD_PUBLISH=false
+            fi
+          fi
+
+          echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve image name and version tag
+        id: meta
+        if: steps.branch_check.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          IMAGE_NAME="$(echo "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            VERSION_TAG="${GITHUB_REF_NAME}"
+          else
+            VERSION_TAG="$(git tag --sort=-v:refname | head -n1)"
+          fi
+
+          if [ -z "${VERSION_TAG}" ]; then
+            echo "No git tags were found. Create a tag before running this workflow."
+            exit 1
+          fi
+
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        if: steps.branch_check.outputs.should_publish == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: steps.branch_check.outputs.should_publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        if: steps.branch_check.outputs.should_publish == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./h2s
+          file: ./h2s/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.version_tag }}
+            ${{ steps.meta.outputs.image_name }}:latest
+
+      - name: Report skipped publish
+        if: steps.branch_check.outputs.should_publish != 'true'
+        run: echo "Workflow completed without publishing because the tag is not on master."
