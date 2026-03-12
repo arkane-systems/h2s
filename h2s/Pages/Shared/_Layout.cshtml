@@ -55,6 +55,7 @@
                             <button id="color-mode-toggle"
                                     class="nav-link btn btn-link px-2"
                                     data-color-mode="@colorModeInt"
+                                    data-url="@Url.Page("/Admin/ToggleColorMode")"
                                     title="@colorModeTitle"
                                     aria-label="@colorModeTitle">@colorModeIcon</button>
                         </li>
@@ -160,7 +161,7 @@
                     const form  = document.getElementById('toggle-color-mode-form');
                     const token = form?.querySelector('input[name="__RequestVerificationToken"]')?.value;
 
-                    fetch('/Admin/ToggleColorMode', {
+                    fetch(toggleBtn.dataset.url, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',

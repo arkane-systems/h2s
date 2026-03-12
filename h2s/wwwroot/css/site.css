@@ -43,14 +43,11 @@ footer,
   right: 0;
   z-index: 0;
   pointer-events: none;
+  opacity: 0.3;
   overflow: hidden;
 }
 
-/* Lighter opacity in dark mode so the geometric background does not overpower dark text/content */
-[data-bs-theme="light"] .app-background {
-  opacity: 0.3;
-}
-
+/* Theme-specific opacity overrides for the geometric background */
 [data-bs-theme="dark"] .app-background {
   opacity: 0.2;
 }

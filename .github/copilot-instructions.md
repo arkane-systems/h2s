@@ -37,6 +37,12 @@ links, and growing to include more complex features over time.
 - There is currently no test project in this workspace; validate changes with build + manual page checks.
 - In production, the app will be hosted in a container, built using the `h2s/Dockerfile`. The container expects the database file to be mounted at `/app/data/h2s.db`.
 
+## Code-change guidance for agents
+- Prefer Razor Pages patterns already used here (not MVC controllers or Blazor components).
+- Keep edits minimal and local; this codebase currently favors straightforward PageModel + EF queries.
+- When changing data shape, update models + `DashboardContext` + generate EF migration together.
+- Preserve existing namespace/folder conventions (`h2s.Pages.Admin.<Area>`, `h2s.Data`, `h2s.Models`).
+
 ## Dark mode / color mode
 
 The app supports three color modes (stored in `DashboardSettings.ColorMode`):
