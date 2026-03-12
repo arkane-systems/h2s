@@ -12,12 +12,30 @@
             <h2 class="h5 mb-0">@category.Name</h2>
         </header>
         <div class="category-box-body">
-            <ul class="mb-0">
+            <div class="link-block-list">
                 @foreach (var link in category.Links.OrderBy(l => l.SortOrder))
                 {
-                    <li><a href="@link.Url">@link.Label</a></li>
+                    <a class="link-block text-decoration-none text-body" href="@link.Url">
+                        <div class="link-block-icon-wrap">
+                            @if (!string.IsNullOrWhiteSpace(link.IconName))
+                            {
+                                <img class="link-block-icon" src="@link.GetIconUrl()" alt="@($"{link.Label} icon")" loading="lazy" />
+                            }
+                            else
+                            {
+                                <span class="link-block-icon-fallback" aria-hidden="true">•</span>
+                            }
+                        </div>
+                        <div class="link-block-content">
+                            <span class="link-block-title">@link.Label</span>
+                            @if (!string.IsNullOrWhiteSpace(link.Description))
+                            {
+                                <span class="link-block-description">@link.Description</span>
+                            }
+                        </div>
+                    </a>
                 }
-            </ul>
+            </div>
         </div>
     </section>
 }
