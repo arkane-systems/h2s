@@ -3,6 +3,11 @@
 @inject DashboardSettingsService SettingsService
 @{
     var settings = await SettingsService.GetSettingsAsync();
+    var appTitle = $"h2s - {settings.Title}";
+    var pageTitle = ViewData["Title"]?.ToString();
+    var fullPageTitle = string.IsNullOrWhiteSpace(pageTitle)
+        ? appTitle
+        : $"{appTitle} - {pageTitle}";
     var colorModeInt = (int)settings.ColorMode;
     var (colorModeIcon, colorModeTitle) = settings.ColorMode switch
     {
@@ -16,7 +21,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - h2s</title>
+    <title>@fullPageTitle</title>
     <!-- Apply theme before stylesheets load to prevent flash of unstyled content -->
     <script>
         (function () {
