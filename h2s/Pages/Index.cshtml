@@ -2,18 +2,26 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Home page";
+    var adminSectionStarted = false;
+    var hasRenderedRegularCategory = false;
 }
 
 <div class="category-grid">
 @foreach (var category in Model.Categories)
 {
-    <section class="category-box border">
+    @if (category.IsAdminCategory && hasRenderedRegularCategory && !adminSectionStarted)
+    {
+        <div class="category-grid-break" aria-hidden="true"></div>
+        adminSectionStarted = true;
+    }
+
+    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "")">
         <header class="category-box-header">
             <h2 class="h5 mb-0">@category.Name</h2>
         </header>
         <div class="category-box-body">
             <div class="link-block-list">
-                @foreach (var link in category.Links.OrderBy(l => l.SortOrder))
+                @foreach (var link in category.Links.OrderBy(l => l.Label))
                 {
                     <a class="link-block text-decoration-none text-body" href="@link.Url">
                         <div class="link-block-icon-wrap">
@@ -38,5 +46,10 @@
             </div>
         </div>
     </section>
+
+    @if (!category.IsAdminCategory)
+    {
+        hasRenderedRegularCategory = true;
+    }
 }
 </div>

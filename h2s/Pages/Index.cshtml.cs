@@ -14,7 +14,7 @@ public class IndexModel : PageModel
 
   public void OnGet () => this.Categories = this._context.Categories
         .Include (c => c.Links)
-        .OrderBy (c => c.SortOrder)
+        .OrderBy (c => c.IsAdminCategory)
         .ThenBy (c => c.Name)
         .ToList ();
 }

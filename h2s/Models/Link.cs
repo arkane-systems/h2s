@@ -12,7 +12,6 @@ public class Link
   public string Description { get; set; } = "";
   public string IconName { get; set; } = "";
   public string Url { get; set; } = "";
-  public int SortOrder { get; set; }
 
   public Category? Category { get; set; }
 

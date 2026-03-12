@@ -82,6 +82,13 @@ footer,
   justify-content: start;
 }
 
+.category-grid-break {
+  grid-column: 1 / -1;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
 .category-box {
   width: 20rem;
   border-radius: 0.75rem;
@@ -92,9 +99,17 @@ footer,
   overflow: hidden;
 }
 
+.category-box-admin {
+  background-image: linear-gradient(rgba(var(--bs-danger-rgb), 0.08), rgba(var(--bs-danger-rgb), 0.08));
+}
+
 .category-box-header {
   padding: 0.75rem 1rem;
   background-color: rgba(var(--bs-tertiary-bg-rgb), 0.55);
+}
+
+.category-box-admin .category-box-header {
+  background-color: rgba(var(--bs-danger-rgb), 0.14);
 }
 
 .category-box-body {
