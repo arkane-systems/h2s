@@ -4,13 +4,21 @@
     ViewData["Title"] = "Home page";
 }
 
+<div class="category-grid">
 @foreach (var category in Model.Categories)
 {
-    <h2>@category.Name</h2>
-    <ul>
-        @foreach (var link in category.Links.OrderBy(l => l.SortOrder))
-        {
-            <li><a href="@link.Url">@link.Label</a></li>
-        }
-    </ul>
+    <section class="category-box border">
+        <header class="category-box-header">
+            <h2 class="h5 mb-0">@category.Name</h2>
+        </header>
+        <div class="category-box-body">
+            <ul class="mb-0">
+                @foreach (var link in category.Links.OrderBy(l => l.SortOrder))
+                {
+                    <li><a href="@link.Url">@link.Label</a></li>
+                }
+            </ul>
+        </div>
+    </section>
 }
+</div>
