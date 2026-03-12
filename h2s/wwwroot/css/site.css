@@ -47,6 +47,11 @@ footer,
   overflow: hidden;
 }
 
+/* Theme-specific opacity overrides for the geometric background */
+[data-bs-theme="dark"] .app-background {
+  opacity: 0.2;
+}
+
 .app-background-svg {
   width: 100%;
   height: 100%;
