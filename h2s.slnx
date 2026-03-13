@@ -1,3 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".github/copilot-instructions.md" />
+    <File Path=".github/workflows/publish-container.yml" />
+  </Folder>
   <Project Path="h2s/h2s.csproj" />
 </Solution>

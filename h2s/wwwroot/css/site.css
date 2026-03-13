@@ -18,7 +18,9 @@ html {
 }
 
 body {
-  margin-bottom: 60px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
@@ -35,6 +37,10 @@ footer,
 .app-content {
   position: relative;
   z-index: 1;
+}
+
+.app-content {
+  flex: 1 0 auto;
 }
 
 .app-background {
@@ -69,8 +75,25 @@ footer,
   font-size: 1.1rem;
 }
 
+.navbar-favicon {
+  width: 3.75rem;
+  height: 3.75rem;
+  flex: 0 0 3.75rem;
+  object-fit: contain;
+}
+
 .navbar-nav .btn.icon-nav-link {
   border: 0;
+}
+
+#color-mode-toggle:focus:not(:focus-visible) {
+  outline: 0;
+  box-shadow: none;
+}
+
+#color-mode-toggle:focus-visible {
+  box-shadow: none;
+  outline: auto;
 }
 
 .category-grid {

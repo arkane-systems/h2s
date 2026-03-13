@@ -8,6 +8,9 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace h2s.Pages.Admin;
 
+/// <summary>
+/// Page model for the admin editor used to manage categories and links.
+/// </summary>
 public class EditorModel : PageModel
 {
   private static readonly HttpClient IconProbeClient = new ()
@@ -18,15 +21,30 @@ public class EditorModel : PageModel
   private readonly DashboardContext _context;
   private readonly IMemoryCache _cache;
 
+  /// <summary>
+  /// Initializes a new instance of the <see cref="EditorModel"/> class.
+  /// </summary>
+  /// <param name="context">The database context used to manage categories and links.</param>
+  /// <param name="cache">The cache used to avoid repeated icon availability probes.</param>
   public EditorModel (DashboardContext context, IMemoryCache cache)
   {
     _context = context;
     _cache = cache;
   }
 
+  /// <summary>
+  /// Gets the categories shown in the editor UI.
+  /// </summary>
   public List<Category> Categories { get; private set; } = new ();
+
+  /// <summary>
+  /// Gets the links shown in the editor UI.
+  /// </summary>
   public List<Link> Links { get; private set; } = new ();
 
+  /// <summary>
+  /// Loads the initial category and link data required by the editor page.
+  /// </summary>
   public async Task OnGetAsync ()
   {
     Categories = await GetOrderedCategoriesQuery ()
@@ -38,6 +56,10 @@ public class EditorModel : PageModel
       .ToListAsync ();
   }
 
+  /// <summary>
+  /// Returns the ordered category list used by the editor client script.
+  /// </summary>
+  /// <returns>A JSON payload describing all categories.</returns>
   public async Task<IActionResult> OnGetCategoriesAsync ()
   {
     var categories = await GetOrderedCategoriesQuery ()
@@ -54,6 +76,10 @@ public class EditorModel : PageModel
     return new JsonResult (categories);
   }
 
+  /// <summary>
+  /// Returns the ordered link list used by the editor client script.
+  /// </summary>
+  /// <returns>A JSON payload describing all links.</returns>
   public async Task<IActionResult> OnGetLinksAsync ()
   {
     var links = await GetOrderedLinksQuery ()
@@ -74,6 +100,12 @@ public class EditorModel : PageModel
     return new JsonResult (links);
   }
 
+  /// <summary>
+  /// Creates a new category from the posted editor form values.
+  /// </summary>
+  /// <param name="name">The category display name.</param>
+  /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
+  /// <returns>A JSON payload describing the created category, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateCategoryAsync (string? name, bool isAdminCategory)
   {
     var normalizedName = (name ?? string.Empty).Trim ();
@@ -100,6 +132,13 @@ public class EditorModel : PageModel
     });
   }
 
+  /// <summary>
+  /// Updates an existing category.
+  /// </summary>
+  /// <param name="id">The category identifier.</param>
+  /// <param name="name">The updated category name.</param>
+  /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
+  /// <returns>A JSON payload describing the updated category, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateCategoryAsync (int id, string? name, bool isAdminCategory)
   {
     var normalizedName = (name ?? string.Empty).Trim ();
@@ -132,6 +171,11 @@ public class EditorModel : PageModel
     });
   }
 
+  /// <summary>
+  /// Deletes a category and its related links.
+  /// </summary>
+  /// <param name="id">The identifier of the category to remove.</param>
+  /// <returns>A JSON payload describing the deleted category, or <see cref="NotFoundResult"/> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteCategoryAsync (int id)
   {
     var category = await _context.Categories
@@ -148,6 +192,15 @@ public class EditorModel : PageModel
     return new JsonResult (new { DeletedId = id });
   }
 
+  /// <summary>
+  /// Creates a new link from the posted editor form values.
+  /// </summary>
+  /// <param name="categoryId">The category that will own the link.</param>
+  /// <param name="label">The display label for the link.</param>
+  /// <param name="description">Optional descriptive text for the link.</param>
+  /// <param name="iconName">Optional icon name to normalize and store.</param>
+  /// <param name="url">The destination URL for the link.</param>
+  /// <returns>A JSON payload describing the created link, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateLinkAsync (int categoryId, string? label, string? description, string? iconName, string? url)
   {
     var normalizedLabel = (label ?? string.Empty).Trim ();
@@ -202,6 +255,16 @@ public class EditorModel : PageModel
     });
   }
 
+  /// <summary>
+  /// Updates an existing link.
+  /// </summary>
+  /// <param name="id">The link identifier.</param>
+  /// <param name="categoryId">The updated owning category identifier.</param>
+  /// <param name="label">The updated display label.</param>
+  /// <param name="description">The updated descriptive text.</param>
+  /// <param name="iconName">The updated icon name.</param>
+  /// <param name="url">The updated destination URL.</param>
+  /// <returns>A JSON payload describing the updated link, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateLinkAsync (int id, int categoryId, string? label, string? description, string? iconName, string? url)
   {
     var normalizedLabel = (label ?? string.Empty).Trim ();
@@ -260,6 +323,11 @@ public class EditorModel : PageModel
     });
   }
 
+  /// <summary>
+  /// Deletes a link.
+  /// </summary>
+  /// <param name="id">The identifier of the link to remove.</param>
+  /// <returns>A JSON payload describing the deleted link, or <see cref="NotFoundResult"/> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteLinkAsync (int id)
   {
     var link = await _context.Links
@@ -276,6 +344,11 @@ public class EditorModel : PageModel
     return new JsonResult (new { DeletedId = id });
   }
 
+  /// <summary>
+  /// Suggests an icon name based on the provided label when a matching selfh.st icon exists.
+  /// </summary>
+  /// <param name="label">The link label used to derive an icon name suggestion.</param>
+  /// <returns>A JSON payload indicating whether a matching icon was found.</returns>
   public async Task<IActionResult> OnGetSuggestIconAsync (string? label)
   {
     var suggestedIconName = Link.NormalizeIconName (label ?? string.Empty);
@@ -299,17 +372,30 @@ public class EditorModel : PageModel
     });
   }
 
+  /// <summary>
+  /// Builds the ordered category query used by the editor UI.
+  /// </summary>
+  /// <returns>An <see cref="IQueryable{T}"/> that orders categories by admin state and name.</returns>
   private IQueryable<Category> GetOrderedCategoriesQuery () => _context.Categories
     .Include (c => c.Links)
     .OrderBy (c => c.IsAdminCategory)
     .ThenBy (c => c.Name);
 
+  /// <summary>
+  /// Builds the ordered link query used by the editor UI.
+  /// </summary>
+  /// <returns>An <see cref="IQueryable{T}"/> that orders links by category grouping and label.</returns>
   private IQueryable<Link> GetOrderedLinksQuery () => _context.Links
     .Include (l => l.Category)
     .OrderBy (l => l.Category != null ? l.Category.IsAdminCategory : false)
     .ThenBy (l => l.Category != null ? l.Category.Name : string.Empty)
     .ThenBy (l => l.Label);
 
+  /// <summary>
+  /// Determines whether a string is a valid absolute HTTP or HTTPS URL.
+  /// </summary>
+  /// <param name="url">The URL to validate.</param>
+  /// <returns><c>true</c> when the URL is valid and uses HTTP or HTTPS; otherwise, <c>false</c>.</returns>
   private static bool IsValidWebUrl (string url)
   {
     if (!Uri.TryCreate (url, UriKind.Absolute, out var uri))
@@ -320,6 +406,11 @@ public class EditorModel : PageModel
     return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
   }
 
+  /// <summary>
+  /// Checks whether an icon URL exists on the remote CDN.
+  /// </summary>
+  /// <param name="url">The icon URL to probe.</param>
+  /// <returns><c>true</c> when the icon exists; otherwise, <c>false</c>.</returns>
   private static async Task<bool> IconExistsAsync (string url)
   {
     try
