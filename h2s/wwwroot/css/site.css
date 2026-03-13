@@ -75,9 +75,15 @@ footer,
   font-size: 1.1rem;
 }
 
-.navbar-nav button.icon-nav-link {
+.navbar-favicon {
+  width: 3.75rem;
+  height: 3.75rem;
+  flex: 0 0 3.75rem;
+  object-fit: contain;
+}
+
+.navbar-nav .btn.icon-nav-link {
   border: 0;
-  background: transparent;
 }
 
 #color-mode-toggle:focus:not(:focus-visible) {

@@ -41,12 +41,15 @@
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body-tertiary border-bottom box-shadow">
             <div class="container">
-                <a class="navbar-brand d-flex flex-column" asp-area="" asp-page="/Index">
-                    <span><strong>h2s</strong> - @settings.Title</span>
-                    @if (!string.IsNullOrWhiteSpace(settings.Motto))
-                    {
-                        <small class="text-muted">@settings.Motto</small>
-                    }
+                <a class="navbar-brand d-flex align-items-center gap-2" asp-area="" asp-page="/Index">
+                    <img src="~/favicon.png" alt="" class="navbar-favicon" />
+                    <span class="d-flex flex-column">
+                        <span><strong>h2s</strong> - @settings.Title</span>
+                        @if (!string.IsNullOrWhiteSpace(settings.Motto))
+                        {
+                            <small class="text-muted">@settings.Motto</small>
+                        }
+                    </span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
