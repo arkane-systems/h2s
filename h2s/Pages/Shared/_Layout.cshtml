@@ -39,7 +39,7 @@
 </head>
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body-tertiary border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body-tertiary border-bottom box-shadow">
             <div class="container">
                 <a class="navbar-brand d-flex flex-column" asp-area="" asp-page="/Index">
                     <span><strong>h2s</strong> - @settings.Title</span>
@@ -83,12 +83,12 @@
     <div class="app-background" aria-hidden="true"></div>
 
     <div class="container app-content">
-        <main role="main" class="pb-3">
+        <main role="main" class="py-3">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted">
+    <footer class="border-top footer text-muted py-3">
         <div class="container">
             &copy; 2026 Arkane Systems & Alistair J. R. Young - <strong>h2s</strong>
         </div>
