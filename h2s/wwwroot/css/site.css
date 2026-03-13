@@ -75,8 +75,19 @@ footer,
   font-size: 1.1rem;
 }
 
-.navbar-nav .btn.icon-nav-link {
+.navbar-nav button.icon-nav-link {
   border: 0;
+  background: transparent;
+}
+
+#color-mode-toggle:focus:not(:focus-visible) {
+  outline: 0;
+  box-shadow: none;
+}
+
+#color-mode-toggle:focus-visible {
+  box-shadow: none;
+  outline: auto;
 }
 
 .category-grid {
