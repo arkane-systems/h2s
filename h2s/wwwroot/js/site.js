@@ -1,4 +1,1 @@
-﻿// Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
-
-// Write your JavaScript code.
+﻿// Intentionally minimal. Shared interactive behavior is implemented inline in Razor pages or in page-specific scripts such as wwwroot/js/editor.js.

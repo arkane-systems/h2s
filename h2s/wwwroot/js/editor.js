@@ -1,4 +1,4 @@
-/* Editor page script for category and link management */
+/* Coordinates the admin editor UI for managing categories, links, and icon suggestions. */
 function initEditor(config) {
     const urls = config.urls;
 
@@ -7,6 +7,7 @@ function initEditor(config) {
 
     const clientErrorBanner = document.getElementById('editor-client-error');
 
+    // Displays unexpected JavaScript errors in development so editor issues are easier to diagnose.
     const showClientError = (message) => {
         if (!clientErrorBanner) {
             return;
@@ -61,12 +62,14 @@ function initEditor(config) {
         applySuggestion: document.getElementById('apply-link-icon-suggestion')
     };
 
+    // Escapes user-provided values before inserting them back into rendered HTML.
     const escapeHtml = (value) => {
         const div = document.createElement('div');
         div.textContent = value ?? '';
         return div.innerHTML;
     };
 
+    // Normalizes category payloads from either server-rendered data or JSON responses.
     const normalizeCategory = (item) => ({
         id: item.id ?? item.Id,
         name: item.name ?? item.Name,
@@ -74,6 +77,7 @@ function initEditor(config) {
         linkCount: item.linkCount ?? item.LinkCount ?? 0
     });
 
+    // Normalizes link payloads from either server-rendered data or JSON responses.
     const normalizeLink = (item) => ({
         id: item.id ?? item.Id,
         categoryId: item.categoryId ?? item.CategoryId,
@@ -85,6 +89,7 @@ function initEditor(config) {
         url: item.url ?? item.Url
     });
 
+    // Mirrors the server-side URL validation rule so invalid values can be rejected immediately.
     const isValidWebUrl = (value) => {
         if (!value) {
             return false;
@@ -98,25 +103,30 @@ function initEditor(config) {
         }
     };
 
+    // Keeps category ordering aligned with the dashboard and editor server queries.
     const sortCategories = (items) => items
         .slice()
         .sort((a, b) => Number(a.isAdminCategory) - Number(b.isAdminCategory) || a.name.localeCompare(b.name));
 
+    // Keeps link ordering aligned with the editor server queries.
     const sortLinks = (items) => items
         .slice()
         .sort((a, b) => Number(a.isAdminCategory) - Number(b.isAdminCategory) || a.categoryName.localeCompare(b.categoryName) || a.label.localeCompare(b.label));
 
+    // Shows a success or error banner for the supplied editor section.
     const setMessage = (element, text, isError = false) => {
         element.textContent = text;
         element.classList.remove('d-none', 'alert-success', 'alert-danger');
         element.classList.add(isError ? 'alert-danger' : 'alert-success');
     };
 
+    // Hides any banner previously shown for the supplied editor section.
     const clearMessage = (element) => {
         element.classList.add('d-none');
         element.textContent = '';
     };
 
+    // Posts form-style data to a Razor Pages handler while including the anti-forgery token.
     const postForm = async (url, data) => {
         const body = new URLSearchParams(data);
         body.set('__RequestVerificationToken', token);
@@ -138,6 +148,7 @@ function initEditor(config) {
         return response.json();
     };
 
+    // Fetches JSON from a page handler without allowing cached responses.
     const getJson = async (url) => {
         const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) {
@@ -151,6 +162,7 @@ function initEditor(config) {
     let iconSuggestionRequestId = 0;
     let currentSuggestedIconName = '';
 
+    // Clears the current icon suggestion UI state.
     const hideIconSuggestion = () => {
         currentSuggestedIconName = '';
         if (!linkElements.suggestionName || !linkElements.suggestionWrap) {
@@ -161,6 +173,7 @@ function initEditor(config) {
         linkElements.suggestionWrap.classList.add('d-none');
     };
 
+    // Displays the current icon suggestion beneath the create-link form.
     const showIconSuggestion = (iconName) => {
         currentSuggestedIconName = iconName;
         if (!linkElements.suggestionName || !linkElements.suggestionWrap) {
@@ -171,6 +184,7 @@ function initEditor(config) {
         linkElements.suggestionWrap.classList.remove('d-none');
     };
 
+    // Requests an icon suggestion for the current create-link label, using the latest response only.
     const requestIconSuggestion = async () => {
         const label = linkElements.createLabel.value.trim();
         const iconValue = linkElements.createIconName.value.trim();
@@ -204,6 +218,7 @@ function initEditor(config) {
         }
     };
 
+    // Rebuilds the category dropdown options used by the create and edit link forms.
     const renderCategoryOptions = () => {
         const orderedCategories = sortCategories(categories.map(normalizeCategory));
         const optionsHtml = orderedCategories
@@ -214,6 +229,7 @@ function initEditor(config) {
         linkElements.editCategoryId.innerHTML = optionsHtml;
     };
 
+    // Re-renders the category table from the current in-memory category list.
     const renderCategories = () => {
         const ordered = sortCategories(categories.map(normalizeCategory));
         categoryElements.tableBody.innerHTML = ordered.map((category) => `
@@ -232,6 +248,7 @@ function initEditor(config) {
         renderCategoryOptions();
     };
 
+    // Re-renders the link table from the current in-memory link list.
     const renderLinks = () => {
         const ordered = sortLinks(links.map(normalizeLink));
         linkElements.tableBody.innerHTML = ordered.map((link) => `
@@ -253,28 +270,33 @@ function initEditor(config) {
             </tr>`).join('');
     };
 
+    // Hides and resets the category edit form.
     const hideCategoryEdit = () => {
         categoryElements.editCard.classList.add('d-none');
         categoryElements.editForm.reset();
         categoryElements.editId.value = '';
     };
 
+    // Hides and resets the link edit form.
     const hideLinkEdit = () => {
         linkElements.editCard.classList.add('d-none');
         linkElements.editForm.reset();
         linkElements.editId.value = '';
     };
 
+    // Reloads categories from the server and refreshes the category UI.
     const loadCategories = async () => {
         categories = await getJson(urls.categories);
         renderCategories();
     };
 
+    // Reloads links from the server and refreshes the link UI.
     const loadLinks = async () => {
         links = await getJson(urls.links);
         renderLinks();
     };
 
+    // Handles category creation.
     categoryElements.createForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessage(categoryElements.message);
@@ -302,6 +324,7 @@ function initEditor(config) {
         }
     });
 
+    // Handles category edit and delete actions from the table.
     categoryElements.tableBody.addEventListener('click', async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
@@ -350,6 +373,7 @@ function initEditor(config) {
         }
     });
 
+    // Handles category updates.
     categoryElements.editForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessage(categoryElements.message);
@@ -384,6 +408,7 @@ function initEditor(config) {
         clearMessage(categoryElements.message);
     });
 
+    // Handles link creation.
     linkElements.createForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessage(linkElements.message);
@@ -423,6 +448,7 @@ function initEditor(config) {
         }
     });
 
+    // Handles link edit and delete actions from the table.
     linkElements.tableBody.addEventListener('click', async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
@@ -475,6 +501,7 @@ function initEditor(config) {
         }
     });
 
+    // Handles link updates.
     linkElements.editForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessage(linkElements.message);
@@ -518,6 +545,7 @@ function initEditor(config) {
         clearMessage(linkElements.message);
     });
 
+    // Debounces server-side icon suggestions while the create-link form is being filled in.
     if (linkElements.createLabel && linkElements.createIconName && linkElements.applySuggestion) {
         linkElements.createLabel.addEventListener('input', () => {
             clearTimeout(iconSuggestionDebounceHandle);
@@ -549,6 +577,7 @@ function initEditor(config) {
         });
     }
 
+    // Render the initial server-provided state immediately so the page is interactive on load.
     renderCategories();
     renderLinks();
 }

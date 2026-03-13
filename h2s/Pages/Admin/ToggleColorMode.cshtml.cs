@@ -5,15 +5,26 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace h2s.Pages.Admin;
 
+/// <summary>
+/// Page model that cycles the dashboard color mode and returns the new mode as JSON.
+/// </summary>
 public class ToggleColorModeModel : PageModel
 {
   private readonly DashboardSettingsService _settingsService;
 
+  /// <summary>
+  /// Initializes a new instance of the <see cref="ToggleColorModeModel"/> class.
+  /// </summary>
+  /// <param name="settingsService">The service used to retrieve and persist dashboard settings.</param>
   public ToggleColorModeModel(DashboardSettingsService settingsService)
   {
     _settingsService = settingsService;
   }
 
+  /// <summary>
+  /// Advances the configured color mode to the next option in the Auto → Light → Dark cycle.
+  /// </summary>
+  /// <returns>A JSON payload containing the updated color mode name.</returns>
   public async Task<IActionResult> OnPostAsync()
   {
     var settings = await _settingsService.GetSettingsAsync();

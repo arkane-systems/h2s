@@ -78,6 +78,7 @@ This app is a single-page intranet dashboard for managing grouped links. It curr
   - Site-wide styling lives in `wwwroot/css/site.css`.
   - Admin editor behavior lives in `wwwroot/js/editor.js`.
 - When changing editor behavior, update both the Razor markup and the corresponding JSON handlers / JavaScript contract.
+- When adding function-level comments in C# code, use the standard .NET XML documentation comment format where appropriate.
 
 ## Dark mode / color mode
 
