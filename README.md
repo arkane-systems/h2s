@@ -4,6 +4,10 @@ h2s is an ASP.NET Core Razor Pages intranet dashboard app.
 
 It stores dashboard data in SQLite using EF Core and is designed to run both locally and in a container.
 
+| Light Mode | Dark Mode |
+| ------- | ------- |
+| ![light](screenshots/h2s_light.png) | ![dark](screenshots/h2s_dark.png) |
+
 ## Run locally
 
 From the repository root:
