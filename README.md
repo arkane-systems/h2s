@@ -68,13 +68,13 @@ spec:
         app: h2s
     spec:
       securityContext:
-        runAsUser: 1004
-        runAsGroup: 1004
+        runAsUser: <your-uid>
+        runAsGroup: <your-gid>
       volumes:
         - name: h2s-config
           nfs:
-            server: raven-inkwell.arkane-systems.lan
-            path: "/swarm/harmony/h2s"
+            server: <your-nfs-server>
+            path: "/path/on/your/nfs/server"
       containers:
         - image: ghcr.io/arkane-systems/h2s:latest
           name: h2s
@@ -109,7 +109,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.tls: 'true'
 spec:
   rules:
-    - host: home.arkane-systems.lan
+    - host: <your-hostname>
       http:
         paths:
           - pathType: Prefix
