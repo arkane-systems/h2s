@@ -124,7 +124,7 @@ spec:
 *Notes:*
 
 - The *Deployment* uses a Recreate strategy since the app doesn't support multiple instances running concurrently against the same database.
-- The *Deployment*'s *securityContext* runs the container as a non-root user (UID 1004) for better security. The non-root user in particular is chosen to match the permissions of the mounted volume, which is owned by that user on my NFS server. If you use a different storage solution, you may need to adjust the UID/GID accordingly, and will definitely need to adjust the volume definition.
+- The *Deployment*'s *securityContext* runs the container as a non-root user for better security. The non-root user in particular is chosen to match the permissions of the mounted volume, which is owned by that user on my NFS server. If you use a different storage solution, you may need to adjust the UID/GID accordingly, and will definitely need to adjust the volume definition.
 - My cluster and network is dual-stacked IPv4/IPv6, hence the *ipFamilyPolicy* setting in the *Service* definition. You will need to remove or change this if yours is not.
 - The *Ingress* is configured for Traefik with TLS enabled, but you can adjust the annotations and TLS settings as needed for your ingress controller and environment. It also (as does h2s itself) assumes that HTTPS will be handled entirely by the ingress controller and the app itself need only concern itself with HTTP.
 
