@@ -146,6 +146,7 @@
 
             renderPattern();
             window.addEventListener('resize', renderPattern);
+            window.addEventListener('app-background-refresh', renderPattern);
 
             // Watch for system theme changes in Auto mode
             const toggleBtn = document.getElementById('color-mode-toggle');

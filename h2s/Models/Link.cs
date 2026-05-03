@@ -1,4 +1,6 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
+using h2s.Validation;
 
 namespace h2s.Models;
 
@@ -38,6 +40,13 @@ public class Link
   /// Gets or sets the destination URL for the link.
   /// </summary>
   public string Url { get; set; } = "";
+
+  /// <summary>
+  /// Gets or sets the optional Uptime Kuma monitor ID for this link.
+  /// Must be a positive integer when specified.
+  /// </summary>
+  [PositiveIntegerString]
+  public string? MonitorId { get; set; }
 
   /// <summary>
   /// Gets or sets the navigation property for the link's category.

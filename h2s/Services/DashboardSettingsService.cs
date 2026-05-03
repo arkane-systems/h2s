@@ -30,8 +30,21 @@ public class DashboardSettingsService
 
     if (settings == null)
     {
-      settings = new DashboardSettings { Id = 1, Title = "Dashboard", Motto = "", LocalDomains = "" };
+      settings = new DashboardSettings
+      {
+        Id = 1,
+        Title = "Dashboard",
+        Motto = "",
+        LocalDomains = "",
+        UptimeKumaDefaultDuration = 24
+      };
       _context.DashboardSettings.Add (settings);
+      await _context.SaveChangesAsync ();
+    }
+
+    if (settings.UptimeKumaDefaultDuration <= 0)
+    {
+      settings.UptimeKumaDefaultDuration = 24;
       await _context.SaveChangesAsync ();
     }
 

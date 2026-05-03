@@ -52,11 +52,13 @@ function initEditor(config) {
         editLabel: document.getElementById('edit-link-label'),
         editDescription: document.getElementById('edit-link-description'),
         editIconName: document.getElementById('edit-link-icon-name'),
+        editMonitorId: document.getElementById('edit-link-monitor-id'),
         editUrl: document.getElementById('edit-link-url'),
         cancelEdit: document.getElementById('cancel-edit-link'),
         createCategoryId: document.getElementById('create-link-category-id'),
         createLabel: document.getElementById('create-link-label'),
         createIconName: document.getElementById('create-link-icon-name'),
+        createMonitorId: document.getElementById('create-link-monitor-id'),
         suggestionWrap: document.getElementById('create-link-icon-suggestion'),
         suggestionName: document.getElementById('create-link-icon-suggestion-name'),
         applySuggestion: document.getElementById('apply-link-icon-suggestion')
@@ -86,6 +88,7 @@ function initEditor(config) {
         label: item.label ?? item.Label,
         description: item.description ?? item.Description ?? '',
         iconName: item.iconName ?? item.IconName ?? '',
+        monitorId: item.monitorId ?? item.MonitorId ?? '',
         url: item.url ?? item.Url
     });
 
@@ -102,6 +105,9 @@ function initEditor(config) {
             return false;
         }
     };
+
+    // Mirrors the server-side monitor ID validation rule for optional Uptime Kuma monitor IDs.
+    const isPositiveInteger = (value) => /^[1-9][0-9]*$/.test((value ?? '').trim());
 
     // Keeps category ordering aligned with the dashboard and editor server queries.
     const sortCategories = (items) => items
@@ -257,6 +263,7 @@ function initEditor(config) {
                 data-link-label="${escapeHtml(link.label)}"
                 data-link-description="${escapeHtml(link.description)}"
                 data-link-icon-name="${escapeHtml(link.iconName)}"
+                data-link-monitor-id="${escapeHtml(link.monitorId)}"
                 data-link-url="${escapeHtml(link.url)}">
                 <td>${escapeHtml(link.categoryName)}</td>
                 <td>${escapeHtml(link.label)}</td>
@@ -416,6 +423,7 @@ function initEditor(config) {
         const formData = new FormData(linkElements.createForm);
         const categoryId = (formData.get('categoryId') ?? '').toString();
         const label = (formData.get('label') ?? '').toString().trim();
+        const monitorId = (formData.get('monitorId') ?? '').toString().trim();
         const url = (formData.get('url') ?? '').toString().trim();
 
         if (!categoryId || !label || !url) {
@@ -428,12 +436,18 @@ function initEditor(config) {
             return;
         }
 
+        if (monitorId && !isPositiveInteger(monitorId)) {
+            setMessage(linkElements.message, 'Monitor ID must be a positive integer.', true);
+            return;
+        }
+
         try {
             await postForm(urls.createLink, {
                 categoryId,
                 label,
                 description: (formData.get('description') ?? '').toString(),
                 iconName: (formData.get('iconName') ?? '').toString(),
+                monitorId,
                 url
             });
 
@@ -470,6 +484,7 @@ function initEditor(config) {
         const label = row.getAttribute('data-link-label') ?? '';
         const description = row.getAttribute('data-link-description') ?? '';
         const iconName = row.getAttribute('data-link-icon-name') ?? '';
+        const monitorId = row.getAttribute('data-link-monitor-id') ?? '';
         const url = row.getAttribute('data-link-url') ?? '';
 
         if (action === 'edit') {
@@ -478,6 +493,9 @@ function initEditor(config) {
             linkElements.editLabel.value = label;
             linkElements.editDescription.value = description;
             linkElements.editIconName.value = iconName;
+            if (linkElements.editMonitorId) {
+                linkElements.editMonitorId.value = monitorId;
+            }
             linkElements.editUrl.value = url;
             linkElements.editCard.classList.remove('d-none');
             linkElements.editLabel.focus();
@@ -509,6 +527,7 @@ function initEditor(config) {
         const id = linkElements.editId.value;
         const categoryId = linkElements.editCategoryId.value;
         const label = linkElements.editLabel.value.trim();
+        const monitorId = (linkElements.editMonitorId?.value ?? '').trim();
         const url = linkElements.editUrl.value.trim();
 
         if (!id || !categoryId || !label || !url) {
@@ -521,6 +540,11 @@ function initEditor(config) {
             return;
         }
 
+        if (monitorId && !isPositiveInteger(monitorId)) {
+            setMessage(linkElements.message, 'Monitor ID must be a positive integer.', true);
+            return;
+        }
+
         try {
             await postForm(urls.updateLink, {
                 id,
@@ -528,6 +552,7 @@ function initEditor(config) {
                 label,
                 description: linkElements.editDescription.value,
                 iconName: linkElements.editIconName.value,
+                monitorId,
                 url
             });
 

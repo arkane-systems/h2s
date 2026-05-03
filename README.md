@@ -146,6 +146,27 @@ Open **Settings** from the navbar to configure global dashboard options:
 - **Local domains**: Comma- or CRLF- separated domains treated as local/intranet hosts (used to determine which links will be badged as external).
 - **Color mode**: Default theme behavior (Auto, Light, Dark).
 
+#### Uptime Kuma integration
+
+You can optionally enable service-health badges powered by Uptime Kuma:
+
+- **Uptime Kuma server URL**: Base URL for your Kuma instance (for example `https://status.example.com`).
+- **Status page slug**: Slug for the public status page to open when clicking the top status bar.
+- **Default uptime duration (hours)**: Duration used for uptime badges in the top status bar.
+
+When **Uptime Kuma server URL** is blank, Kuma features are hidden/disabled.
+
+##### Infrastructure groups (top status bar)
+
+In **Settings**, add one or more infrastructure groups:
+
+- **Display name**: Friendly label shown in the status bar.
+- **Monitor ID**: Positive integer monitor ID from Uptime Kuma.
+
+Each group renders as a status + uptime badge pair in the top status bar.
+
+> Important: For badges to work in h2s, the monitor must be included on an Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
+
 Save changes to apply them across the app.
 
 ### Editor page
@@ -156,12 +177,12 @@ Open **Editor** from the navbar to manage dashboard content:
 - Mark categories as admin categories (shown beneath regular categories and tinted red).
 - Add, edit, and delete links in each category.
 - Set link label, description, URL, and optional icon name. Icons aren't stored locally; they're brought in from the [selfh.st/icons](https://selfh.st/icons/) content delivery network.
+- When Uptime Kuma is enabled in Settings, links also support an optional **Monitor ID** (positive integer) for a compact per-link status badge.
 
 Changes in the editor are saved to the database and are reflected on the dashboard immediately.
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).
-- Service status indicators for links (and the entire intranet), showing whether the target service is currently reachable or experiencing issues, via Uptime Kuma.
 - Add-on modules for individual links, displaying target-related dynamic content.
 - Local icons for special cases.
 - Grab message/quote from web function.

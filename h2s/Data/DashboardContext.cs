@@ -25,6 +25,11 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
   public DbSet<DashboardSettings> DashboardSettings => this.Set<DashboardSettings> ();
 
   /// <summary>
+  /// Gets the set of infrastructure groups for Uptime Kuma monitoring badges.
+  /// </summary>
+  public DbSet<InfrastructureGroup> InfrastructureGroups => this.Set<InfrastructureGroup> ();
+
+  /// <summary>
   /// Configures entity mappings and constraints for the dashboard schema.
   /// </summary>
   /// <param name="modelBuilder">The model builder used to configure EF Core entities.</param>
