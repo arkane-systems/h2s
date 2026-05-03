@@ -164,6 +164,7 @@ Changes in the editor are saved to the database and are reflected on the dashboa
 - Service status indicators for links (and the entire intranet), showing whether the target service is currently reachable or experiencing issues, via Uptime Kuma.
 - Add-on modules for individual links, displaying target-related dynamic content.
 - Local icons for special cases.
+- Grab message/quote from web function.
 
 ## Contributing
 
