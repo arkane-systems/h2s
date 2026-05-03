@@ -58,14 +58,18 @@ function initInfrastructureGroups(config) {
             return;
         }
 
+        const wasHidden = infrastructureGroupsSection.classList.contains('d-none');
         const hasServerUrl = uptimeKumaServerUrl.value.trim().length > 0;
-        infrastructureGroupsSection.classList.toggle('d-none', !hasServerUrl);
+        const shouldBeHidden = !hasServerUrl;
+        infrastructureGroupsSection.classList.toggle('d-none', shouldBeHidden);
         if (!hasServerUrl) {
             hideEdit();
             clearMessage();
         }
 
-        refreshAppBackground();
+        if (wasHidden !== shouldBeHidden) {
+            refreshAppBackground();
+        }
     };
 
     const isPositiveInteger = (value) => /^[1-9][0-9]*$/.test(value ?? '');
