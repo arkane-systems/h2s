@@ -10,10 +10,11 @@ This app is a single-page intranet dashboard for managing grouped links. It curr
 - Memory caching is enabled and currently used by the admin editor for icon existence checks.
 - Core domain model:
   - `Category` (`Id`, `Name`, `IsAdminCategory`) in `h2s/Models/Category.cs`
-  - `Link` (`Id`, `CategoryId`, `Label`, `Description`, `IconName`, `Url`) in `h2s/Models/Link.cs`
-  - `DashboardSettings` (`Id`, `Title`, `Motto`, `LocalDomains`, `ColorMode`) in `h2s/Models/DashboardSettings.cs` — singleton row, always `Id = 1`
+  - `Link` (`Id`, `CategoryId`, `Label`, `Description`, `IconName`, `Url`, `MonitorId`) in `h2s/Models/Link.cs`
+  - `InfrastructureGroup` (`Id`, `Name`, `MonitorId`, `SortOrder`) in `h2s/Models/InfrastructureGroup.cs`
+  - `DashboardSettings` (`Id`, `Title`, `Motto`, `LocalDomains`, `ColorMode`, `UptimeKumaServerUrl`, `UptimeKumaStatusPageSlug`, `UptimeKumaDefaultDuration`) in `h2s/Models/DashboardSettings.cs` — singleton row, always `Id = 1`
   - `ColorMode` enum (`Auto`, `Light`, `Dark`) in `h2s/Models/ColorMode.cs`
-- `DashboardContext` exposes `Categories`, `Links`, and `DashboardSettings`. It enforces the singleton settings row with a check constraint (`Id = 1`).
+- `DashboardContext` exposes `Categories`, `Links`, `InfrastructureGroups`, and `DashboardSettings`. It enforces the singleton settings row with a check constraint (`Id = 1`).
 - Data flow:
   1. Request hits Razor PageModel (`Pages/**/*.cshtml.cs`)
   2. Settings access goes through `DashboardSettingsService` (`h2s/Services/DashboardSettingsService.cs`)
@@ -26,25 +27,30 @@ This app is a single-page intranet dashboard for managing grouped links. It curr
   - Categories are ordered by `IsAdminCategory`, then `Name`.
   - Links are rendered sorted by `Label` in the page.
   - External-link badges are driven by `DashboardSettings.LocalDomains`.
+  - When `DashboardSettings.UptimeKumaServerUrl` is configured and infrastructure groups exist, the page renders a top Uptime Kuma status bar.
+  - The status bar links to Kuma status page only when `UptimeKumaStatusPageSlug` is set; otherwise it is static/non-clickable.
+  - Per-link status badges render for links with `Link.MonitorId` when Kuma is configured.
 - Shared layout is `Pages/Shared/_Layout.cshtml`.
   - It injects `DashboardSettingsService` directly to render title, motto, and theme state.
   - It contains the navbar links to the editor and settings pages.
   - It owns the inline theme bootstrap script and the Trianglify background rendering script.
 - Admin section lives under `Pages/Admin/` and currently contains:
-  - `Settings.cshtml(.cs)` — edits `Title`, `Motto`, `LocalDomains`, and `ColorMode`
-  - `Editor.cshtml(.cs)` — manages categories and links with JSON page handlers plus client-side JS
+  - `Settings.cshtml(.cs)` — edits `Title`, `Motto`, `LocalDomains`, `ColorMode`, and Uptime Kuma settings (`UptimeKumaServerUrl`, `UptimeKumaStatusPageSlug`, `UptimeKumaDefaultDuration`), plus infrastructure group management via JSON handlers
+  - `Editor.cshtml(.cs)` — manages categories and links with JSON page handlers plus client-side JS; supports optional per-link `MonitorId` when Kuma is configured
   - `ToggleColorMode.cshtml.cs` — POST endpoint that cycles `ColorMode` and returns JSON
 - `Editor.cshtml` is not scaffold-style CRUD.
   - The page initially renders server-side data.
   - `wwwroot/js/editor.js` drives add/edit/delete operations with `fetch`.
   - The PageModel exposes JSON handlers like `OnGetCategoriesAsync`, `OnPostCreateCategoryAsync`, `OnPostUpdateLinkAsync`, etc.
 - `DashboardSettingsService` encapsulates retrieval and update of the singleton settings record.
-  - If the row does not exist, it creates `Id = 1` with defaults: `Title = "Dashboard"`, `Motto = ""`, `LocalDomains = ""`, `ColorMode = Auto`.
+  - If the row does not exist, it creates `Id = 1` with defaults: `Title = "Dashboard"`, `Motto = ""`, `LocalDomains = ""`, `ColorMode = Auto`, `UptimeKumaDefaultDuration = 24`.
+  - It normalizes invalid persisted `UptimeKumaDefaultDuration` values (<= 0) back to `24`.
 - `Link` contains shared helper logic for icon handling.
   - `NormalizeIconName()` slugifies icon names.
   - `BuildIconUrl()` / `GetIconUrl()` build URLs against the selfh.st icons CDN.
 - The admin editor probes icon availability remotely and caches results using `IMemoryCache`; keep that behavior if extending icon suggestion.
 - Pipeline in `Program.cs` uses `.MapStaticAssets()` and `.MapRazorPages().WithStaticAssets()`; preserve this when editing startup.
+- `Program.cs` registers `AddHttpClient()` for settings URL reachability checks; preserve this dependency if editing DI setup.
 
 ## Configuration and environment behavior
 - Connection string key is `ConnectionStrings:h2s`.
@@ -77,6 +83,7 @@ This app is a single-page intranet dashboard for managing grouped links. It curr
 - Reuse existing frontend assets instead of introducing new frameworks.
   - Site-wide styling lives in `wwwroot/css/site.css`.
   - Admin editor behavior lives in `wwwroot/js/editor.js`.
+  - Infrastructure group management behavior lives in `wwwroot/js/infrastructure-groups.js`.
 - When changing editor behavior, update both the Razor markup and the corresponding JSON handlers / JavaScript contract.
 - When adding function-level comments in C# code, use the standard .NET XML documentation comment format where appropriate.
 
@@ -107,5 +114,6 @@ Bootstrap 5.3's `data-bs-theme` attribute is set on `<html>` by an inline script
   - a selfh.st icon when `IconName` is set,
   - a fallback dot when no icon is configured,
   - an `External` badge when the URL host does not match `LocalDomains`.
+  - an Uptime Kuma status badge when `Link.MonitorId` is set and Kuma is configured.
 - The home page includes a Bing search box at the top; keep additions visually compatible with the existing card/grid layout.
 

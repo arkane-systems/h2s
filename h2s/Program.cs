@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Register Razor Pages and application services used by the dashboard and admin UI.
 builder.Services.AddRazorPages ();
 builder.Services.AddMemoryCache ();
+builder.Services.AddHttpClient ();
 builder.Services.AddDbContext<DashboardContext> (options =>
     options.UseSqlite (builder.Configuration.GetConnectionString ("h2s")));
 builder.Services.AddScoped<DashboardSettingsService> ();

@@ -131,6 +131,13 @@
                     </div>
                     <div class="form-text"><a href="https://selfh.st/icons/">selfh.st</a> reference, e.g. <code>home-assistant</code>.</div>
                 </div>
+                @if (Model.IsUptimeKumaConfigured)
+                {
+                    <div class="col-md-6">
+                        <label for="create-link-monitor-id" class="form-label">Uptime Kuma monitor ID</label>
+                        <input id="create-link-monitor-id" name="monitorId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]*" />
+                    </div>
+                }
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Add Link</button>
                 </div>
@@ -168,6 +175,13 @@
                     <label for="edit-link-icon-name" class="form-label">Icon name</label>
                     <input id="edit-link-icon-name" name="iconName" class="form-control" />
                 </div>
+                @if (Model.IsUptimeKumaConfigured)
+                {
+                    <div class="col-md-6">
+                        <label for="edit-link-monitor-id" class="form-label">Uptime Kuma monitor ID</label>
+                        <input id="edit-link-monitor-id" name="monitorId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]*" />
+                    </div>
+                }
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Save</button>
                     <button id="cancel-edit-link" type="button" class="btn btn-secondary">Cancel</button>
@@ -196,6 +210,7 @@
                         data-link-label="@link.Label"
                         data-link-description="@link.Description"
                         data-link-icon-name="@link.IconName"
+                        data-link-monitor-id="@link.MonitorId"
                         data-link-url="@link.Url">
                         <td>@(link.Category?.Name ?? "")</td>
                         <td>@link.Label</td>
@@ -233,7 +248,8 @@
             suggestIcon: '@Url.Page("/Admin/Editor", "SuggestIcon")'
         },
         initialCategories: @Html.Raw(JsonSerializer.Serialize(Model.Categories.Select(c => new { c.Id, c.Name, c.IsAdminCategory, LinkCount = c.Links.Count }))),
-        initialLinks: @Html.Raw(JsonSerializer.Serialize(Model.Links.Select(l => new { l.Id, l.CategoryId, CategoryName = l.Category != null ? l.Category.Name : "", IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false, l.Label, l.Description, l.IconName, l.Url })))
+        initialLinks: @Html.Raw(JsonSerializer.Serialize(Model.Links.Select(l => new { l.Id, l.CategoryId, CategoryName = l.Category != null ? l.Category.Name : "", IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false, l.Label, l.Description, l.IconName, l.MonitorId, l.Url }))),
+        isUptimeKumaConfigured: @Model.IsUptimeKumaConfigured.ToString().ToLowerInvariant()
     });
 </script>
 }

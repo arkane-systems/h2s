@@ -1,6 +1,7 @@
 using System.Net;
 using h2s.Data;
 using h2s.Models;
+using h2s.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -20,16 +21,19 @@ public class EditorModel : PageModel
 
   private readonly DashboardContext _context;
   private readonly IMemoryCache _cache;
+  private readonly DashboardSettingsService _settingsService;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="EditorModel"/> class.
   /// </summary>
   /// <param name="context">The database context used to manage categories and links.</param>
   /// <param name="cache">The cache used to avoid repeated icon availability probes.</param>
-  public EditorModel (DashboardContext context, IMemoryCache cache)
+  /// <param name="settingsService">The service used to load dashboard settings.</param>
+  public EditorModel (DashboardContext context, IMemoryCache cache, DashboardSettingsService settingsService)
   {
     _context = context;
     _cache = cache;
+    _settingsService = settingsService;
   }
 
   /// <summary>
@@ -43,6 +47,11 @@ public class EditorModel : PageModel
   public List<Link> Links { get; private set; } = new ();
 
   /// <summary>
+  /// Gets a value indicating whether Uptime Kuma integration is configured.
+  /// </summary>
+  public bool IsUptimeKumaConfigured { get; private set; }
+
+  /// <summary>
   /// Loads the initial category and link data required by the editor page.
   /// </summary>
   public async Task OnGetAsync ()
@@ -54,6 +63,9 @@ public class EditorModel : PageModel
     Links = await GetOrderedLinksQuery ()
       .AsNoTracking ()
       .ToListAsync ();
+
+    var settings = await _settingsService.GetSettingsAsync ();
+    IsUptimeKumaConfigured = !string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl);
   }
 
   /// <summary>
@@ -93,6 +105,7 @@ public class EditorModel : PageModel
         l.Label,
         l.Description,
         l.IconName,
+        l.MonitorId,
         l.Url
       })
       .ToListAsync ();
@@ -199,9 +212,10 @@ public class EditorModel : PageModel
   /// <param name="label">The display label for the link.</param>
   /// <param name="description">Optional descriptive text for the link.</param>
   /// <param name="iconName">Optional icon name to normalize and store.</param>
+  /// <param name="monitorId">Optional Uptime Kuma monitor ID as a positive integer string.</param>
   /// <param name="url">The destination URL for the link.</param>
   /// <returns>A JSON payload describing the created link, or an error response when validation fails.</returns>
-  public async Task<IActionResult> OnPostCreateLinkAsync (int categoryId, string? label, string? description, string? iconName, string? url)
+  public async Task<IActionResult> OnPostCreateLinkAsync (int categoryId, string? label, string? description, string? iconName, string? monitorId, string? url)
   {
     var normalizedLabel = (label ?? string.Empty).Trim ();
     var normalizedUrl = (url ?? string.Empty).Trim ();
@@ -226,12 +240,19 @@ public class EditorModel : PageModel
       return BadRequest ("Selected category does not exist.");
     }
 
+    var normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !IsPositiveIntegerString (normalizedMonitorId))
+    {
+      return BadRequest ("Monitor ID must be a positive integer.");
+    }
+
     var link = new Link
     {
       CategoryId = categoryId,
       Label = normalizedLabel,
       Description = (description ?? string.Empty).Trim (),
       IconName = Link.NormalizeIconName (iconName ?? string.Empty),
+      MonitorId = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId,
       Url = normalizedUrl
     };
 
@@ -251,6 +272,7 @@ public class EditorModel : PageModel
       link.Label,
       link.Description,
       link.IconName,
+      link.MonitorId,
       link.Url
     });
   }
@@ -263,9 +285,10 @@ public class EditorModel : PageModel
   /// <param name="label">The updated display label.</param>
   /// <param name="description">The updated descriptive text.</param>
   /// <param name="iconName">The updated icon name.</param>
+  /// <param name="monitorId">The updated Uptime Kuma monitor ID.</param>
   /// <param name="url">The updated destination URL.</param>
   /// <returns>A JSON payload describing the updated link, or an error response when validation fails.</returns>
-  public async Task<IActionResult> OnPostUpdateLinkAsync (int id, int categoryId, string? label, string? description, string? iconName, string? url)
+  public async Task<IActionResult> OnPostUpdateLinkAsync (int id, int categoryId, string? label, string? description, string? iconName, string? monitorId, string? url)
   {
     var normalizedLabel = (label ?? string.Empty).Trim ();
     var normalizedUrl = (url ?? string.Empty).Trim ();
@@ -298,10 +321,17 @@ public class EditorModel : PageModel
       return BadRequest ("Selected category does not exist.");
     }
 
+    var normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !IsPositiveIntegerString (normalizedMonitorId))
+    {
+      return BadRequest ("Monitor ID must be a positive integer.");
+    }
+
     link.CategoryId = categoryId;
     link.Label = normalizedLabel;
     link.Description = (description ?? string.Empty).Trim ();
     link.IconName = Link.NormalizeIconName (iconName ?? string.Empty);
+    link.MonitorId = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId;
     link.Url = normalizedUrl;
 
     await _context.SaveChangesAsync ();
@@ -319,6 +349,7 @@ public class EditorModel : PageModel
       link.Label,
       link.Description,
       link.IconName,
+      link.MonitorId,
       link.Url
     });
   }
@@ -404,6 +435,16 @@ public class EditorModel : PageModel
     }
 
     return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+  }
+
+  /// <summary>
+  /// Determines whether a string is a valid positive integer.
+  /// </summary>
+  /// <param name="value">The value to validate.</param>
+  /// <returns><c>true</c> when the value is a positive integer string; otherwise, <c>false</c>.</returns>
+  private static bool IsPositiveIntegerString (string value)
+  {
+    return int.TryParse (value, out var parsedValue) && parsedValue > 0;
   }
 
   /// <summary>

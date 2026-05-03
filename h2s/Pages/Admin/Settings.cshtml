@@ -34,9 +34,134 @@
                 asp-items="Html.GetEnumSelectList<h2s.Models.ColorMode>()"></select>
     </div>
 
+    <hr class="my-4" />
+
+    <h2 class="h4">Uptime Kuma Integration</h2>
+
+    @if (!string.IsNullOrWhiteSpace(Model.UptimeKumaWarning))
+    {
+        <div class="alert alert-warning" role="alert">@Model.UptimeKumaWarning</div>
+    }
+
+    <div class="mb-3">
+        <label asp-for="Settings.UptimeKumaServerUrl" class="form-label"></label>
+        <input asp-for="Settings.UptimeKumaServerUrl" type="url" class="form-control" placeholder="https://status.example.com" />
+        <div class="form-text">Leave blank to disable Uptime Kuma status badges.</div>
+        <span asp-validation-for="Settings.UptimeKumaServerUrl" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Settings.UptimeKumaStatusPageSlug" class="form-label"></label>
+        <input asp-for="Settings.UptimeKumaStatusPageSlug" class="form-control" placeholder="main" />
+        <span asp-validation-for="Settings.UptimeKumaStatusPageSlug" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Settings.UptimeKumaDefaultDuration" class="form-label"></label>
+        <input asp-for="Settings.UptimeKumaDefaultDuration" type="number" min="1" class="form-control" />
+        <span asp-validation-for="Settings.UptimeKumaDefaultDuration" class="text-danger"></span>
+    </div>
+
     <button type="submit" class="btn btn-primary">Save</button>
+</form>
+
+<hr class="my-4" />
+
+<section id="infrastructure-groups-section" class="@(string.IsNullOrWhiteSpace(Model.Settings.UptimeKumaServerUrl) ? "d-none" : string.Empty)">
+    <h3 class="h5">Infrastructure Groups</h3>
+    <p class="text-muted">Configure monitor label and monitor ID pairs for the status bar badges.</p>
+
+    <div id="infrastructure-group-message" class="alert d-none" role="alert"></div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h3 class="h5">Add Group</h3>
+            <form id="create-infrastructure-group-form" class="row g-3">
+                <div class="col-md-5">
+                    <label for="create-infrastructure-group-name" class="form-label">Display name</label>
+                    <input id="create-infrastructure-group-name" name="name" class="form-control" required />
+                </div>
+                <div class="col-md-4">
+                    <label for="create-infrastructure-group-monitor-id" class="form-label">Monitor ID</label>
+                    <input id="create-infrastructure-group-monitor-id" name="monitorId" class="form-control" inputmode="numeric" required aria-describedby="create-infrastructure-group-monitor-id-help" />
+                    <div id="create-infrastructure-group-monitor-id-help" class="form-text">Enter a positive integer (for example: 1, 2, 42).</div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Add Group</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="edit-infrastructure-group-card" class="card mb-3 d-none">
+        <div class="card-body">
+            <h3 class="h5">Edit Group</h3>
+            <form id="edit-infrastructure-group-form" class="row g-3">
+                <input id="edit-infrastructure-group-id" name="id" type="hidden" />
+                <div class="col-md-5">
+                    <label for="edit-infrastructure-group-name" class="form-label">Display name</label>
+                    <input id="edit-infrastructure-group-name" name="name" class="form-control" required />
+                </div>
+                <div class="col-md-4">
+                    <label for="edit-infrastructure-group-monitor-id" class="form-label">Monitor ID</label>
+                    <input id="edit-infrastructure-group-monitor-id" name="monitorId" class="form-control" inputmode="numeric" required aria-describedby="edit-infrastructure-group-monitor-id-help" />
+                    <div id="edit-infrastructure-group-monitor-id-help" class="form-text">Enter a positive integer (for example: 1, 2, 42).</div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button id="cancel-edit-infrastructure-group" type="button" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Monitor ID</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="infrastructure-group-table-body">
+                @foreach (var group in Model.InfrastructureGroups)
+                {
+                    <tr data-group-id="@group.Id"
+                        data-group-name="@group.Name"
+                        data-group-monitor-id="@group.MonitorId">
+                        <td>@group.Name</td>
+                        <td>@group.MonitorId</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-up" aria-label="Move up">↑</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-down" aria-label="Move down">↓</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<form id="settings-antiforgery" method="post" class="d-none">
+    @Html.AntiForgeryToken()
 </form>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script src="~/js/infrastructure-groups.js" asp-append-version="true"></script>
+    <script>
+        initInfrastructureGroups({
+            urls: {
+                groups: '@Url.Page("/Admin/Settings", "InfrastructureGroups")',
+                createGroup: '@Url.Page("/Admin/Settings", "CreateInfrastructureGroup")',
+                updateGroup: '@Url.Page("/Admin/Settings", "UpdateInfrastructureGroup")',
+                deleteGroup: '@Url.Page("/Admin/Settings", "DeleteInfrastructureGroup")',
+                reorderGroups: '@Url.Page("/Admin/Settings", "ReorderInfrastructureGroups")'
+            },
+            initialGroups: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.InfrastructureGroups.Select(g => new { g.Id, g.Name, g.MonitorId, g.SortOrder })))
+        });
+    </script>
 }

@@ -6,6 +6,51 @@
     var hasRenderedRegularCategory = false;
 }
 
+@if (Model.IsUptimeKumaConfigured && Model.InfrastructureGroups.Any())
+{
+    var statusPageUrl = Model.BuildStatusPageUrl();
+    var hasStatusPageUrl = !string.IsNullOrWhiteSpace(statusPageUrl);
+
+    if (hasStatusPageUrl)
+    {
+        <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@statusPageUrl" target="_blank" rel="noopener noreferrer">
+            <div class="category-box-body">
+                <div class="uptime-badge-list">
+                    @foreach (var group in Model.InfrastructureGroups)
+                    {
+                        <div class="uptime-badge-group">
+                            <div class="uptime-badge-label">@group.Name</div>
+                            <div class="uptime-badge-pair">
+                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "status")" alt="@($"{group.Name} status")" loading="lazy" />
+                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "uptime", Model.UptimeKumaDefaultDuration)" alt="@($"{group.Name} uptime")" loading="lazy" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </a>
+    }
+    else
+    {
+        <section class="uptime-status-bar uptime-status-bar-static category-box border">
+            <div class="category-box-body">
+                <div class="uptime-badge-list">
+                    @foreach (var group in Model.InfrastructureGroups)
+                    {
+                        <div class="uptime-badge-group">
+                            <div class="uptime-badge-label">@group.Name</div>
+                            <div class="uptime-badge-pair">
+                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "status")" alt="@($"{group.Name} status")" loading="lazy" />
+                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "uptime", Model.UptimeKumaDefaultDuration)" alt="@($"{group.Name} uptime")" loading="lazy" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+}
+
 <section class="home-search-box category-box border">
     <div class="category-box-body">
         <form class="home-search-form" action="https://www.bing.com/search" method="get" role="search">
@@ -39,10 +84,14 @@
                 {
                     var isExternal = Model.IsExternalLink(link.Url);
 
-                    <a class="link-block text-decoration-none text-body" href="@link.Url">
+                    <a class="link-block text-decoration-none text-body @(Model.IsUptimeKumaConfigured && !string.IsNullOrWhiteSpace(link.MonitorId) ? "has-link-status-badge" : "")" href="@link.Url">
                         @if (isExternal)
                         {
                             <span class="link-external-flag" title="External site" aria-label="External site">External</span>
+                        }
+                        @if (Model.IsUptimeKumaConfigured && !string.IsNullOrWhiteSpace(link.MonitorId))
+                        {
+                            <img class="link-status-badge" src="@Model.BuildBadgeUrl(link.MonitorId, "status", label: "")" alt="@($"{link.Label} status")" loading="lazy" />
                         }
                         <div class="link-block-icon-wrap">
                             @if (!string.IsNullOrWhiteSpace(link.IconName))
