@@ -44,6 +44,7 @@ public class DashboardSettings
   /// Gets or sets the slug for the Uptime Kuma status page to link from the status bar.
   /// </summary>
   [Display (Name = "Status page slug")]
+  [RegularExpression ("^[A-Za-z0-9-]+$", ErrorMessage = "Status page slug may only contain letters, numbers, and hyphens.")]
   public string? UptimeKumaStatusPageSlug { get; set; }
 
   /// <summary>
