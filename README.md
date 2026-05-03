@@ -165,7 +165,7 @@ In **Settings**, add one or more infrastructure groups:
 
 Each group renders as a status + uptime badge pair in the top status bar.
 
-> Important: For badges to work in h2s, the monitor must be included on an Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
+> Important: For badges to work in h2s, the monitor must be included on a Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
 
 Save changes to apply them across the app.
 
