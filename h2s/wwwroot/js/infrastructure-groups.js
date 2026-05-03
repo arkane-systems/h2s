@@ -117,8 +117,8 @@ function initInfrastructureGroups(config) {
                 <td>${escapeHtml(group.name)}</td>
                 <td>${escapeHtml(group.monitorId)}</td>
                 <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-up">↑</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-down">↓</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-up" aria-label="Move ${escapeHtml(group.name)} up" title="Move ${escapeHtml(group.name)} up">↑</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-down" aria-label="Move ${escapeHtml(group.name)} down" title="Move ${escapeHtml(group.name)} down">↓</button>
                     <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">Edit</button>
                     <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Delete</button>
                 </td>
