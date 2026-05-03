@@ -268,7 +268,7 @@ public class SettingsModel : PageModel
   }
 
   /// <summary>
-  /// Checks whether a URL is reachable using an HTTP HEAD request.
+  /// Checks whether a URL is reachable using an HTTP HEAD request, falling back to GET if HEAD is not supported.
   /// </summary>
   /// <param name="url">The URL to check.</param>
   /// <returns><c>true</c> when the URL responds with a success status code; otherwise, <c>false</c>.</returns>
@@ -281,9 +281,23 @@ public class SettingsModel : PageModel
 
     try
     {
-      using var request = new HttpRequestMessage (HttpMethod.Head, url);
-      using var response = await client.SendAsync (request, HttpCompletionOption.ResponseHeadersRead);
-      return response.IsSuccessStatusCode;
+      using var headRequest = new HttpRequestMessage (HttpMethod.Head, url);
+      using var headResponse = await client.SendAsync (headRequest, HttpCompletionOption.ResponseHeadersRead);
+
+      if (headResponse.IsSuccessStatusCode)
+      {
+        return true;
+      }
+
+      // Fall back to GET when HEAD is not allowed
+      if (headResponse.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed)
+      {
+        using var getRequest = new HttpRequestMessage (HttpMethod.Get, url);
+        using var getResponse = await client.SendAsync (getRequest, HttpCompletionOption.ResponseHeadersRead);
+        return getResponse.IsSuccessStatusCode;
+      }
+
+      return false;
     }
     catch
     {

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using h2s.Validation;
 
 namespace h2s.Models;
 
@@ -37,7 +38,7 @@ public class DashboardSettings
   /// If configured, enables the infrastructure status bar and per-link monitoring badges.
   /// </summary>
   [Display (Name = "Uptime Kuma server URL")]
-  [Url (ErrorMessage = "Uptime Kuma server URL must be a valid URL.")]
+  [HttpBaseUrl (ErrorMessage = "Uptime Kuma server URL must be a valid HTTP or HTTPS base URL with no path, query, or fragment.")]
   public string? UptimeKumaServerUrl { get; set; }
 
   /// <summary>
