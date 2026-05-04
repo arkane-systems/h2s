@@ -73,11 +73,13 @@ public class SettingsModel : PageModel
 
     if (!string.IsNullOrWhiteSpace (Settings.UptimeKumaServerUrl))
     {
-      var isReachable = await IsUrlReachableAsync (Settings.UptimeKumaServerUrl);
-      if (!isReachable)
+      var reachability = await CheckUrlReachabilityAsync (Settings.UptimeKumaServerUrl);
+      UptimeKumaWarning = reachability switch
       {
-        UptimeKumaWarning = $"The Uptime Kuma server at {Settings.UptimeKumaServerUrl} could not be reached. Please verify the URL is correct and the server is accessible.";
-      }
+        UrlReachability.Unreachable => $"The Uptime Kuma server at {Settings.UptimeKumaServerUrl} could not be reached. Please verify the URL is correct and the server is accessible.",
+        UrlReachability.UntrustedCertificate => $"The Uptime Kuma server at {Settings.UptimeKumaServerUrl} is reachable, but it is using a certificate signed by an internal or private CA that this container does not trust. Uptime Kuma badges and the status bar will not work until and unless the internal root certificate is installed on the clients.",
+        _ => null
+      };
     }
 
     await _settingsService.SaveSettingsAsync (Settings);
@@ -269,10 +271,11 @@ public class SettingsModel : PageModel
 
   /// <summary>
   /// Checks whether a URL is reachable using an HTTP HEAD request, falling back to GET if HEAD is not supported.
+  /// Distinguishes between a genuine network failure and a certificate chain error caused by an untrusted internal CA.
   /// </summary>
   /// <param name="url">The URL to check.</param>
-  /// <returns><c>true</c> when the URL responds with a success status code; otherwise, <c>false</c>.</returns>
-  private async Task<bool> IsUrlReachableAsync (string url)
+  /// <returns>A <see cref="UrlReachability"/> value describing the outcome.</returns>
+  private async Task<UrlReachability> CheckUrlReachabilityAsync (string url)
   {
     ArgumentNullException.ThrowIfNull (url);
 
@@ -286,7 +289,7 @@ public class SettingsModel : PageModel
 
       if (headResponse.IsSuccessStatusCode)
       {
-        return true;
+        return UrlReachability.Reachable;
       }
 
       // Fall back to GET when HEAD is not allowed
@@ -294,14 +297,63 @@ public class SettingsModel : PageModel
       {
         using var getRequest = new HttpRequestMessage (HttpMethod.Get, url);
         using var getResponse = await client.SendAsync (getRequest, HttpCompletionOption.ResponseHeadersRead);
-        return getResponse.IsSuccessStatusCode;
+        return getResponse.IsSuccessStatusCode ? UrlReachability.Reachable : UrlReachability.Unreachable;
       }
 
-      return false;
+      return UrlReachability.Unreachable;
+    }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Security.Authentication.AuthenticationException)
+    {
+      // SSL/TLS handshake failed; probe again without certificate validation to distinguish
+      // an untrusted internal CA from a genuine network failure.
+      return await ProbeWithoutCertificateValidationAsync (url);
     }
     catch
     {
-      return false;
+      return UrlReachability.Unreachable;
     }
+  }
+
+  /// <summary>
+  /// Repeats the reachability probe using a handler that accepts any certificate, used to confirm the server
+  /// is actually up when the normal probe fails due to an untrusted certificate chain.
+  /// </summary>
+  /// <param name="url">The URL to check.</param>
+  /// <returns>
+  /// <see cref="UrlReachability.UntrustedCertificate"/> when the server responds successfully despite the
+  /// certificate error; <see cref="UrlReachability.Unreachable"/> otherwise.
+  /// </returns>
+  private static async Task<UrlReachability> ProbeWithoutCertificateValidationAsync (string url)
+  {
+    try
+    {
+      using var handler = new HttpClientHandler
+      {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+      };
+      using var client = new HttpClient (handler) { Timeout = TimeSpan.FromSeconds (5) };
+
+      using var request = new HttpRequestMessage (HttpMethod.Head, url);
+      using var response = await client.SendAsync (request, HttpCompletionOption.ResponseHeadersRead);
+
+      return response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed
+        ? UrlReachability.UntrustedCertificate
+        : UrlReachability.Unreachable;
+    }
+    catch
+    {
+      return UrlReachability.Unreachable;
+    }
+  }
+
+  /// <summary>Describes the outcome of a URL reachability probe.</summary>
+  private enum UrlReachability
+  {
+    /// <summary>The server responded with a success status code.</summary>
+    Reachable,
+    /// <summary>The server could not be contacted or returned an error.</summary>
+    Unreachable,
+    /// <summary>The server was reachable but its certificate chain could not be verified due to an untrusted internal CA.</summary>
+    UntrustedCertificate
   }
 }
