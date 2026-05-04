@@ -199,6 +199,10 @@
                     <th>Description</th>
                     <th>Icon</th>
                     <th>URL</th>
+                    @if (Model.IsUptimeKumaConfigured)
+                    {
+                        <th>Monitor ID</th>
+                    }
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
@@ -217,6 +221,10 @@
                         <td>@link.Description</td>
                         <td>@link.IconName</td>
                         <td class="text-break">@link.Url</td>
+                        @if (Model.IsUptimeKumaConfigured)
+                        {
+                            <td>@link.MonitorId</td>
+                        }
                         <td class="text-end">
                             <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">Edit</button>
                             <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Delete</button>

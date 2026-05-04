@@ -270,6 +270,7 @@ function initEditor(config) {
                 <td>${escapeHtml(link.description)}</td>
                 <td>${escapeHtml(link.iconName)}</td>
                 <td class="text-break">${escapeHtml(link.url)}</td>
+                ${config.isUptimeKumaConfigured ? `<td>${escapeHtml(link.monitorId)}</td>` : ''}
                 <td class="text-end">
                     <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">Edit</button>
                     <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Delete</button>
