@@ -41,13 +41,13 @@
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body-tertiary border-bottom box-shadow">
             <div class="container">
-                <a class="navbar-brand d-flex align-items-center gap-2" asp-area="" asp-page="/Index">
-                    <img src="~/favicon.png" alt="" class="navbar-favicon" />
-                    <span class="d-flex flex-column">
-                        <span><strong>h2s</strong> - @settings.Title</span>
+                <a class="navbar-brand d-flex align-items-center gap-2 mw-100 overflow-hidden" asp-area="" asp-page="/Index">
+                    <img src="~/favicon.png" alt="" class="navbar-favicon flex-shrink-0" />
+                    <span class="d-flex flex-column overflow-hidden">
+                        <span class="text-truncate"><strong>h2s</strong> - @settings.Title</span>
                         @if (!string.IsNullOrWhiteSpace(settings.Motto))
                         {
-                            <small class="text-muted">@settings.Motto</small>
+                            <small class="text-muted text-wrap">@settings.Motto</small>
                         }
                     </span>
                 </a>
