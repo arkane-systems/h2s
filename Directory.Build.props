@@ -1,0 +1,27 @@
+<Project>
+
+  <!-- Settings shared by every project in the repository. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Report the .editorconfig code-style rules (IDE*) during build, not just in the IDE. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Public members carry XML documentation (CS1591). This also lets the build report unused usings (IDE0005). -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- CI builds (dotnet build -p:ContinuousIntegrationBuild=true) treat every warning as an error. -->
+  <PropertyGroup Condition="'$(ContinuousIntegrationBuild)' == 'true'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- JetBrains.Annotations is a mandatory import in the house ReSharper profile; make it global instead. -->
+    <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" PrivateAssets="all" ExcludeAssets="runtime" />
+    <Using Include="JetBrains.Annotations" />
+  </ItemGroup>
+
+</Project>

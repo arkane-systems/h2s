@@ -15,7 +15,7 @@ public class SettingsPageTests
   [Fact]
   public async Task Post_RedisplaysPageForInvalidInput ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var response = await FormPoster.PostAsync (factory.CreateClient (),
                                                SettingsPageTests.SettingsPath,
@@ -30,7 +30,7 @@ public class SettingsPageTests
   [Fact]
   public async Task Post_RequiresTitle ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var response = await FormPoster.PostAsync (factory.CreateClient (),
                                                SettingsPageTests.SettingsPath,
@@ -44,7 +44,7 @@ public class SettingsPageTests
   [Fact]
   public async Task Post_SavesValidSettings ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var client              = factory.CreateClient (new () { AllowAutoRedirect = false });
 
     var response = await FormPoster.PostAsync (client,
@@ -69,7 +69,7 @@ public class SettingsPageTests
   [Fact]
   public async Task Post_AllowsClearingOptionalFields ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var client              = factory.CreateClient (new () { AllowAutoRedirect = false });
     var fields              = SettingsPageTests.Form (title: "Homelab", motto: "", slug: "")
                                                .Select (f => f.Key == "Settings.LocalDomains" ? new (f.Key, "") : f);
@@ -92,7 +92,7 @@ public class SettingsPageTests
   [Fact]
   public async Task Get_ShowsCurrentSettings ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var html = await factory.CreateClient ().GetStringAsync (SettingsPageTests.SettingsPath, TestContext.Current.CancellationToken);
 
@@ -102,7 +102,7 @@ public class SettingsPageTests
   [Fact]
   public async Task ToggleColorMode_CyclesThroughModes ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var client              = factory.CreateClient ();
     var modes               = new List<string?> ();
 

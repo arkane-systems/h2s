@@ -20,11 +20,16 @@ Run from the repository root:
 Tests are xUnit v3 in `tests/h2s.Tests`, run on Microsoft.Testing.Platform. `global.json` opts `dotnet test` into MTP, which the .NET 10 SDK requires for xUnit v3, so `dotnet test` takes `--solution`/`--project` rather than a positional path.
 
 - `Unit/` tests use `TestDatabase`, a migrated in-memory SQLite database, optionally seeded.
-- `Integration/` tests host the app with `H2sWebApplicationFactory` over a private in-memory database seeded by `DevDataSeeder`. Create one factory per test that changes data.
+- `Integration/` tests host the app with `DashboardApplicationFactory` over a private in-memory database seeded by `DevDataSeeder`. Create one factory per test that changes data.
 - Posting to Razor handlers needs an antiforgery token; use `FormPoster.PostAsync`.
 - Pass `TestContext.Current.CancellationToken` to async calls; the xUnit analyzers flag it otherwise.
 
-There's no linter config yet.
+Code style:
+- Restore the pinned tools (`jb`, `dotnet-ef`) with `dotnet tool restore`; they're listed in `dotnet-tools.json`.
+- Format with `dotnet jb cleanupcode h2s.slnx` (Built-in: Full Cleanup). Add `--include="path/To/File.cs"` to limit it. It takes a couple of minutes because it loads the whole solution.
+- `dotnet jb inspectcode h2s.slnx --output=<file> --format=Sarif` runs the ReSharper inspections.
+- Don't run `dotnet format whitespace`; it fights the ReSharper alignment rules.
+- The build reports the `.editorconfig` rules as warnings (`EnforceCodeStyleInBuild`). `-p:ContinuousIntegrationBuild=true` makes all warnings errors.
 
 The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data/h2s.db`. `Program.cs` resolves a relative `Data Source` against the content root (`SqliteConnectionStrings`), giving `h2s/App_Data/h2s.db`, which is gitignored and dockerignored. Production uses `/app/data/h2s.db`, a mounted volume. Don't name a data directory `data`: on Windows it collides with the `h2s/Data/` source folder. Sample data lives in `h2s/Data/Seeding/DevDataSeeder.cs`; keep it in step with schema changes, since the AddDashboardSettings migration inserts the settings row and the seeder updates it. Any new environment keeps the same connection string key and the SQLite provider. The app is single-instance only: SQLite with no concurrency support.
 
@@ -65,11 +70,14 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 - Stay within Razor Pages: no MVC controllers, no Blazor, no new frontend frameworks. Site styling goes in `h2s/wwwroot/css/site.css`.
 - New services go in `h2s/Services/` and are registered as scoped in `Program.cs` unless they clearly need another lifetime. Keep the `AddHttpClient()`, `MapStaticAssets()` and `MapRazorPages().WithStaticAssets()` calls.
 - Namespaces follow folders: `h2s.Data`, `h2s.Models`, `h2s.Services`, `h2s.Validation`, `h2s.Pages`, `h2s.Pages.Admin`.
-- C# style:
-  - 2-space indent, Allman braces, and a space before parentheses in calls and declarations (`Foo ()`).
-  - File-scoped namespaces and `_camelCase` private fields.
-  - Always qualify instance member access with `this.` to distinguish members from locals. Existing code is inconsistent (e.g. `IndexModel` does this, `EditorModel` and `DashboardSettingsService` don't). Bring code you touch into line.
-  - Standard .NET XML doc comments on public members.
+- C# style: the root `.editorconfig` is the source of truth. Its ReSharper section is generated from the house ReSharper profile. `h2s.slnx.DotSettings` holds what EditorConfig can't express: the member layout pattern and XML formatter settings. `Directory.Build.props` holds the shared project settings. In short:
+  - 2-space indent, Allman braces, and a space before parentheses in calls and declarations (`Foo ()`). Aligned assignments, initializers and multiline arguments, and trailing commas in multiline lists.
+  - Qualify instance members with `this.` and static members with their type name (`Link.NormalizeIconName`).
+  - Private fields are camelCase with **no** `_` prefix. Constants and static readonly fields are PascalCase.
+  - `var` only when the type is evident.
+  - File-scoped namespaces, with usings outside them. `JetBrains.Annotations` is a global using.
+  - XML doc comments on public members (CS1591 is on, except in tests).
+  - Pre-existing code still has `_` fields and missing `this.`; Phase 1d of the roadmap clears that. Don't spread it.
 - Dark mode:
   - Prefer Bootstrap theme-aware utilities (`bg-body`, `bg-body-tertiary`, `text-body`, `text-muted`, `border`) and CSS variables (`var(--bs-body-bg)`, `var(--bs-border-color)`, `rgba(var(--bs-body-bg-rgb), …)`) over hard-coded colors.
   - Scope theme-specific overrides with `[data-bs-theme="dark"]` / `[data-bs-theme="light"]`.

@@ -12,7 +12,7 @@ public partial class IndexPageTests
   [Fact]
   public async Task Index_FlagsExternalLinks ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
 
@@ -23,7 +23,7 @@ public partial class IndexPageTests
   [Fact]
   public async Task Index_HidesKumaFeaturesWhenUnconfigured ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
 
@@ -34,7 +34,7 @@ public partial class IndexPageTests
   [Fact]
   public async Task Index_ListsRegularCategoriesBeforeAdminCategories ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
     var names = IndexPageTests.CategoryHeadingPattern ().Matches (html).Select (m => m.Groups["name"].Value);
@@ -46,7 +46,7 @@ public partial class IndexPageTests
   [Fact]
   public async Task Index_RendersKumaBadgesWhenConfigured ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var (scope, context)    = factory.CreateContext ();
 
     using (scope)
@@ -66,7 +66,7 @@ public partial class IndexPageTests
   [Fact]
   public async Task Index_UsesSettingsForTitle ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
 
