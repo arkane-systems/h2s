@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Local development database (see scripts/new-dev-db.*)
+h2s/App_Data/
