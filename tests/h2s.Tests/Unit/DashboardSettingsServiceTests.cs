@@ -53,12 +53,16 @@ public class DashboardSettingsServiceTests
     }
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       Assert.Equal (expected: 24,
                     actual: (await new DashboardSettingsService (context).GetSettingsAsync ()).UptimeKumaDefaultDuration);
+    }
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       Assert.Equal (expected: 24,
                     actual: (await context.DashboardSettings.SingleAsync (cancellationToken)).UptimeKumaDefaultDuration);
+    }
   }
 
   [Fact]

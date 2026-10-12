@@ -195,8 +195,10 @@ public class EditorHandlerTests
     var (scope, context) = factory.CreateContext ();
 
     using (scope)
+    {
       return await context.Categories.Where (c => c.Name == name)
                           .Select (c => c.Id)
                           .SingleAsync (TestContext.Current.CancellationToken);
+    }
   }
 }
