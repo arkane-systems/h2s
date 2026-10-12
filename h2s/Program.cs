@@ -59,3 +59,9 @@ app.MapRazorPages ()
 await app.RunAsync ();
 
 return 0;
+
+/// <summary>
+/// Entry point type for the dashboard application, exposed so integration tests can host it with
+/// <c>WebApplicationFactory&lt;Program&gt;</c>.
+/// </summary>
+public partial class Program;

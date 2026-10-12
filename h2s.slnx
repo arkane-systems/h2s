@@ -3,5 +3,8 @@
     <File Path="LICENSE.txt" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/h2s.Tests/h2s.Tests.csproj" />
+  </Folder>
   <Project Path="h2s/h2s.csproj" />
 </Solution>

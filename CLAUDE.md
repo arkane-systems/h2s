@@ -15,7 +15,16 @@ Run from the repository root:
 - Apply migrations manually: `dotnet ef database update --project h2s/h2s.csproj --startup-project h2s/h2s.csproj` (normally unnecessary: `Program.cs` calls `Database.Migrate()` on startup)
 - Container: `docker build -t h2s:local -f h2s/Dockerfile h2s` (build context is `h2s/`, not the repo root)
 
-There is no test project and no linter config. Validate with a build plus manual page checks.
+- Test: `dotnet test --solution h2s.slnx`. For a single test, add `--filter-method "*Post_SavesValidSettings"`; `--filter-class` and `--filter-namespace` also work.
+
+Tests are xUnit v3 in `tests/h2s.Tests`, run on Microsoft.Testing.Platform. `global.json` opts `dotnet test` into MTP, which the .NET 10 SDK requires for xUnit v3, so `dotnet test` takes `--solution`/`--project` rather than a positional path.
+
+- `Unit/` tests use `TestDatabase`, a migrated in-memory SQLite database, optionally seeded.
+- `Integration/` tests host the app with `H2sWebApplicationFactory` over a private in-memory database seeded by `DevDataSeeder`. Create one factory per test that changes data.
+- Posting to Razor handlers needs an antiforgery token; use `FormPoster.PostAsync`.
+- Pass `TestContext.Current.CancellationToken` to async calls; the xUnit analyzers flag it otherwise.
+
+There's no linter config yet.
 
 The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data/h2s.db`. `Program.cs` resolves a relative `Data Source` against the content root (`SqliteConnectionStrings`), giving `h2s/App_Data/h2s.db`, which is gitignored and dockerignored. Production uses `/app/data/h2s.db`, a mounted volume. Don't name a data directory `data`: on Windows it collides with the `h2s/Data/` source folder. Sample data lives in `h2s/Data/Seeding/DevDataSeeder.cs`; keep it in step with schema changes, since the AddDashboardSettings migration inserts the settings row and the seeder updates it. Any new environment keeps the same connection string key and the SQLite provider. The app is single-instance only: SQLite with no concurrency support.
 
