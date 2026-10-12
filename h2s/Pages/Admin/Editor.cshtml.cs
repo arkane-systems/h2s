@@ -10,143 +10,130 @@ using Microsoft.Extensions.Caching.Memory;
 namespace h2s.Pages.Admin;
 
 /// <summary>
-/// Page model for the admin editor used to manage categories and links.
+///   Page model for the admin editor used to manage categories and links.
 /// </summary>
 public class EditorModel : PageModel
 {
-  private static readonly HttpClient IconProbeClient = new ()
-  {
-    Timeout = TimeSpan.FromSeconds (4)
-  };
+  private static readonly HttpClient IconProbeClient = new () { Timeout = TimeSpan.FromSeconds (4) };
 
-  private readonly DashboardContext context;
   private readonly IMemoryCache cache;
+
+  private readonly DashboardContext         context;
   private readonly DashboardSettingsService settingsService;
 
   /// <summary>
-  /// Initializes a new instance of the <see cref="EditorModel"/> class.
+  ///   Initializes a new instance of the <see cref="EditorModel" /> class.
   /// </summary>
   /// <param name="context">The database context used to manage categories and links.</param>
   /// <param name="cache">The cache used to avoid repeated icon availability probes.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   public EditorModel (DashboardContext context, IMemoryCache cache, DashboardSettingsService settingsService)
   {
-    this.context = context;
-    this.cache = cache;
+    this.context         = context;
+    this.cache           = cache;
     this.settingsService = settingsService;
   }
 
   /// <summary>
-  /// Gets the categories shown in the editor UI.
+  ///   Gets the categories shown in the editor UI.
   /// </summary>
   public List<Category> Categories { get; private set; } = new ();
 
   /// <summary>
-  /// Gets the links shown in the editor UI.
+  ///   Gets the links shown in the editor UI.
   /// </summary>
   public List<Link> Links { get; private set; } = new ();
 
   /// <summary>
-  /// Gets a value indicating whether Uptime Kuma integration is configured.
+  ///   Gets a value indicating whether Uptime Kuma integration is configured.
   /// </summary>
   public bool IsUptimeKumaConfigured { get; private set; }
 
   /// <summary>
-  /// Loads the initial category and link data required by the editor page.
+  ///   Loads the initial category and link data required by the editor page.
   /// </summary>
   public async Task OnGetAsync ()
   {
-    Categories = await GetOrderedCategoriesQuery ()
-      .AsNoTracking ()
-      .ToListAsync ();
+    this.Categories = await this.GetOrderedCategoriesQuery ()
+                                .AsNoTracking ()
+                                .ToListAsync ();
 
-    Links = await GetOrderedLinksQuery ()
-      .AsNoTracking ()
-      .ToListAsync ();
+    this.Links = await this.GetOrderedLinksQuery ()
+                           .AsNoTracking ()
+                           .ToListAsync ();
 
-    var settings = await this.settingsService.GetSettingsAsync ();
-    IsUptimeKumaConfigured = !string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl);
+    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
+    this.IsUptimeKumaConfigured = !string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl);
   }
 
   /// <summary>
-  /// Returns the ordered category list used by the editor client script.
+  ///   Returns the ordered category list used by the editor client script.
   /// </summary>
   /// <returns>A JSON payload describing all categories.</returns>
   public async Task<IActionResult> OnGetCategoriesAsync ()
   {
-    var categories = await GetOrderedCategoriesQuery ()
-      .AsNoTracking ()
-      .Select (c => new
-      {
-        c.Id,
-        c.Name,
-        c.IsAdminCategory,
-        LinkCount = c.Links.Count
-      })
-      .ToListAsync ();
+    var categories = await this.GetOrderedCategoriesQuery ()
+                               .AsNoTracking ()
+                               .Select (c => new
+                                             {
+                                               c.Id, c.Name, c.IsAdminCategory, LinkCount = c.Links.Count,
+                                             })
+                               .ToListAsync ();
 
     return new JsonResult (categories);
   }
 
   /// <summary>
-  /// Returns the ordered link list used by the editor client script.
+  ///   Returns the ordered link list used by the editor client script.
   /// </summary>
   /// <returns>A JSON payload describing all links.</returns>
   public async Task<IActionResult> OnGetLinksAsync ()
   {
-    var links = await GetOrderedLinksQuery ()
-      .AsNoTracking ()
-      .Select (l => new
-      {
-        l.Id,
-        l.CategoryId,
-        CategoryName = l.Category != null ? l.Category.Name : "",
-        IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false,
-        l.Label,
-        l.Description,
-        l.IconName,
-        l.MonitorId,
-        l.Url
-      })
-      .ToListAsync ();
+    var links = await this.GetOrderedLinksQuery ()
+                          .AsNoTracking ()
+                          .Select (l => new
+                                        {
+                                          l.Id,
+                                          l.CategoryId,
+                                          CategoryName    = l.Category != null ? l.Category.Name : "",
+                                          IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false,
+                                          l.Label,
+                                          l.Description,
+                                          l.IconName,
+                                          l.MonitorId,
+                                          l.Url,
+                                        })
+                          .ToListAsync ();
 
     return new JsonResult (links);
   }
 
   /// <summary>
-  /// Creates a new category from the posted editor form values.
+  ///   Creates a new category from the posted editor form values.
   /// </summary>
   /// <param name="name">The category display name.</param>
   /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
   /// <returns>A JSON payload describing the created category, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateCategoryAsync (string? name, bool isAdminCategory)
   {
-    var normalizedName = (name ?? string.Empty).Trim ();
-    if (string.IsNullOrWhiteSpace (normalizedName))
-    {
-      return BadRequest ("Category name is required.");
-    }
+    string normalizedName = (name ?? string.Empty).Trim ();
 
-    var category = new Category
-    {
-      Name = normalizedName,
-      IsAdminCategory = isAdminCategory
-    };
+    if (string.IsNullOrWhiteSpace (normalizedName))
+      return this.BadRequest ("Category name is required.");
+
+    var category = new Category { Name = normalizedName, IsAdminCategory = isAdminCategory };
 
     this.context.Categories.Add (category);
     await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
-    {
-      category.Id,
-      category.Name,
-      category.IsAdminCategory,
-      LinkCount = 0
-    });
+                           {
+                             category.Id, category.Name, category.IsAdminCategory, LinkCount = 0,
+                           });
   }
 
   /// <summary>
-  /// Updates an existing category.
+  ///   Updates an existing category.
   /// </summary>
   /// <param name="id">The category identifier.</param>
   /// <param name="name">The updated category name.</param>
@@ -154,50 +141,42 @@ public class EditorModel : PageModel
   /// <returns>A JSON payload describing the updated category, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateCategoryAsync (int id, string? name, bool isAdminCategory)
   {
-    var normalizedName = (name ?? string.Empty).Trim ();
-    if (string.IsNullOrWhiteSpace (normalizedName))
-    {
-      return BadRequest ("Category name is required.");
-    }
+    string normalizedName = (name ?? string.Empty).Trim ();
 
-    var category = await this.context.Categories
-      .FirstOrDefaultAsync (c => c.Id == id);
+    if (string.IsNullOrWhiteSpace (normalizedName))
+      return this.BadRequest ("Category name is required.");
+
+    Category? category = await this.context.Categories
+                                   .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
-    {
-      return NotFound ();
-    }
+      return this.NotFound ();
 
-    category.Name = normalizedName;
+    category.Name            = normalizedName;
     category.IsAdminCategory = isAdminCategory;
     await this.context.SaveChangesAsync ();
 
-    var linkCount = await this.context.Links
-      .CountAsync (l => l.CategoryId == id);
+    int linkCount = await this.context.Links
+                              .CountAsync (l => l.CategoryId == id);
 
     return new JsonResult (new
-    {
-      category.Id,
-      category.Name,
-      category.IsAdminCategory,
-      LinkCount = linkCount
-    });
+                           {
+                             category.Id, category.Name, category.IsAdminCategory, LinkCount = linkCount,
+                           });
   }
 
   /// <summary>
-  /// Deletes a category and its related links.
+  ///   Deletes a category and its related links.
   /// </summary>
   /// <param name="id">The identifier of the category to remove.</param>
-  /// <returns>A JSON payload describing the deleted category, or <see cref="NotFoundResult"/> when it does not exist.</returns>
+  /// <returns>A JSON payload describing the deleted category, or <see cref="NotFoundResult" /> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteCategoryAsync (int id)
   {
-    var category = await this.context.Categories
-      .FirstOrDefaultAsync (c => c.Id == id);
+    Category? category = await this.context.Categories
+                                   .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
-    {
-      return NotFound ();
-    }
+      return this.NotFound ();
 
     this.context.Categories.Remove (category);
     await this.context.SaveChangesAsync ();
@@ -206,7 +185,7 @@ public class EditorModel : PageModel
   }
 
   /// <summary>
-  /// Creates a new link from the posted editor form values.
+  ///   Creates a new link from the posted editor form values.
   /// </summary>
   /// <param name="categoryId">The category that will own the link.</param>
   /// <param name="label">The display label for the link.</param>
@@ -215,70 +194,66 @@ public class EditorModel : PageModel
   /// <param name="monitorId">Optional Uptime Kuma monitor ID as a positive integer string.</param>
   /// <param name="url">The destination URL for the link.</param>
   /// <returns>A JSON payload describing the created link, or an error response when validation fails.</returns>
-  public async Task<IActionResult> OnPostCreateLinkAsync (int categoryId, string? label, string? description, string? iconName, string? monitorId, string? url)
+  public async Task<IActionResult> OnPostCreateLinkAsync (int     categoryId,
+                                                          string? label,
+                                                          string? description,
+                                                          string? iconName,
+                                                          string? monitorId,
+                                                          string? url)
   {
-    var normalizedLabel = (label ?? string.Empty).Trim ();
-    var normalizedUrl = (url ?? string.Empty).Trim ();
+    string normalizedLabel = (label ?? string.Empty).Trim ();
+    string normalizedUrl   = (url   ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedLabel))
-    {
-      return BadRequest ("Link label is required.");
-    }
+      return this.BadRequest ("Link label is required.");
 
     if (string.IsNullOrWhiteSpace (normalizedUrl))
-    {
-      return BadRequest ("Link URL is required.");
-    }
+      return this.BadRequest ("Link URL is required.");
 
-    if (!IsValidWebUrl (normalizedUrl))
-    {
-      return BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
-    }
+    if (!EditorModel.IsValidWebUrl (normalizedUrl))
+      return this.BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
-    {
-      return BadRequest ("Selected category does not exist.");
-    }
+      return this.BadRequest ("Selected category does not exist.");
 
-    var normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
-    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !IsPositiveIntegerString (normalizedMonitorId))
-    {
-      return BadRequest ("Monitor ID must be a positive integer.");
-    }
+    string normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+
+    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !EditorModel.IsPositiveIntegerString (normalizedMonitorId))
+      return this.BadRequest ("Monitor ID must be a positive integer.");
 
     var link = new Link
-    {
-      CategoryId = categoryId,
-      Label = normalizedLabel,
-      Description = (description ?? string.Empty).Trim (),
-      IconName = Link.NormalizeIconName (iconName ?? string.Empty),
-      MonitorId = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId,
-      Url = normalizedUrl
-    };
+               {
+                 CategoryId  = categoryId,
+                 Label       = normalizedLabel,
+                 Description = (description ?? string.Empty).Trim (),
+                 IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
+                 MonitorId   = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId,
+                 Url         = normalizedUrl,
+               };
 
     this.context.Links.Add (link);
     await this.context.SaveChangesAsync ();
 
-    var categoryName = await this.context.Categories
-      .Where (c => c.Id == categoryId)
-      .Select (c => c.Name)
-      .FirstAsync ();
+    string categoryName = await this.context.Categories
+                                    .Where (c => c.Id == categoryId)
+                                    .Select (c => c.Name)
+                                    .FirstAsync ();
 
     return new JsonResult (new
-    {
-      link.Id,
-      link.CategoryId,
-      CategoryName = categoryName,
-      link.Label,
-      link.Description,
-      link.IconName,
-      link.MonitorId,
-      link.Url
-    });
+                           {
+                             link.Id,
+                             link.CategoryId,
+                             CategoryName = categoryName,
+                             link.Label,
+                             link.Description,
+                             link.IconName,
+                             link.MonitorId,
+                             link.Url,
+                           });
   }
 
   /// <summary>
-  /// Updates an existing link.
+  ///   Updates an existing link.
   /// </summary>
   /// <param name="id">The link identifier.</param>
   /// <param name="categoryId">The updated owning category identifier.</param>
@@ -288,86 +263,79 @@ public class EditorModel : PageModel
   /// <param name="monitorId">The updated Uptime Kuma monitor ID.</param>
   /// <param name="url">The updated destination URL.</param>
   /// <returns>A JSON payload describing the updated link, or an error response when validation fails.</returns>
-  public async Task<IActionResult> OnPostUpdateLinkAsync (int id, int categoryId, string? label, string? description, string? iconName, string? monitorId, string? url)
+  public async Task<IActionResult> OnPostUpdateLinkAsync (int     id,
+                                                          int     categoryId,
+                                                          string? label,
+                                                          string? description,
+                                                          string? iconName,
+                                                          string? monitorId,
+                                                          string? url)
   {
-    var normalizedLabel = (label ?? string.Empty).Trim ();
-    var normalizedUrl = (url ?? string.Empty).Trim ();
+    string normalizedLabel = (label ?? string.Empty).Trim ();
+    string normalizedUrl   = (url   ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedLabel))
-    {
-      return BadRequest ("Link label is required.");
-    }
+      return this.BadRequest ("Link label is required.");
 
     if (string.IsNullOrWhiteSpace (normalizedUrl))
-    {
-      return BadRequest ("Link URL is required.");
-    }
+      return this.BadRequest ("Link URL is required.");
 
-    if (!IsValidWebUrl (normalizedUrl))
-    {
-      return BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
-    }
+    if (!EditorModel.IsValidWebUrl (normalizedUrl))
+      return this.BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
 
-    var link = await this.context.Links
-      .FirstOrDefaultAsync (l => l.Id == id);
+    Link? link = await this.context.Links
+                           .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
-    {
-      return NotFound ();
-    }
+      return this.NotFound ();
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
-    {
-      return BadRequest ("Selected category does not exist.");
-    }
+      return this.BadRequest ("Selected category does not exist.");
 
-    var normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
-    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !IsPositiveIntegerString (normalizedMonitorId))
-    {
-      return BadRequest ("Monitor ID must be a positive integer.");
-    }
+    string normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
 
-    link.CategoryId = categoryId;
-    link.Label = normalizedLabel;
+    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !EditorModel.IsPositiveIntegerString (normalizedMonitorId))
+      return this.BadRequest ("Monitor ID must be a positive integer.");
+
+    link.CategoryId  = categoryId;
+    link.Label       = normalizedLabel;
     link.Description = (description ?? string.Empty).Trim ();
-    link.IconName = Link.NormalizeIconName (iconName ?? string.Empty);
-    link.MonitorId = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId;
-    link.Url = normalizedUrl;
+    link.IconName    = Link.NormalizeIconName (iconName ?? string.Empty);
+    link.MonitorId   = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId;
+    link.Url         = normalizedUrl;
 
     await this.context.SaveChangesAsync ();
 
-    var categoryName = await this.context.Categories
-      .Where (c => c.Id == categoryId)
-      .Select (c => c.Name)
-      .FirstAsync ();
+    string categoryName = await this.context.Categories
+                                    .Where (c => c.Id == categoryId)
+                                    .Select (c => c.Name)
+                                    .FirstAsync ();
 
     return new JsonResult (new
-    {
-      link.Id,
-      link.CategoryId,
-      CategoryName = categoryName,
-      link.Label,
-      link.Description,
-      link.IconName,
-      link.MonitorId,
-      link.Url
-    });
+                           {
+                             link.Id,
+                             link.CategoryId,
+                             CategoryName = categoryName,
+                             link.Label,
+                             link.Description,
+                             link.IconName,
+                             link.MonitorId,
+                             link.Url,
+                           });
   }
 
   /// <summary>
-  /// Deletes a link.
+  ///   Deletes a link.
   /// </summary>
   /// <param name="id">The identifier of the link to remove.</param>
-  /// <returns>A JSON payload describing the deleted link, or <see cref="NotFoundResult"/> when it does not exist.</returns>
+  /// <returns>A JSON payload describing the deleted link, or <see cref="NotFoundResult" /> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteLinkAsync (int id)
   {
-    var link = await this.context.Links
-      .FirstOrDefaultAsync (l => l.Id == id);
+    Link? link = await this.context.Links
+                           .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
-    {
-      return NotFound ();
-    }
+      return this.NotFound ();
 
     this.context.Links.Remove (link);
     await this.context.SaveChangesAsync ();
@@ -376,79 +344,74 @@ public class EditorModel : PageModel
   }
 
   /// <summary>
-  /// Suggests an icon name based on the provided label when a matching selfh.st icon exists.
+  ///   Suggests an icon name based on the provided label when a matching selfh.st icon exists.
   /// </summary>
   /// <param name="label">The link label used to derive an icon name suggestion.</param>
   /// <returns>A JSON payload indicating whether a matching icon was found.</returns>
   public async Task<IActionResult> OnGetSuggestIconAsync (string? label)
   {
-    var suggestedIconName = Link.NormalizeIconName (label ?? string.Empty);
+    string suggestedIconName = Link.NormalizeIconName (label ?? string.Empty);
+
     if (string.IsNullOrWhiteSpace (suggestedIconName))
-    {
       return new JsonResult (new { Found = false, SuggestedIconName = "" });
-    }
 
     var cacheKey = $"icon-exists:{suggestedIconName}";
-    var found = await this.cache.GetOrCreateAsync (cacheKey, async entry =>
-    {
-      entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes (10);
-      var iconUrl = Link.BuildIconUrl (suggestedIconName);
-      return await IconExistsAsync (iconUrl);
-    });
+    bool found = await this.cache.GetOrCreateAsync (key: cacheKey,
+                                                    factory: async entry =>
+                                                             {
+                                                               entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes (10);
+                                                               string iconUrl = Link.BuildIconUrl (suggestedIconName);
 
-    return new JsonResult (new
-    {
-      Found = found,
-      SuggestedIconName = found ? suggestedIconName : ""
-    });
+                                                               return await EditorModel.IconExistsAsync (iconUrl);
+                                                             });
+
+    return new JsonResult (new { Found = found, SuggestedIconName = found ? suggestedIconName : "" });
   }
 
   /// <summary>
-  /// Builds the ordered category query used by the editor UI.
+  ///   Builds the ordered category query used by the editor UI.
   /// </summary>
-  /// <returns>An <see cref="IQueryable{T}"/> that orders categories by admin state and name.</returns>
-  private IQueryable<Category> GetOrderedCategoriesQuery () => this.context.Categories
-    .Include (c => c.Links)
-    .OrderBy (c => c.IsAdminCategory)
-    .ThenBy (c => c.Name);
+  /// <returns>An <see cref="IQueryable{T}" /> that orders categories by admin state and name.</returns>
+  private IQueryable<Category> GetOrderedCategoriesQuery ()
+    => this.context.Categories
+           .Include (c => c.Links)
+           .OrderBy (c => c.IsAdminCategory)
+           .ThenBy (c => c.Name);
 
   /// <summary>
-  /// Builds the ordered link query used by the editor UI.
+  ///   Builds the ordered link query used by the editor UI.
   /// </summary>
-  /// <returns>An <see cref="IQueryable{T}"/> that orders links by category grouping and label.</returns>
-  private IQueryable<Link> GetOrderedLinksQuery () => this.context.Links
-    .Include (l => l.Category)
-    .OrderBy (l => l.Category != null ? l.Category.IsAdminCategory : false)
-    .ThenBy (l => l.Category != null ? l.Category.Name : string.Empty)
-    .ThenBy (l => l.Label);
+  /// <returns>An <see cref="IQueryable{T}" /> that orders links by category grouping and label.</returns>
+  private IQueryable<Link> GetOrderedLinksQuery ()
+    => this.context.Links
+           .Include (l => l.Category)
+           .OrderBy (l => l.Category != null ? l.Category.IsAdminCategory : false)
+           .ThenBy (l => l.Category  != null ? l.Category.Name : string.Empty)
+           .ThenBy (l => l.Label);
 
   /// <summary>
-  /// Determines whether a string is a valid absolute HTTP or HTTPS URL.
+  ///   Determines whether a string is a valid absolute HTTP or HTTPS URL.
   /// </summary>
   /// <param name="url">The URL to validate.</param>
   /// <returns><c>true</c> when the URL is valid and uses HTTP or HTTPS; otherwise, <c>false</c>.</returns>
   private static bool IsValidWebUrl (string url)
   {
-    if (!Uri.TryCreate (url, UriKind.Absolute, out var uri))
-    {
+    if (!Uri.TryCreate (uriString: url, uriKind: UriKind.Absolute, result: out Uri? uri))
       return false;
-    }
 
-    return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+    return (uri.Scheme == Uri.UriSchemeHttp) || (uri.Scheme == Uri.UriSchemeHttps);
   }
 
   /// <summary>
-  /// Determines whether a string is a valid positive integer.
+  ///   Determines whether a string is a valid positive integer.
   /// </summary>
   /// <param name="value">The value to validate.</param>
   /// <returns><c>true</c> when the value is a positive integer string; otherwise, <c>false</c>.</returns>
   private static bool IsPositiveIntegerString (string value)
-  {
-    return int.TryParse (value, out var parsedValue) && parsedValue > 0;
-  }
+    => int.TryParse (s: value, result: out int parsedValue) && (parsedValue > 0);
 
   /// <summary>
-  /// Checks whether an icon URL exists on the remote CDN.
+  ///   Checks whether an icon URL exists on the remote CDN.
   /// </summary>
   /// <param name="url">The icon URL to probe.</param>
   /// <returns><c>true</c> when the icon exists; otherwise, <c>false</c>.</returns>
@@ -456,21 +419,22 @@ public class EditorModel : PageModel
   {
     try
     {
-      using var headRequest = new HttpRequestMessage (HttpMethod.Head, url);
-      using var headResponse = await IconProbeClient.SendAsync (headRequest, HttpCompletionOption.ResponseHeadersRead);
+      using var headRequest = new HttpRequestMessage (method: HttpMethod.Head, requestUri: url);
+      using HttpResponseMessage headResponse =
+        await EditorModel.IconProbeClient.SendAsync (request: headRequest,
+                                                     completionOption: HttpCompletionOption.ResponseHeadersRead);
 
       if (headResponse.IsSuccessStatusCode)
-      {
         return true;
-      }
 
       if (headResponse.StatusCode != HttpStatusCode.MethodNotAllowed)
-      {
         return false;
-      }
 
-      using var getRequest = new HttpRequestMessage (HttpMethod.Get, url);
-      using var getResponse = await IconProbeClient.SendAsync (getRequest, HttpCompletionOption.ResponseHeadersRead);
+      using var getRequest = new HttpRequestMessage (method: HttpMethod.Get, requestUri: url);
+      using HttpResponseMessage getResponse =
+        await EditorModel.IconProbeClient.SendAsync (request: getRequest,
+                                                     completionOption: HttpCompletionOption.ResponseHeadersRead);
+
       return getResponse.IsSuccessStatusCode;
     }
     catch
