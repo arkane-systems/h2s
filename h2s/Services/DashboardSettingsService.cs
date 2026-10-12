@@ -1,63 +1,60 @@
-namespace h2s.Services;
-
 using h2s.Data;
 using h2s.Models;
 using Microsoft.EntityFrameworkCore;
 
+namespace h2s.Services;
+
 /// <summary>
-/// Provides access to the singleton <see cref="DashboardSettings"/> record.
+///   Provides access to the singleton <see cref="DashboardSettings" /> record.
 /// </summary>
 public class DashboardSettingsService
 {
-  private readonly DashboardContext _context;
+  private readonly DashboardContext context;
 
   /// <summary>
-  /// Initializes a new instance of the <see cref="DashboardSettingsService"/> class.
+  ///   Initializes a new instance of the <see cref="DashboardSettingsService" /> class.
   /// </summary>
   /// <param name="context">The database context used to load and save settings.</param>
-  public DashboardSettingsService (DashboardContext context)
-  {
-    _context = context;
-  }
+  public DashboardSettingsService (DashboardContext context) => this.context = context;
 
   /// <summary>
-  /// Gets the singleton dashboard settings record, or creates a default one if it does not exist.
+  ///   Gets the singleton dashboard settings record, or creates a default one if it does not exist.
   /// </summary>
   /// <returns>The existing or newly created dashboard settings record.</returns>
   public async Task<DashboardSettings> GetSettingsAsync ()
   {
-    var settings = await _context.DashboardSettings.FirstOrDefaultAsync ();
+    DashboardSettings? settings = await this.context.DashboardSettings.FirstOrDefaultAsync ();
 
     if (settings == null)
     {
       settings = new DashboardSettings
-      {
-        Id = 1,
-        Title = "Dashboard",
-        Motto = "",
-        LocalDomains = "",
-        UptimeKumaDefaultDuration = 24
-      };
-      _context.DashboardSettings.Add (settings);
-      await _context.SaveChangesAsync ();
+                 {
+                   Id                        = 1,
+                   Title                     = "Dashboard",
+                   Motto                     = "",
+                   LocalDomains              = "",
+                   UptimeKumaDefaultDuration = 24,
+                 };
+      this.context.DashboardSettings.Add (settings);
+      await this.context.SaveChangesAsync ();
     }
 
     if (settings.UptimeKumaDefaultDuration <= 0)
     {
       settings.UptimeKumaDefaultDuration = 24;
-      await _context.SaveChangesAsync ();
+      await this.context.SaveChangesAsync ();
     }
 
     return settings;
   }
 
   /// <summary>
-  /// Saves changes to the singleton dashboard settings record.
+  ///   Saves changes to the singleton dashboard settings record.
   /// </summary>
   /// <param name="settings">The settings instance to persist.</param>
   public async Task SaveSettingsAsync (DashboardSettings settings)
   {
-    _context.DashboardSettings.Update (settings);
-    await _context.SaveChangesAsync ();
+    this.context.DashboardSettings.Update (settings);
+    await this.context.SaveChangesAsync ();
   }
 }

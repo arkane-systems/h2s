@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace h2s.Tests.Integration;
 
 /// <summary>
-/// Tests for the public dashboard page.
+///   Tests for the public dashboard page.
 /// </summary>
 public partial class IndexPageTests
 {
@@ -14,10 +14,11 @@ public partial class IndexPageTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
     // The seeded Reference category holds the three links outside home.arpa.
-    Assert.Equal (3, IndexPageTests.ExternalFlagPattern ().Count (html));
+    Assert.Equal (expected: 3, actual: IndexPageTests.ExternalFlagPattern ().Count (html));
   }
 
   [Fact]
@@ -25,10 +26,11 @@ public partial class IndexPageTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.DoesNotContain ("uptime-status-bar", html);
-    Assert.DoesNotContain ("link-status-badge", html);
+    Assert.DoesNotContain (expectedSubstring: "uptime-status-bar", actualString: html);
+    Assert.DoesNotContain (expectedSubstring: "link-status-badge", actualString: html);
   }
 
   [Fact]
@@ -36,31 +38,39 @@ public partial class IndexPageTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
-    var names = IndexPageTests.CategoryHeadingPattern ().Matches (html).Select (m => m.Groups["name"].Value);
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+    IEnumerable<string> names = IndexPageTests.CategoryHeadingPattern ().Matches (html).Select (m => m.Groups["name"].Value);
 
-    Assert.Equal (["Home", "Media", "Reference", "Infrastructure", "Network"], names);
-    Assert.Contains ("category-grid-break", html);
+    Assert.Equal (expected: ["Home", "Media", "Reference", "Infrastructure", "Network"], actual: names);
+    Assert.Contains (expectedSubstring: "category-grid-break", actualString: html);
   }
 
   [Fact]
   public async Task Index_RendersKumaBadgesWhenConfigured ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    var (scope, context)    = factory.CreateContext ();
+    var (scope, context) = factory.CreateContext ();
 
     using (scope)
     {
-      await context.DashboardSettings.ExecuteUpdateAsync (s => s.SetProperty (x => x.UptimeKumaServerUrl, "https://status.home.arpa")
-                                                                .SetProperty (x => x.UptimeKumaStatusPageSlug, "main"),
-                                                          TestContext.Current.CancellationToken);
+      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s
+                                                                                .SetProperty (propertyExpression:
+                                                                                              x => x.UptimeKumaServerUrl,
+                                                                                              valueExpression:
+                                                                                              "https://status.home.arpa")
+                                                                                .SetProperty (propertyExpression:
+                                                                                              x => x.UptimeKumaStatusPageSlug,
+                                                                                              valueExpression: "main"),
+                                                          cancellationToken: TestContext.Current.CancellationToken);
     }
 
-    var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains ("""href="https://status.home.arpa/status/main""", html);
-    Assert.Contains ("https://status.home.arpa/api/badge/1/uptime/24?style=flat", html);
-    Assert.Contains ("https://status.home.arpa/api/badge/11/status?style=flat&amp;label=", html);
+    Assert.Contains (expectedSubstring: """href="https://status.home.arpa/status/main""",                     actualString: html);
+    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/1/uptime/24?style=flat",          actualString: html);
+    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/11/status?style=flat&amp;label=", actualString: html);
   }
 
   [Fact]
@@ -68,10 +78,11 @@ public partial class IndexPageTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    var html = await factory.CreateClient ().GetStringAsync ("/", TestContext.Current.CancellationToken);
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains ("<title>h2s - Development</title>", html);
-    Assert.Contains ("Seeded sample data", html);
+    Assert.Contains (expectedSubstring: "<title>h2s - Development</title>", actualString: html);
+    Assert.Contains (expectedSubstring: "Seeded sample data",               actualString: html);
   }
 
   [GeneratedRegex ("""<h2 class="h5 mb-0">(?<name>[^<]+)</h2>""")]

@@ -1,11 +1,12 @@
 using System.Net;
+using System.Text.Json;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Tests.Integration;
 
 /// <summary>
-/// Tests for the JSON page handlers behind the admin editor.
+///   Tests for the JSON page handlers behind the admin editor.
 /// </summary>
 public class EditorHandlerTests
 {
@@ -15,21 +16,30 @@ public class EditorHandlerTests
   public async Task CreateCategory_AddsCategory ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    var client              = factory.CreateClient ();
+    HttpClient      client  = factory.CreateClient ();
 
-    var response = await FormPoster.PostAsync (client, EditorHandlerTests.EditorPath, "CreateCategory", [new ("name", "  Games  "), new ("isAdminCategory", "true")]);
+    HttpResponseMessage response = await FormPoster.PostAsync (client: client,
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "CreateCategory",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "name", value: "  Games  "),
+                                                                 new KeyValuePair<string, string> (key: "isAdminCategory",
+                                                                                                   value: "true"),
+                                                               ]);
 
-    Assert.Equal (HttpStatusCode.OK, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
 
-    var json = await FormPoster.ReadJsonAsync (response);
+    JsonElement json = await FormPoster.ReadJsonAsync (response);
 
-    Assert.Equal ("Games", json.GetProperty ("name").GetString ());
+    Assert.Equal (expected: "Games", actual: json.GetProperty ("name").GetString ());
     Assert.True (json.GetProperty ("isAdminCategory").GetBoolean ());
 
-    var categories = await FormPoster.ReadJsonAsync (await client.GetAsync ($"{EditorHandlerTests.EditorPath}?handler=Categories",
-                                                                            TestContext.Current.CancellationToken));
+    JsonElement categories =
+      await FormPoster.ReadJsonAsync (await client.GetAsync (requestUri: $"{EditorHandlerTests.EditorPath}?handler=Categories",
+                                                             cancellationToken: TestContext.Current.CancellationToken));
 
-    Assert.Contains (categories.EnumerateArray (), c => c.GetProperty ("name").GetString () == "Games");
+    Assert.Contains (collection: categories.EnumerateArray (), filter: c => c.GetProperty ("name").GetString () == "Games");
   }
 
   [Fact]
@@ -37,76 +47,100 @@ public class EditorHandlerTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    var response = await FormPoster.PostAsync (factory.CreateClient (), EditorHandlerTests.EditorPath, "CreateCategory", [new ("name", "   ")]);
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "CreateCategory",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "name", value: "   "),
+                                                               ]);
 
-    Assert.Equal (HttpStatusCode.BadRequest, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
   }
 
   [Fact]
   public async Task CreateLink_AddsLinkWithNormalizedIcon ()
   {
-    await using var factory = new DashboardApplicationFactory ();
-    var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Media");
+    await using var factory    = new DashboardApplicationFactory ();
+    int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Media");
 
-    var response = await FormPoster.PostAsync (factory.CreateClient (),
-                                               EditorHandlerTests.EditorPath,
-                                               "CreateLink",
-                                               [
-                                                 new ("categoryId", categoryId.ToString ()),
-                                                 new ("label", "Navidrome"),
-                                                 new ("url", "https://music.home.arpa/"),
-                                                 new ("iconName", "Navidrome"),
-                                                 new ("monitorId", "14"),
-                                               ]);
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "CreateLink",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "categoryId",
+                                                                                                   value: categoryId.ToString ()),
+                                                                 new KeyValuePair<string, string> (key: "label",
+                                                                                                   value: "Navidrome"),
+                                                                 new KeyValuePair<string, string> (key: "url",
+                                                                                                   value:
+                                                                                                   "https://music.home.arpa/"),
+                                                                 new KeyValuePair<string, string> (key: "iconName",
+                                                                                                   value: "Navidrome"),
+                                                                 new KeyValuePair<string, string> (key: "monitorId", value: "14"),
+                                                               ]);
 
-    Assert.Equal (HttpStatusCode.OK, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
 
-    var json = await FormPoster.ReadJsonAsync (response);
+    JsonElement json = await FormPoster.ReadJsonAsync (response);
 
-    Assert.Equal ("Media", json.GetProperty ("categoryName").GetString ());
-    Assert.Equal ("navidrome", json.GetProperty ("iconName").GetString ());
-    Assert.Equal ("14", json.GetProperty ("monitorId").GetString ());
+    Assert.Equal (expected: "Media",     actual: json.GetProperty ("categoryName").GetString ());
+    Assert.Equal (expected: "navidrome", actual: json.GetProperty ("iconName").GetString ());
+    Assert.Equal (expected: "14",        actual: json.GetProperty ("monitorId").GetString ());
   }
 
   [Theory]
-  [InlineData ("", "https://music.home.arpa/", "")]
-  [InlineData ("Navidrome", "", "")]
-  [InlineData ("Navidrome", "ftp://music.home.arpa/", "")]
+  [InlineData ("",          "https://music.home.arpa/", "")]
+  [InlineData ("Navidrome", "",                         "")]
+  [InlineData ("Navidrome", "ftp://music.home.arpa/",   "")]
   [InlineData ("Navidrome", "https://music.home.arpa/", "0")]
   public async Task CreateLink_RejectsInvalidInput (string label, string url, string monitorId)
   {
-    await using var factory = new DashboardApplicationFactory ();
-    var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Media");
+    await using var factory    = new DashboardApplicationFactory ();
+    int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Media");
 
-    var response = await FormPoster.PostAsync (factory.CreateClient (),
-                                               EditorHandlerTests.EditorPath,
-                                               "CreateLink",
-                                               [
-                                                 new ("categoryId", categoryId.ToString ()),
-                                                 new ("label", label),
-                                                 new ("url", url),
-                                                 new ("monitorId", monitorId),
-                                               ]);
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "CreateLink",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "categoryId",
+                                                                                                   value: categoryId.ToString ()),
+                                                                 new KeyValuePair<string, string> (key: "label", value: label),
+                                                                 new KeyValuePair<string, string> (key: "url",   value: url),
+                                                                 new KeyValuePair<string, string> (key: "monitorId",
+                                                                                                   value: monitorId),
+                                                               ]);
 
-    Assert.Equal (HttpStatusCode.BadRequest, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
   }
 
   [Fact]
   public async Task DeleteCategory_RemovesItsLinks ()
   {
-    await using var factory = new DashboardApplicationFactory ();
-    var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Reference");
+    await using var factory    = new DashboardApplicationFactory ();
+    int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Reference");
 
-    var response = await FormPoster.PostAsync (factory.CreateClient (), EditorHandlerTests.EditorPath, "DeleteCategory", [new ("id", categoryId.ToString ())]);
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "DeleteCategory",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "id",
+                                                                                                   value: categoryId.ToString ()),
+                                                               ]);
 
-    Assert.Equal (HttpStatusCode.OK, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
 
     var (scope, context) = factory.CreateContext ();
 
     using (scope)
     {
-      Assert.False (await context.Categories.AnyAsync (c => c.Id == categoryId, TestContext.Current.CancellationToken));
-      Assert.False (await context.Links.AnyAsync (l => l.CategoryId == categoryId, TestContext.Current.CancellationToken));
+      Assert.False (await context.Categories.AnyAsync (predicate: c => c.Id == categoryId,
+                                                       cancellationToken: TestContext.Current.CancellationToken));
+      Assert.False (await context.Links.AnyAsync (predicate: l => l.CategoryId == categoryId,
+                                                  cancellationToken: TestContext.Current.CancellationToken));
     }
   }
 
@@ -115,35 +149,43 @@ public class EditorHandlerTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    var response = await factory.CreateClient ()
-                                .PostAsync ($"{EditorHandlerTests.EditorPath}?handler=CreateCategory",
-                                            new FormUrlEncodedContent ([new ("name", "Sneaky")]),
-                                            TestContext.Current.CancellationToken);
+    HttpResponseMessage response = await factory.CreateClient ()
+                                                .PostAsync (requestUri: $"{EditorHandlerTests.EditorPath}?handler=CreateCategory",
+                                                            content: new FormUrlEncodedContent ([
+                                                                                                  new KeyValuePair<string,
+                                                                                                    string> (key: "name",
+                                                                                                             value: "Sneaky"),
+                                                                                                ]),
+                                                            cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Equal (HttpStatusCode.BadRequest, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
   }
 
   [Fact]
   public async Task UpdateLink_ReturnsNotFoundForUnknownLink ()
   {
-    await using var factory = new DashboardApplicationFactory ();
-    var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Media");
+    await using var factory    = new DashboardApplicationFactory ();
+    int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Media");
 
-    var response = await FormPoster.PostAsync (factory.CreateClient (),
-                                               EditorHandlerTests.EditorPath,
-                                               "UpdateLink",
-                                               [
-                                                 new ("id", "99999"),
-                                                 new ("categoryId", categoryId.ToString ()),
-                                                 new ("label", "Ghost"),
-                                                 new ("url", "https://ghost.home.arpa/"),
-                                               ]);
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "UpdateLink",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "id", value: "99999"),
+                                                                 new KeyValuePair<string, string> (key: "categoryId",
+                                                                                                   value: categoryId.ToString ()),
+                                                                 new KeyValuePair<string, string> (key: "label", value: "Ghost"),
+                                                                 new KeyValuePair<string, string> (key: "url",
+                                                                                                   value:
+                                                                                                   "https://ghost.home.arpa/"),
+                                                               ]);
 
-    Assert.Equal (HttpStatusCode.NotFound, response.StatusCode);
+    Assert.Equal (expected: HttpStatusCode.NotFound, actual: response.StatusCode);
   }
 
   /// <summary>
-  /// Looks up a seeded category's ID by name.
+  ///   Looks up a seeded category's ID by name.
   /// </summary>
   /// <param name="factory">The factory hosting the database.</param>
   /// <param name="name">The category name.</param>
@@ -154,7 +196,9 @@ public class EditorHandlerTests
 
     using (scope)
     {
-      return await context.Categories.Where (c => c.Name == name).Select (c => c.Id).SingleAsync (TestContext.Current.CancellationToken);
+      return await context.Categories.Where (c => c.Name == name)
+                          .Select (c => c.Id)
+                          .SingleAsync (TestContext.Current.CancellationToken);
     }
   }
 }

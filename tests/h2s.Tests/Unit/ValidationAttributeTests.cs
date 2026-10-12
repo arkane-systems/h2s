@@ -3,7 +3,7 @@ using h2s.Validation;
 namespace h2s.Tests.Unit;
 
 /// <summary>
-/// Tests for the custom validation attributes in <c>h2s.Validation</c>.
+///   Tests for the custom validation attributes in <c>h2s.Validation</c>.
 /// </summary>
 public class ValidationAttributeTests
 {

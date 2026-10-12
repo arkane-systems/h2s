@@ -4,22 +4,22 @@ using Microsoft.EntityFrameworkCore;
 namespace h2s.Data.Seeding;
 
 /// <summary>
-/// Populates a dashboard database with representative sample data for development and testing.
+///   Populates a dashboard database with representative sample data for development and testing.
 /// </summary>
 /// <remarks>
-/// The sample data exercises every rendering path on the dashboard: regular and admin categories, links with and
-/// without icons and descriptions, internal and external hosts, and Uptime Kuma monitor IDs. Uptime Kuma itself is
-/// left disabled so that badges do not point at a nonexistent server; set a server URL in Settings to try it.
+///   The sample data exercises every rendering path on the dashboard: regular and admin categories, links with and
+///   without icons and descriptions, internal and external hosts, and Uptime Kuma monitor IDs. Uptime Kuma itself is
+///   left disabled so that badges do not point at a nonexistent server; set a server URL in Settings to try it.
 /// </remarks>
 public static class DevDataSeeder
 {
   /// <summary>
-  /// The local domain used by the sample links. <c>home.arpa</c> is reserved for residential networks by RFC 8375.
+  ///   The local domain used by the sample links. <c>home.arpa</c> is reserved for residential networks by RFC 8375.
   /// </summary>
   public const string LocalDomain = "home.arpa";
 
   /// <summary>
-  /// Seeds the sample data into a newly migrated database.
+  ///   Seeds the sample data into a newly migrated database.
   /// </summary>
   /// <param name="context">The database context to seed. Its schema must already be migrated.</param>
   /// <param name="cancellationToken">A token used to cancel the operation.</param>
@@ -28,15 +28,14 @@ public static class DevDataSeeder
   {
     ArgumentNullException.ThrowIfNull (context);
 
-    if (await context.Categories.AnyAsync (cancellationToken)
-        || await context.Links.AnyAsync (cancellationToken)
-        || await context.InfrastructureGroups.AnyAsync (cancellationToken))
-    {
+    if (await context.Categories.AnyAsync (cancellationToken) ||
+        await context.Links.AnyAsync (cancellationToken)      ||
+        await context.InfrastructureGroups.AnyAsync (cancellationToken))
       throw new InvalidOperationException ("The database already contains data; reset it before seeding.");
-    }
 
     // The AddDashboardSettings migration inserts the singleton settings row, so update it rather than adding one.
-    var settings = await context.DashboardSettings.SingleOrDefaultAsync (s => s.Id == 1, cancellationToken);
+    DashboardSettings? settings =
+      await context.DashboardSettings.SingleOrDefaultAsync (predicate: s => s.Id == 1, cancellationToken: cancellationToken);
 
     if (settings is null)
     {
@@ -52,7 +51,7 @@ public static class DevDataSeeder
   }
 
   /// <summary>
-  /// Applies the sample values to the singleton settings record.
+  ///   Applies the sample values to the singleton settings record.
   /// </summary>
   /// <param name="settings">The settings record to update.</param>
   private static void ApplySettings (DashboardSettings settings)
@@ -67,46 +66,105 @@ public static class DevDataSeeder
   }
 
   /// <summary>
-  /// Creates the sample categories and their links.
+  ///   Creates the sample categories and their links.
   /// </summary>
   /// <returns>The categories, each with its links attached.</returns>
   private static IEnumerable<Category> CreateCategories ()
   {
     yield return DevDataSeeder.CreateCategory (name: "Media",
                                                isAdminCategory: false,
-                                               DevDataSeeder.LocalLink ("Jellyfin", "jellyfin", "Movies, TV and music", "jellyfin", monitorId: "11"),
-                                               DevDataSeeder.LocalLink ("Sonarr", "sonarr", "TV series manager", "sonarr", monitorId: "12"),
-                                               DevDataSeeder.LocalLink ("Radarr", "radarr", "Movie manager", "radarr", monitorId: "13"),
-                                               DevDataSeeder.LocalLink ("Audiobookshelf", "audiobooks", "", "audiobookshelf"));
+                                               DevDataSeeder.LocalLink (label: "Jellyfin",
+                                                                        host: "jellyfin",
+                                                                        description: "Movies, TV and music",
+                                                                        iconName: "jellyfin",
+                                                                        monitorId: "11"),
+                                               DevDataSeeder.LocalLink (label: "Sonarr",
+                                                                        host: "sonarr",
+                                                                        description: "TV series manager",
+                                                                        iconName: "sonarr",
+                                                                        monitorId: "12"),
+                                               DevDataSeeder.LocalLink (label: "Radarr",
+                                                                        host: "radarr",
+                                                                        description: "Movie manager",
+                                                                        iconName: "radarr",
+                                                                        monitorId: "13"),
+                                               DevDataSeeder.LocalLink (label: "Audiobookshelf",
+                                                                        host: "audiobooks",
+                                                                        description: "",
+                                                                        iconName: "audiobookshelf"));
 
     yield return DevDataSeeder.CreateCategory (name: "Home",
                                                isAdminCategory: false,
-                                               DevDataSeeder.LocalLink ("Home Assistant", "homeassistant", "Home automation", "home-assistant", monitorId: "21"),
-                                               DevDataSeeder.LocalLink ("Frigate", "frigate", "Camera NVR", "frigate"),
-                                               DevDataSeeder.LocalLink ("Paperless-ngx", "paperless", "Document archive", "paperless-ngx"),
-                                               DevDataSeeder.LocalLink ("Recipes", "recipes", "No icon, to exercise the fallback", ""));
+                                               DevDataSeeder.LocalLink (label: "Home Assistant",
+                                                                        host: "homeassistant",
+                                                                        description: "Home automation",
+                                                                        iconName: "home-assistant",
+                                                                        monitorId: "21"),
+                                               DevDataSeeder.LocalLink (label: "Frigate",
+                                                                        host: "frigate",
+                                                                        description: "Camera NVR",
+                                                                        iconName: "frigate"),
+                                               DevDataSeeder.LocalLink (label: "Paperless-ngx",
+                                                                        host: "paperless",
+                                                                        description: "Document archive",
+                                                                        iconName: "paperless-ngx"),
+                                               DevDataSeeder.LocalLink (label: "Recipes",
+                                                                        host: "recipes",
+                                                                        description: "No icon, to exercise the fallback",
+                                                                        iconName: ""));
 
     yield return DevDataSeeder.CreateCategory (name: "Reference",
                                                isAdminCategory: false,
-                                               DevDataSeeder.ExternalLink ("selfh.st icons", "https://selfh.st/icons/", "Icon catalog used by h2s", "selfh-st"),
-                                               DevDataSeeder.ExternalLink ("GitHub", "https://github.com/arkane-systems/h2s", "h2s source", "github"),
-                                               DevDataSeeder.ExternalLink ("Docker Hub", "https://hub.docker.com/", "", "docker"));
+                                               DevDataSeeder.ExternalLink (label: "selfh.st icons",
+                                                                           url: "https://selfh.st/icons/",
+                                                                           description: "Icon catalog used by h2s",
+                                                                           iconName: "selfh-st"),
+                                               DevDataSeeder.ExternalLink (label: "GitHub",
+                                                                           url: "https://github.com/arkane-systems/h2s",
+                                                                           description: "h2s source",
+                                                                           iconName: "github"),
+                                               DevDataSeeder.ExternalLink (label: "Docker Hub",
+                                                                           url: "https://hub.docker.com/",
+                                                                           description: "",
+                                                                           iconName: "docker"));
 
     yield return DevDataSeeder.CreateCategory (name: "Infrastructure",
                                                isAdminCategory: true,
-                                               DevDataSeeder.LocalLink ("Proxmox", "proxmox", "Hypervisor cluster", "proxmox", monitorId: "1"),
-                                               DevDataSeeder.LocalLink ("TrueNAS", "truenas", "Storage", "truenas-scale", monitorId: "2"),
-                                               DevDataSeeder.LocalLink ("Traefik", "traefik", "Ingress dashboard", "traefik", monitorId: "3"),
-                                               DevDataSeeder.LocalLink ("Uptime Kuma", "status", "Service monitoring", "uptime-kuma"));
+                                               DevDataSeeder.LocalLink (label: "Proxmox",
+                                                                        host: "proxmox",
+                                                                        description: "Hypervisor cluster",
+                                                                        iconName: "proxmox",
+                                                                        monitorId: "1"),
+                                               DevDataSeeder.LocalLink (label: "TrueNAS",
+                                                                        host: "truenas",
+                                                                        description: "Storage",
+                                                                        iconName: "truenas-scale",
+                                                                        monitorId: "2"),
+                                               DevDataSeeder.LocalLink (label: "Traefik",
+                                                                        host: "traefik",
+                                                                        description: "Ingress dashboard",
+                                                                        iconName: "traefik",
+                                                                        monitorId: "3"),
+                                               DevDataSeeder.LocalLink (label: "Uptime Kuma",
+                                                                        host: "status",
+                                                                        description: "Service monitoring",
+                                                                        iconName: "uptime-kuma"));
 
     yield return DevDataSeeder.CreateCategory (name: "Network",
                                                isAdminCategory: true,
-                                               DevDataSeeder.LocalLink ("UniFi", "unifi", "Network controller", "ubiquiti-unifi", monitorId: "4"),
-                                               DevDataSeeder.LocalLink ("Pi-hole", "pihole", "DNS filtering", "pi-hole"));
+                                               DevDataSeeder.LocalLink (label: "UniFi",
+                                                                        host: "unifi",
+                                                                        description: "Network controller",
+                                                                        iconName: "ubiquiti-unifi",
+                                                                        monitorId: "4"),
+                                               DevDataSeeder.LocalLink (label: "Pi-hole",
+                                                                        host: "pihole",
+                                                                        description: "DNS filtering",
+                                                                        iconName: "pi-hole"));
   }
 
   /// <summary>
-  /// Creates the sample infrastructure groups shown in the Uptime Kuma status bar.
+  ///   Creates the sample infrastructure groups shown in the Uptime Kuma status bar.
   /// </summary>
   /// <returns>The infrastructure groups.</returns>
   private static IEnumerable<InfrastructureGroup> CreateInfrastructureGroups ()
@@ -117,7 +175,7 @@ public static class DevDataSeeder
   }
 
   /// <summary>
-  /// Creates a category containing the specified links.
+  ///   Creates a category containing the specified links.
   /// </summary>
   /// <param name="name">The category name.</param>
   /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
@@ -127,7 +185,7 @@ public static class DevDataSeeder
     => new () { Name = name, IsAdminCategory = isAdminCategory, Links = [.. links] };
 
   /// <summary>
-  /// Creates a link to a host within the sample local domain.
+  ///   Creates a link to a host within the sample local domain.
   /// </summary>
   /// <param name="label">The link label.</param>
   /// <param name="host">The host name, without the local domain.</param>
@@ -136,10 +194,14 @@ public static class DevDataSeeder
   /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
   /// <returns>The link.</returns>
   private static Link LocalLink (string label, string host, string description, string iconName, string? monitorId = null)
-    => DevDataSeeder.ExternalLink (label, $"https://{host}.{DevDataSeeder.LocalDomain}/", description, iconName, monitorId);
+    => DevDataSeeder.ExternalLink (label: label,
+                                   url: $"https://{host}.{DevDataSeeder.LocalDomain}/",
+                                   description: description,
+                                   iconName: iconName,
+                                   monitorId: monitorId);
 
   /// <summary>
-  /// Creates a link to an arbitrary URL.
+  ///   Creates a link to an arbitrary URL.
   /// </summary>
   /// <param name="label">The link label.</param>
   /// <param name="url">The link URL.</param>

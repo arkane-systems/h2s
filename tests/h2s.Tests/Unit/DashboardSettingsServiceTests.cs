@@ -1,3 +1,4 @@
+using h2s.Data;
 using h2s.Models;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
@@ -6,37 +7,33 @@ using Microsoft.EntityFrameworkCore;
 namespace h2s.Tests.Unit;
 
 /// <summary>
-/// Tests for <see cref="DashboardSettingsService"/>.
+///   Tests for <see cref="DashboardSettingsService" />.
 /// </summary>
 public class DashboardSettingsServiceTests
 {
   [Fact]
   public async Task GetSettingsAsync_CreatesDefaultsWhenMissing ()
   {
-    await using var database = await TestDatabase.CreateAsync ();
-    var cancellationToken    = TestContext.Current.CancellationToken;
+    await using var   database          = await TestDatabase.CreateAsync ();
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
-    await using (var context = database.CreateContext ())
-    {
+    await using (DashboardContext context = database.CreateContext ())
       await context.DashboardSettings.ExecuteDeleteAsync (cancellationToken);
-    }
 
-    await using (var context = database.CreateContext ())
+    await using (DashboardContext context = database.CreateContext ())
     {
-      var settings = await new DashboardSettingsService (context).GetSettingsAsync ();
+      DashboardSettings settings = await new DashboardSettingsService (context).GetSettingsAsync ();
 
-      Assert.Equal (1, settings.Id);
-      Assert.Equal ("Dashboard", settings.Title);
-      Assert.Equal ("", settings.Motto);
-      Assert.Equal ("", settings.LocalDomains);
-      Assert.Equal (ColorMode.Auto, settings.ColorMode);
-      Assert.Equal (24, settings.UptimeKumaDefaultDuration);
+      Assert.Equal (expected: 1,              actual: settings.Id);
+      Assert.Equal (expected: "Dashboard",    actual: settings.Title);
+      Assert.Equal (expected: "",             actual: settings.Motto);
+      Assert.Equal (expected: "",             actual: settings.LocalDomains);
+      Assert.Equal (expected: ColorMode.Auto, actual: settings.ColorMode);
+      Assert.Equal (expected: 24,             actual: settings.UptimeKumaDefaultDuration);
     }
 
-    await using (var context = database.CreateContext ())
-    {
-      Assert.Equal (1, await context.DashboardSettings.CountAsync (cancellationToken));
-    }
+    await using (DashboardContext context = database.CreateContext ())
+      Assert.Equal (expected: 1, actual: await context.DashboardSettings.CountAsync (cancellationToken));
   }
 
   [Theory]
@@ -44,23 +41,27 @@ public class DashboardSettingsServiceTests
   [InlineData (-5)]
   public async Task GetSettingsAsync_NormalizesInvalidDuration (int storedDuration)
   {
-    await using var database = await TestDatabase.CreateAsync ();
-    var cancellationToken    = TestContext.Current.CancellationToken;
+    await using var   database          = await TestDatabase.CreateAsync ();
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
-    await using (var context = database.CreateContext ())
+    await using (DashboardContext context = database.CreateContext ())
     {
-      await context.DashboardSettings.ExecuteUpdateAsync (s => s.SetProperty (x => x.UptimeKumaDefaultDuration, storedDuration),
-                                                          cancellationToken);
+      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls:
+                                                          s => s.SetProperty (propertyExpression: x => x.UptimeKumaDefaultDuration,
+                                                                              valueExpression: storedDuration),
+                                                          cancellationToken: cancellationToken);
     }
 
-    await using (var context = database.CreateContext ())
+    await using (DashboardContext context = database.CreateContext ())
     {
-      Assert.Equal (24, (await new DashboardSettingsService (context).GetSettingsAsync ()).UptimeKumaDefaultDuration);
+      Assert.Equal (expected: 24,
+                    actual: (await new DashboardSettingsService (context).GetSettingsAsync ()).UptimeKumaDefaultDuration);
     }
 
-    await using (var context = database.CreateContext ())
+    await using (DashboardContext context = database.CreateContext ())
     {
-      Assert.Equal (24, (await context.DashboardSettings.SingleAsync (cancellationToken)).UptimeKumaDefaultDuration);
+      Assert.Equal (expected: 24,
+                    actual: (await context.DashboardSettings.SingleAsync (cancellationToken)).UptimeKumaDefaultDuration);
     }
   }
 
@@ -69,22 +70,22 @@ public class DashboardSettingsServiceTests
   {
     await using var database = await TestDatabase.CreateAsync ();
 
-    await using (var context = database.CreateContext ())
+    await using (DashboardContext context = database.CreateContext ())
     {
-      var service  = new DashboardSettingsService (context);
-      var settings = await service.GetSettingsAsync ();
+      var               service  = new DashboardSettingsService (context);
+      DashboardSettings settings = await service.GetSettingsAsync ();
 
       settings.Title     = "Homelab";
       settings.ColorMode = ColorMode.Dark;
       await service.SaveSettingsAsync (settings);
     }
 
-    await using (var context = database.CreateContext ())
+    await using (DashboardContext context = database.CreateContext ())
     {
-      var settings = await context.DashboardSettings.SingleAsync (TestContext.Current.CancellationToken);
+      DashboardSettings settings = await context.DashboardSettings.SingleAsync (TestContext.Current.CancellationToken);
 
-      Assert.Equal ("Homelab", settings.Title);
-      Assert.Equal (ColorMode.Dark, settings.ColorMode);
+      Assert.Equal (expected: "Homelab",      actual: settings.Title);
+      Assert.Equal (expected: ColorMode.Dark, actual: settings.ColorMode);
     }
   }
 }

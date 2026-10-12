@@ -3,45 +3,48 @@ using h2s.Models;
 namespace h2s.Tests.Unit;
 
 /// <summary>
-/// Tests for the icon helpers on <see cref="Link"/>.
+///   Tests for the icon helpers on <see cref="Link" />.
 /// </summary>
 public class LinkTests
 {
   private const string IconsBaseUrl = "https://cdn.jsdelivr.net/gh/selfhst/icons";
 
   [Theory]
-  [InlineData ("png", "png")]
-  [InlineData ("SVG", "svg")]
+  [InlineData ("png",    "png")]
+  [InlineData ("SVG",    "svg")]
   [InlineData (" webp ", "webp")]
-  [InlineData ("gif", "png")]
+  [InlineData ("gif",    "png")]
   public void BuildIconUrl_NormalizesFormat (string format, string expectedFormat)
-    => Assert.Equal ($"{LinkTests.IconsBaseUrl}/{expectedFormat}/jellyfin.{expectedFormat}", Link.BuildIconUrl ("jellyfin", format));
+    => Assert.Equal (expected: $"{LinkTests.IconsBaseUrl}/{expectedFormat}/jellyfin.{expectedFormat}",
+                     actual: Link.BuildIconUrl (iconName: "jellyfin", format: format));
 
   [Fact]
   public void BuildIconUrl_NormalizesIconName ()
-    => Assert.Equal ($"{LinkTests.IconsBaseUrl}/png/home-assistant.png", Link.BuildIconUrl ("Home Assistant"));
+    => Assert.Equal (expected: $"{LinkTests.IconsBaseUrl}/png/home-assistant.png", actual: Link.BuildIconUrl ("Home Assistant"));
 
   [Theory]
   [InlineData ("")]
   [InlineData ("   ")]
   [InlineData ("---")]
-  public void BuildIconUrl_ReturnsEmptyForBlankName (string iconName) => Assert.Equal ("", Link.BuildIconUrl (iconName));
+  public void BuildIconUrl_ReturnsEmptyForBlankName (string iconName)
+    => Assert.Equal (expected: "", actual: Link.BuildIconUrl (iconName));
 
   [Fact]
   public void GetIconUrl_UsesIconName ()
   {
     var link = new Link { IconName = "pi-hole" };
 
-    Assert.Equal ($"{LinkTests.IconsBaseUrl}/svg/pi-hole.svg", link.GetIconUrl ("svg"));
+    Assert.Equal (expected: $"{LinkTests.IconsBaseUrl}/svg/pi-hole.svg", actual: link.GetIconUrl ("svg"));
   }
 
   [Theory]
-  [InlineData ("Home Assistant", "home-assistant")]
-  [InlineData ("  Pi-hole  ", "pi-hole")]
-  [InlineData ("TrueNAS_Scale!!", "truenas-scale")]
+  [InlineData ("Home Assistant",      "home-assistant")]
+  [InlineData ("  Pi-hole  ",         "pi-hole")]
+  [InlineData ("TrueNAS_Scale!!",     "truenas-scale")]
   [InlineData ("--Paperless   NGX--", "paperless-ngx")]
-  [InlineData ("jellyfin", "jellyfin")]
-  [InlineData ("", "")]
-  [InlineData ("***", "")]
-  public void NormalizeIconName_Slugifies (string input, string expected) => Assert.Equal (expected, Link.NormalizeIconName (input));
+  [InlineData ("jellyfin",            "jellyfin")]
+  [InlineData ("",                    "")]
+  [InlineData ("***",                 "")]
+  public void NormalizeIconName_Slugifies (string input, string expected)
+    => Assert.Equal (expected: expected, actual: Link.NormalizeIconName (input));
 }
