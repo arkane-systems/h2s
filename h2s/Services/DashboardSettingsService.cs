@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public class DashboardSettingsService
 {
-  private readonly DashboardContext _context;
+  private readonly DashboardContext context;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="DashboardSettingsService"/> class.
@@ -17,7 +17,7 @@ public class DashboardSettingsService
   /// <param name="context">The database context used to load and save settings.</param>
   public DashboardSettingsService (DashboardContext context)
   {
-    _context = context;
+    this.context = context;
   }
 
   /// <summary>
@@ -26,7 +26,7 @@ public class DashboardSettingsService
   /// <returns>The existing or newly created dashboard settings record.</returns>
   public async Task<DashboardSettings> GetSettingsAsync ()
   {
-    var settings = await _context.DashboardSettings.FirstOrDefaultAsync ();
+    var settings = await this.context.DashboardSettings.FirstOrDefaultAsync ();
 
     if (settings == null)
     {
@@ -38,14 +38,14 @@ public class DashboardSettingsService
         LocalDomains = "",
         UptimeKumaDefaultDuration = 24
       };
-      _context.DashboardSettings.Add (settings);
-      await _context.SaveChangesAsync ();
+      this.context.DashboardSettings.Add (settings);
+      await this.context.SaveChangesAsync ();
     }
 
     if (settings.UptimeKumaDefaultDuration <= 0)
     {
       settings.UptimeKumaDefaultDuration = 24;
-      await _context.SaveChangesAsync ();
+      await this.context.SaveChangesAsync ();
     }
 
     return settings;
@@ -57,7 +57,7 @@ public class DashboardSettingsService
   /// <param name="settings">The settings instance to persist.</param>
   public async Task SaveSettingsAsync (DashboardSettings settings)
   {
-    _context.DashboardSettings.Update (settings);
-    await _context.SaveChangesAsync ();
+    this.context.DashboardSettings.Update (settings);
+    await this.context.SaveChangesAsync ();
   }
 }

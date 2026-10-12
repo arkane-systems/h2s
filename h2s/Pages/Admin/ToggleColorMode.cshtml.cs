@@ -10,7 +10,7 @@ namespace h2s.Pages.Admin;
 /// </summary>
 public class ToggleColorModeModel : PageModel
 {
-  private readonly DashboardSettingsService _settingsService;
+  private readonly DashboardSettingsService settingsService;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ToggleColorModeModel"/> class.
@@ -18,7 +18,7 @@ public class ToggleColorModeModel : PageModel
   /// <param name="settingsService">The service used to retrieve and persist dashboard settings.</param>
   public ToggleColorModeModel(DashboardSettingsService settingsService)
   {
-    _settingsService = settingsService;
+    this.settingsService = settingsService;
   }
 
   /// <summary>
@@ -27,10 +27,10 @@ public class ToggleColorModeModel : PageModel
   /// <returns>A JSON payload containing the updated color mode name.</returns>
   public async Task<IActionResult> OnPostAsync()
   {
-    var settings = await _settingsService.GetSettingsAsync();
+    var settings = await this.settingsService.GetSettingsAsync();
     // Cycle: Auto(0) → Light(1) → Dark(2) → Auto(0)
     settings.ColorMode = (ColorMode)(((int)settings.ColorMode + 1) % 3);
-    await _settingsService.SaveSettingsAsync(settings);
+    await this.settingsService.SaveSettingsAsync(settings);
     return new JsonResult(new { colorMode = settings.ColorMode.ToString() });
   }
 }

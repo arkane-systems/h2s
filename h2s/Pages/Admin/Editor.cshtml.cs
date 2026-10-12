@@ -19,9 +19,9 @@ public class EditorModel : PageModel
     Timeout = TimeSpan.FromSeconds (4)
   };
 
-  private readonly DashboardContext _context;
-  private readonly IMemoryCache _cache;
-  private readonly DashboardSettingsService _settingsService;
+  private readonly DashboardContext context;
+  private readonly IMemoryCache cache;
+  private readonly DashboardSettingsService settingsService;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="EditorModel"/> class.
@@ -31,9 +31,9 @@ public class EditorModel : PageModel
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   public EditorModel (DashboardContext context, IMemoryCache cache, DashboardSettingsService settingsService)
   {
-    _context = context;
-    _cache = cache;
-    _settingsService = settingsService;
+    this.context = context;
+    this.cache = cache;
+    this.settingsService = settingsService;
   }
 
   /// <summary>
@@ -64,7 +64,7 @@ public class EditorModel : PageModel
       .AsNoTracking ()
       .ToListAsync ();
 
-    var settings = await _settingsService.GetSettingsAsync ();
+    var settings = await this.settingsService.GetSettingsAsync ();
     IsUptimeKumaConfigured = !string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl);
   }
 
@@ -133,8 +133,8 @@ public class EditorModel : PageModel
       IsAdminCategory = isAdminCategory
     };
 
-    _context.Categories.Add (category);
-    await _context.SaveChangesAsync ();
+    this.context.Categories.Add (category);
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
     {
@@ -160,7 +160,7 @@ public class EditorModel : PageModel
       return BadRequest ("Category name is required.");
     }
 
-    var category = await _context.Categories
+    var category = await this.context.Categories
       .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
@@ -170,9 +170,9 @@ public class EditorModel : PageModel
 
     category.Name = normalizedName;
     category.IsAdminCategory = isAdminCategory;
-    await _context.SaveChangesAsync ();
+    await this.context.SaveChangesAsync ();
 
-    var linkCount = await _context.Links
+    var linkCount = await this.context.Links
       .CountAsync (l => l.CategoryId == id);
 
     return new JsonResult (new
@@ -191,7 +191,7 @@ public class EditorModel : PageModel
   /// <returns>A JSON payload describing the deleted category, or <see cref="NotFoundResult"/> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteCategoryAsync (int id)
   {
-    var category = await _context.Categories
+    var category = await this.context.Categories
       .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
@@ -199,8 +199,8 @@ public class EditorModel : PageModel
       return NotFound ();
     }
 
-    _context.Categories.Remove (category);
-    await _context.SaveChangesAsync ();
+    this.context.Categories.Remove (category);
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new { DeletedId = id });
   }
@@ -235,7 +235,7 @@ public class EditorModel : PageModel
       return BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
     }
 
-    if (!await _context.Categories.AnyAsync (c => c.Id == categoryId))
+    if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
     {
       return BadRequest ("Selected category does not exist.");
     }
@@ -256,10 +256,10 @@ public class EditorModel : PageModel
       Url = normalizedUrl
     };
 
-    _context.Links.Add (link);
-    await _context.SaveChangesAsync ();
+    this.context.Links.Add (link);
+    await this.context.SaveChangesAsync ();
 
-    var categoryName = await _context.Categories
+    var categoryName = await this.context.Categories
       .Where (c => c.Id == categoryId)
       .Select (c => c.Name)
       .FirstAsync ();
@@ -308,7 +308,7 @@ public class EditorModel : PageModel
       return BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
     }
 
-    var link = await _context.Links
+    var link = await this.context.Links
       .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
@@ -316,7 +316,7 @@ public class EditorModel : PageModel
       return NotFound ();
     }
 
-    if (!await _context.Categories.AnyAsync (c => c.Id == categoryId))
+    if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
     {
       return BadRequest ("Selected category does not exist.");
     }
@@ -334,9 +334,9 @@ public class EditorModel : PageModel
     link.MonitorId = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId;
     link.Url = normalizedUrl;
 
-    await _context.SaveChangesAsync ();
+    await this.context.SaveChangesAsync ();
 
-    var categoryName = await _context.Categories
+    var categoryName = await this.context.Categories
       .Where (c => c.Id == categoryId)
       .Select (c => c.Name)
       .FirstAsync ();
@@ -361,7 +361,7 @@ public class EditorModel : PageModel
   /// <returns>A JSON payload describing the deleted link, or <see cref="NotFoundResult"/> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteLinkAsync (int id)
   {
-    var link = await _context.Links
+    var link = await this.context.Links
       .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
@@ -369,8 +369,8 @@ public class EditorModel : PageModel
       return NotFound ();
     }
 
-    _context.Links.Remove (link);
-    await _context.SaveChangesAsync ();
+    this.context.Links.Remove (link);
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new { DeletedId = id });
   }
@@ -389,7 +389,7 @@ public class EditorModel : PageModel
     }
 
     var cacheKey = $"icon-exists:{suggestedIconName}";
-    var found = await _cache.GetOrCreateAsync (cacheKey, async entry =>
+    var found = await this.cache.GetOrCreateAsync (cacheKey, async entry =>
     {
       entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes (10);
       var iconUrl = Link.BuildIconUrl (suggestedIconName);
@@ -407,7 +407,7 @@ public class EditorModel : PageModel
   /// Builds the ordered category query used by the editor UI.
   /// </summary>
   /// <returns>An <see cref="IQueryable{T}"/> that orders categories by admin state and name.</returns>
-  private IQueryable<Category> GetOrderedCategoriesQuery () => _context.Categories
+  private IQueryable<Category> GetOrderedCategoriesQuery () => this.context.Categories
     .Include (c => c.Links)
     .OrderBy (c => c.IsAdminCategory)
     .ThenBy (c => c.Name);
@@ -416,7 +416,7 @@ public class EditorModel : PageModel
   /// Builds the ordered link query used by the editor UI.
   /// </summary>
   /// <returns>An <see cref="IQueryable{T}"/> that orders links by category grouping and label.</returns>
-  private IQueryable<Link> GetOrderedLinksQuery () => _context.Links
+  private IQueryable<Link> GetOrderedLinksQuery () => this.context.Links
     .Include (l => l.Category)
     .OrderBy (l => l.Category != null ? l.Category.IsAdminCategory : false)
     .ThenBy (l => l.Category != null ? l.Category.Name : string.Empty)

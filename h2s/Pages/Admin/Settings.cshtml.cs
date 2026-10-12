@@ -12,9 +12,9 @@ namespace h2s.Pages.Admin;
 /// </summary>
 public class SettingsModel : PageModel
 {
-  private readonly DashboardSettingsService _settingsService;
-  private readonly DashboardContext _context;
-  private readonly IHttpClientFactory _httpClientFactory;
+  private readonly DashboardSettingsService settingsService;
+  private readonly DashboardContext context;
+  private readonly IHttpClientFactory httpClientFactory;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="SettingsModel"/> class.
@@ -24,9 +24,9 @@ public class SettingsModel : PageModel
   /// <param name="httpClientFactory">The HTTP client factory used for URL reachability checks.</param>
   public SettingsModel (DashboardSettingsService settingsService, DashboardContext context, IHttpClientFactory httpClientFactory)
   {
-    _settingsService = settingsService;
-    _context = context;
-    _httpClientFactory = httpClientFactory;
+    this.settingsService = settingsService;
+    this.context = context;
+    this.httpClientFactory = httpClientFactory;
   }
 
   /// <summary>
@@ -51,7 +51,7 @@ public class SettingsModel : PageModel
   /// </summary>
   public async Task OnGetAsync ()
   {
-    Settings = await _settingsService.GetSettingsAsync ();
+    Settings = await this.settingsService.GetSettingsAsync ();
     InfrastructureGroups = await GetOrderedInfrastructureGroupsQuery ()
       .AsNoTracking ()
       .ToListAsync ();
@@ -82,7 +82,7 @@ public class SettingsModel : PageModel
       };
     }
 
-    await _settingsService.SaveSettingsAsync (Settings);
+    await this.settingsService.SaveSettingsAsync (Settings);
     return RedirectToPage ();
   }
 
@@ -127,7 +127,7 @@ public class SettingsModel : PageModel
       return BadRequest ("Monitor ID must be a positive integer.");
     }
 
-    var nextSortOrder = await _context.InfrastructureGroups
+    var nextSortOrder = await this.context.InfrastructureGroups
       .Select (g => (int?)g.SortOrder)
       .MaxAsync () ?? -1;
 
@@ -138,8 +138,8 @@ public class SettingsModel : PageModel
       SortOrder = nextSortOrder + 1
     };
 
-    _context.InfrastructureGroups.Add (group);
-    await _context.SaveChangesAsync ();
+    this.context.InfrastructureGroups.Add (group);
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
     {
@@ -172,7 +172,7 @@ public class SettingsModel : PageModel
       return BadRequest ("Monitor ID must be a positive integer.");
     }
 
-    var group = await _context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
+    var group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
     if (group == null)
     {
       return NotFound ();
@@ -180,7 +180,7 @@ public class SettingsModel : PageModel
 
     group.Name = normalizedName;
     group.MonitorId = normalizedMonitorId;
-    await _context.SaveChangesAsync ();
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
     {
@@ -198,14 +198,14 @@ public class SettingsModel : PageModel
   /// <returns>A JSON payload describing the deleted group, or <see cref="NotFoundResult"/> when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteInfrastructureGroupAsync (int id)
   {
-    var group = await _context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
+    var group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
     if (group == null)
     {
       return NotFound ();
     }
 
-    _context.InfrastructureGroups.Remove (group);
-    await _context.SaveChangesAsync ();
+    this.context.InfrastructureGroups.Remove (group);
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new { DeletedId = id });
   }
@@ -232,7 +232,7 @@ public class SettingsModel : PageModel
       ids.Add (parsedId);
     }
 
-    var groups = await _context.InfrastructureGroups
+    var groups = await this.context.InfrastructureGroups
       .Where (g => ids.Contains (g.Id))
       .ToListAsync ();
 
@@ -247,7 +247,7 @@ public class SettingsModel : PageModel
       group.SortOrder = i;
     }
 
-    await _context.SaveChangesAsync ();
+    await this.context.SaveChangesAsync ();
     return new JsonResult (new { Success = true });
   }
 
@@ -255,7 +255,7 @@ public class SettingsModel : PageModel
   /// Builds the ordered infrastructure group query used by the settings UI.
   /// </summary>
   /// <returns>An <see cref="IQueryable{T}"/> that orders groups by sort order and name.</returns>
-  private IQueryable<InfrastructureGroup> GetOrderedInfrastructureGroupsQuery () => _context.InfrastructureGroups
+  private IQueryable<InfrastructureGroup> GetOrderedInfrastructureGroupsQuery () => this.context.InfrastructureGroups
     .OrderBy (g => g.SortOrder)
     .ThenBy (g => g.Name);
 
@@ -279,7 +279,7 @@ public class SettingsModel : PageModel
   {
     ArgumentNullException.ThrowIfNull (url);
 
-    var client = _httpClientFactory.CreateClient ();
+    var client = this.httpClientFactory.CreateClient ();
     client.Timeout = TimeSpan.FromSeconds (5);
 
     try

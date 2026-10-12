@@ -11,8 +11,8 @@ namespace h2s.Pages;
 /// </summary>
 public class IndexModel : PageModel
 {
-  private readonly DashboardContext _context;
-  private readonly DashboardSettingsService _settingsService;
+  private readonly DashboardContext context;
+  private readonly DashboardSettingsService settingsService;
 
   /// <summary>
   /// Gets the ordered set of categories and links displayed on the dashboard.
@@ -53,8 +53,8 @@ public class IndexModel : PageModel
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   public IndexModel (DashboardContext context, DashboardSettingsService settingsService)
   {
-    this._context = context;
-    this._settingsService = settingsService;
+    this.context = context;
+    this.settingsService = settingsService;
   }
 
   /// <summary>
@@ -62,13 +62,13 @@ public class IndexModel : PageModel
   /// </summary>
   public async Task OnGetAsync ()
   {
-    this.Categories = await this._context.Categories
+    this.Categories = await this.context.Categories
       .Include (c => c.Links)
       .OrderBy (c => c.IsAdminCategory)
       .ThenBy (c => c.Name)
       .ToListAsync ();
 
-    var settings = await this._settingsService.GetSettingsAsync ();
+    var settings = await this.settingsService.GetSettingsAsync ();
     this.LocalDomains = ParseLocalDomains (settings.LocalDomains);
 
     // Load Uptime Kuma configuration
@@ -79,7 +79,7 @@ public class IndexModel : PageModel
     // Load infrastructure groups if Uptime Kuma is configured
     if (this.IsUptimeKumaConfigured)
     {
-      this.InfrastructureGroups = await this._context.InfrastructureGroups
+      this.InfrastructureGroups = await this.context.InfrastructureGroups
         .OrderBy (g => g.SortOrder)
         .ThenBy (g => g.Name)
         .ToListAsync ();
