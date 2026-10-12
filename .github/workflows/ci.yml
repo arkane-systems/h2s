@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+  workflow_dispatch:
+  # Reused by publish-container.yml so images are only published from a passing build.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build (warnings as errors)
+        run: dotnet build h2s.slnx --configuration Release -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        run: dotnet test --solution h2s.slnx --configuration Release --no-build
+
+  code-quality:
+    name: Code style and inspections
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore tools and packages
+        run: |
+          dotnet tool restore
+          dotnet restore h2s.slnx
+
+      # The committed code must already be in house style: a Full Cleanup pass has to be a no-op. Only the repository's
+      # settings (.editorconfig, h2s.slnx.DotSettings) may apply, never machine-global ReSharper settings.
+      - name: Check formatting (ReSharper Full Cleanup)
+        run: |
+          dotnet jb cleanupcode h2s.slnx --include="**/*.cs" --exclude="**/Migrations/**" --disable-settings-layers="GlobalAll;GlobalPerProduct;SolutionPersonal;ProjectPersonal" --verbosity=ERROR
+          if ! git diff --exit-code --stat; then
+            git diff > cleanup.patch
+            echo "::error title=Code style::C# code is not in house style. Run Full Cleanup as described in CLAUDE.md (twice if needed) and commit the result. The required changes are in the cleanup-patch artifact."
+            exit 1
+          fi
+
+      - name: Upload required formatting changes
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cleanup-patch
+          path: cleanup.patch
+          if-no-files-found: ignore
+
+      # Informational for now: findings are uploaded for review but don't fail the build.
+      - name: Run ReSharper inspections
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: dotnet jb inspectcode h2s.slnx --output=inspectcode.sarif --format=Sarif --severity=WARNING --verbosity=ERROR
+
+      - name: Upload inspection results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: inspectcode-sarif
+          path: inspectcode.sarif
+          if-no-files-found: ignore

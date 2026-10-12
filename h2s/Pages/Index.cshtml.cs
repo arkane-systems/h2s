@@ -78,10 +78,12 @@ public class IndexModel : PageModel
 
     // Load infrastructure groups if Uptime Kuma is configured
     if (this.IsUptimeKumaConfigured)
+    {
       this.InfrastructureGroups = await this.context.InfrastructureGroups
                                             .OrderBy (g => g.SortOrder)
                                             .ThenBy (g => g.Name)
                                             .ToListAsync ();
+    }
   }
 
   /// <summary>
