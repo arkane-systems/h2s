@@ -26,7 +26,10 @@ Tests are xUnit v3 in `tests/h2s.Tests`, run on Microsoft.Testing.Platform. `glo
 
 Code style:
 - Restore the pinned tools (`jb`, `dotnet-ef`) with `dotnet tool restore`; they're listed in `dotnet-tools.json`.
-- Format with `dotnet jb cleanupcode h2s.slnx` (Built-in: Full Cleanup). Add `--include="path/To/File.cs"` to limit it. It takes a couple of minutes because it loads the whole solution.
+- Format exactly as CI does with `dotnet jb cleanupcode h2s.slnx --include="**/*.cs" --exclude="**/Migrations/**" --disable-settings-layers="GlobalAll;GlobalPerProduct;SolutionPersonal;ProjectPersonal"` (Built-in: Full Cleanup).
+  - Narrow `--include` to a file to limit it.
+  - It takes about 5 minutes because it loads the whole solution.
+  - Disabling the machine-global layers keeps results reproducible. Repo settings already override them, so the IDE agrees anyway.
 - `dotnet jb inspectcode h2s.slnx --output=<file> --format=Sarif` runs the ReSharper inspections.
 - Don't run `dotnet format whitespace`; it fights the ReSharper alignment rules.
 - The build reports the `.editorconfig` rules as warnings (`EnforceCodeStyleInBuild`). `-p:ContinuousIntegrationBuild=true` makes all warnings errors.
@@ -70,15 +73,15 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 - Stay within Razor Pages: no MVC controllers, no Blazor, no new frontend frameworks. Site styling goes in `h2s/wwwroot/css/site.css`.
 - New services go in `h2s/Services/` and are registered as scoped in `Program.cs` unless they clearly need another lifetime. Keep the `AddHttpClient()`, `MapStaticAssets()` and `MapRazorPages().WithStaticAssets()` calls.
 - Namespaces follow folders: `h2s.Data`, `h2s.Models`, `h2s.Services`, `h2s.Validation`, `h2s.Pages`, `h2s.Pages.Admin`.
-- C# style: the root `.editorconfig` is the source of truth. Its ReSharper section is generated from the house ReSharper profile. `h2s.slnx.DotSettings` holds what EditorConfig can't express: the member layout pattern and XML formatter settings. `Directory.Build.props` holds the shared project settings. In short:
-  - 2-space indent, Allman braces, and a space before parentheses in calls and declarations (`Foo ()`). Aligned assignments, initializers and multiline arguments, and trailing commas in multiline lists.
+- C# style: the root `.editorconfig` is the source of truth. Its ReSharper section is generated from the house ReSharper profile. `h2s.slnx.DotSettings` is the team-shared ReSharper layer. It holds the full house code-style settings, taken from the author's global ReSharper settings because the profile export alone was incomplete. It also holds what EditorConfig can't express: the member layout pattern and XML formatter settings. ReSharper may append `SettingsMigration` markers to it. Watch for migrations rewriting the layout pattern; one once swapped in a `#region`-based pattern, and the house pattern uses no regions. `Directory.Build.props` holds the shared project settings. In short:
+  - 2-space indent, Allman braces, and a space before parentheses in calls and declarations (`Foo ()`). Aligned assignments, initializers and multiline arguments, and trailing commas in multiline lists. Lines wrap at 132 columns.
   - Qualify instance members with `this.` and static members with their type name (`Link.NormalizeIconName`).
   - Private fields are camelCase with **no** `_` prefix. Constants and static readonly fields are PascalCase.
   - `var` only when the type is evident.
   - File-scoped namespaces, with usings outside them. `JetBrains.Annotations` is a global using.
   - XML doc comments on public members (CS1591 is on, except in tests).
   - Named arguments for literal and other non-trivial arguments; single-argument calls stay positional.
-  - Braces are dropped from single-statement bodies, so put comments above an `if`, never between it and its statement.
+  - Expression bodies are preferred for methods, operators and constructors. Braces only when a body spans multiple lines, so put comments above an `if`, never between it and its statement.
 - Full Cleanup isn't idempotent in one pass: it can drop braces, then wrap the statement, then restore the braces on the next pass. After cleaning new code, run it again until `git diff` is empty.
 - Purely mechanical formatting commits go in `.git-blame-ignore-revs`. Locally, `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 - Dark mode:

@@ -75,13 +75,14 @@ jobs:
           dotnet tool restore
           dotnet restore h2s.slnx
 
-      # The committed code must already be in house style: a Full Cleanup pass has to be a no-op.
+      # The committed code must already be in house style: a Full Cleanup pass has to be a no-op. Only the repository's
+      # settings (.editorconfig, h2s.slnx.DotSettings) may apply, never machine-global ReSharper settings.
       - name: Check formatting (ReSharper Full Cleanup)
         run: |
-          dotnet jb cleanupcode h2s.slnx --include="**/*.cs" --exclude="**/Migrations/**" --verbosity=ERROR
+          dotnet jb cleanupcode h2s.slnx --include="**/*.cs" --exclude="**/Migrations/**" --disable-settings-layers="GlobalAll;GlobalPerProduct;SolutionPersonal;ProjectPersonal" --verbosity=ERROR
           if ! git diff --exit-code --stat; then
             git diff > cleanup.patch
-            echo "::error title=Code style::C# code is not in house style. Run 'dotnet jb cleanupcode h2s.slnx --include=\"**/*.cs\" --exclude=\"**/Migrations/**\"' (twice if needed) and commit the result. The required changes are in the cleanup-patch artifact."
+            echo "::error title=Code style::C# code is not in house style. Run Full Cleanup as described in CLAUDE.md (twice if needed) and commit the result. The required changes are in the cleanup-patch artifact."
             exit 1
           fi
 
