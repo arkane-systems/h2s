@@ -17,14 +17,14 @@ namespace h2s.Tests.Infrastructure;
 /// Hosts the dashboard in-process over a private in-memory SQLite database seeded with <see cref="DevDataSeeder"/>
 /// sample data. Create one per test that changes data, so tests stay independent.
 /// </summary>
-public sealed class H2sWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
 {
   private readonly SqliteConnection connection = new ("Data Source=:memory:");
 
   /// <summary>
-  /// Initializes a new instance of the <see cref="H2sWebApplicationFactory"/> class.
+  /// Initializes a new instance of the <see cref="DashboardApplicationFactory"/> class.
   /// </summary>
-  public H2sWebApplicationFactory () => this.connection.Open ();
+  public DashboardApplicationFactory () => this.connection.Open ();
 
   /// <summary>
   /// Creates a database context over the factory's database for arranging or asserting on data directly.

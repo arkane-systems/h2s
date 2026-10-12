@@ -14,7 +14,7 @@ public class EditorHandlerTests
   [Fact]
   public async Task CreateCategory_AddsCategory ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var client              = factory.CreateClient ();
 
     var response = await FormPoster.PostAsync (client, EditorHandlerTests.EditorPath, "CreateCategory", [new ("name", "  Games  "), new ("isAdminCategory", "true")]);
@@ -35,7 +35,7 @@ public class EditorHandlerTests
   [Fact]
   public async Task CreateCategory_RejectsBlankName ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var response = await FormPoster.PostAsync (factory.CreateClient (), EditorHandlerTests.EditorPath, "CreateCategory", [new ("name", "   ")]);
 
@@ -45,7 +45,7 @@ public class EditorHandlerTests
   [Fact]
   public async Task CreateLink_AddsLinkWithNormalizedIcon ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Media");
 
     var response = await FormPoster.PostAsync (factory.CreateClient (),
@@ -75,7 +75,7 @@ public class EditorHandlerTests
   [InlineData ("Navidrome", "https://music.home.arpa/", "0")]
   public async Task CreateLink_RejectsInvalidInput (string label, string url, string monitorId)
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Media");
 
     var response = await FormPoster.PostAsync (factory.CreateClient (),
@@ -94,7 +94,7 @@ public class EditorHandlerTests
   [Fact]
   public async Task DeleteCategory_RemovesItsLinks ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Reference");
 
     var response = await FormPoster.PostAsync (factory.CreateClient (), EditorHandlerTests.EditorPath, "DeleteCategory", [new ("id", categoryId.ToString ())]);
@@ -113,7 +113,7 @@ public class EditorHandlerTests
   [Fact]
   public async Task Post_RequiresAntiforgeryToken ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
 
     var response = await factory.CreateClient ()
                                 .PostAsync ($"{EditorHandlerTests.EditorPath}?handler=CreateCategory",
@@ -126,7 +126,7 @@ public class EditorHandlerTests
   [Fact]
   public async Task UpdateLink_ReturnsNotFoundForUnknownLink ()
   {
-    await using var factory = new H2sWebApplicationFactory ();
+    await using var factory = new DashboardApplicationFactory ();
     var categoryId          = await EditorHandlerTests.GetCategoryIdAsync (factory, "Media");
 
     var response = await FormPoster.PostAsync (factory.CreateClient (),
@@ -148,7 +148,7 @@ public class EditorHandlerTests
   /// <param name="factory">The factory hosting the database.</param>
   /// <param name="name">The category name.</param>
   /// <returns>The category ID.</returns>
-  private static async Task<int> GetCategoryIdAsync (H2sWebApplicationFactory factory, string name)
+  private static async Task<int> GetCategoryIdAsync (DashboardApplicationFactory factory, string name)
   {
     var (scope, context) = factory.CreateContext ();
 
