@@ -87,6 +87,14 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
   - JS visuals read `document.documentElement.getAttribute('data-bs-theme')` and re-render when it changes; the Trianglify background is the reference implementation.
   - Translucent surfaces follow the existing `category-box`, `link-block` and `home-search-form` styles.
 
-## Release
+## CI and release
 
-`.github/workflows/publish-container.yml` publishes `ghcr.io/arkane-systems/h2s:<tag>` and `:latest` on tag push, but only if the tagged commit is on `master`. Manual dispatch uses the latest tag. Day-to-day work happens on `dev` and merges to `master`.
+`.github/workflows/ci.yml` runs on pushes and PRs to `dev` and `master`. It has two parallel jobs:
+- **Build and test:** a Release build with `ContinuousIntegrationBuild=true` (warnings are errors), then `dotnet test`.
+- **Code style and inspections:** `jb cleanupcode` must leave `git diff` empty. On failure, a `cleanup-patch` artifact holds the required changes. `jb inspectcode` then uploads an `inspectcode-sarif` artifact; it's informational and doesn't fail the build.
+
+The style job is the slow one, at roughly 5–10 minutes.
+
+`.github/workflows/publish-container.yml` publishes `ghcr.io/arkane-systems/h2s:<tag>` and `:latest` on tag push, but only if the tagged commit is on `master`. It first runs `ci.yml` as a reusable workflow and publishes only if that passes. Manual dispatch uses the latest tag.
+
+Day-to-day work happens on feature branches off `dev`, one PR into `dev` per change, merged with merge commits (not squash, which would invalidate `.git-blame-ignore-revs`). `dev` merges to `master` for release.
