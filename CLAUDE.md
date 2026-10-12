@@ -9,6 +9,7 @@ h2s is a single-project intranet link dashboard: ASP.NET Core Razor Pages on .NE
 Run from the repository root:
 
 - Build: `dotnet build h2s/h2s.csproj`
+- Create the dev database with sample data: `./scripts/new-dev-db.ps1` or `scripts/new-dev-db.sh`. Add `-Reset` / `--reset` to replace an existing one, and `-From <path>` / `--from <path>` to snapshot an existing database (e.g. a prod copy) instead of seeding. Both wrap `dotnet run --project h2s/h2s.csproj -- seed [--reset] [--from <path>]`, which is Development-only.
 - Run (http://localhost:5284, Development): `dotnet run --project h2s/h2s.csproj`
 - Add migration: `dotnet ef migrations add <Name> --project h2s/h2s.csproj --startup-project h2s/h2s.csproj --output-dir Migrations`
 - Apply migrations manually: `dotnet ef database update --project h2s/h2s.csproj --startup-project h2s/h2s.csproj` (normally unnecessary: `Program.cs` calls `Database.Migrate()` on startup)
@@ -16,7 +17,7 @@ Run from the repository root:
 
 There is no test project and no linter config. Validate with a build plus manual page checks.
 
-The Development connection string (`ConnectionStrings:h2s`) points at an absolute path, `C:/Working/h2sdata/h2s.db` (`h2s/appsettings.Development.json`). Production uses `/app/data/h2s.db`, a mounted volume. Any new environment keeps the same connection string key and the SQLite provider. The app is single-instance only: SQLite with no concurrency support.
+The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data/h2s.db`. `Program.cs` resolves a relative `Data Source` against the content root (`SqliteConnectionStrings`), giving `h2s/App_Data/h2s.db`, which is gitignored and dockerignored. Production uses `/app/data/h2s.db`, a mounted volume. Don't name a data directory `data`: on Windows it collides with the `h2s/Data/` source folder. Sample data lives in `h2s/Data/Seeding/DevDataSeeder.cs`; keep it in step with schema changes, since the AddDashboardSettings migration inserts the settings row and the seeder updates it. Any new environment keeps the same connection string key and the SQLite provider. The app is single-instance only: SQLite with no concurrency support.
 
 ## Architecture
 

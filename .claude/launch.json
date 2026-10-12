@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "h2s",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "h2s/h2s.csproj", "--launch-profile", "http"],
+      "port": 5284
+    }
+  ]
+}
