@@ -35,6 +35,8 @@
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @* h2s.styles.css is the scoped-CSS bundle generated at build time, so it never exists on disk under wwwroot. *@
+    @* ReSharper disable once Html.PathError *@
     <link rel="stylesheet" href="~/h2s.styles.css" asp-append-version="true" />
 </head>
 <body>

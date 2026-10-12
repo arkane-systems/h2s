@@ -77,7 +77,10 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
   - `var` only when the type is evident.
   - File-scoped namespaces, with usings outside them. `JetBrains.Annotations` is a global using.
   - XML doc comments on public members (CS1591 is on, except in tests).
-  - Pre-existing code still has `_` fields and missing `this.`; Phase 1d of the roadmap clears that. Don't spread it.
+  - Named arguments for literal and other non-trivial arguments; single-argument calls stay positional.
+  - Braces are dropped from single-statement bodies, so put comments above an `if`, never between it and its statement.
+- Full Cleanup isn't idempotent in one pass: it can drop braces, then wrap the statement, then restore the braces on the next pass. After cleaning new code, run it again until `git diff` is empty.
+- Purely mechanical formatting commits go in `.git-blame-ignore-revs`. Locally, `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 - Dark mode:
   - Prefer Bootstrap theme-aware utilities (`bg-body`, `bg-body-tertiary`, `text-body`, `text-muted`, `border`) and CSS variables (`var(--bs-body-bg)`, `var(--bs-border-color)`, `rgba(var(--bs-body-bg-rgb), …)`) over hard-coded colors.
   - Scope theme-specific overrides with `[data-bs-theme="dark"]` / `[data-bs-theme="light"]`.
