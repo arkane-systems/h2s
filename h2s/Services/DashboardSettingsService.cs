@@ -54,7 +54,7 @@ public class DashboardSettingsService
   /// <param name="settings">The settings instance to persist.</param>
   public async Task SaveSettingsAsync (DashboardSettings settings)
   {
-    this.context.DashboardSettings.Update (settings);
+    this.context.DashboardSettings.Update(settings);
     await this.context.SaveChangesAsync ();
   }
 }
