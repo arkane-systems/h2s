@@ -16,7 +16,7 @@ The app is designed to be run in a Linux container (I do so using my Kubernetes 
 From the repository root:
 
 ```bash
-docker build -t h2s:local -f h2s/Dockerfile h2s
+docker build -t h2s:local -f h2s/Dockerfile .
 ```
 
 If you just want to run the current official build, however, it's available on GitHub Container Registry at `ghcr.io/arkane-systems/h2s:latest` (or with the specific version tag).

@@ -49,6 +49,19 @@ jobs:
       - name: Test
         run: dotnet test --solution h2s.slnx --configuration Release --no-build
 
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Same Dockerfile and context as publish-container.yml, without pushing.
+      - name: Build image
+        run: docker build --file h2s/Dockerfile --tag h2s:ci .
+
   code-quality:
     name: Code style and inspections
     runs-on: ubuntu-latest
