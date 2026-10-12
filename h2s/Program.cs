@@ -21,7 +21,13 @@ var connectionString = SqliteConnectionStrings.ResolveDataSource (builder.Config
 SqliteConnectionStrings.EnsureDirectoryExists (connectionString);
 
 // Register Razor Pages and application services used by the dashboard and admin UI.
-builder.Services.AddRazorPages ();
+builder.Services.AddRazorPages ()
+       .AddMvcOptions (options =>
+                       {
+                         // Form-bound models must state [Required] explicitly. Otherwise every non-nullable string
+                         // is implicitly required, and optional text fields such as the motto can never be cleared.
+                         options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+                       });
 builder.Services.AddMemoryCache ();
 builder.Services.AddHttpClient ();
 builder.Services.AddDbContext<DashboardContext> (options => options.UseSqlite (connectionString));

@@ -28,6 +28,20 @@ public class SettingsPageTests
   }
 
   [Fact]
+  public async Task Post_RequiresTitle ()
+  {
+    await using var factory = new H2sWebApplicationFactory ();
+
+    var response = await FormPoster.PostAsync (factory.CreateClient (),
+                                               SettingsPageTests.SettingsPath,
+                                               handler: null,
+                                               SettingsPageTests.Form (title: "", motto: "", slug: ""));
+
+    Assert.Equal (HttpStatusCode.OK, response.StatusCode);
+    Assert.Contains ("The Title field is required.", await response.Content.ReadAsStringAsync (TestContext.Current.CancellationToken));
+  }
+
+  [Fact]
   public async Task Post_SavesValidSettings ()
   {
     await using var factory = new H2sWebApplicationFactory ();
@@ -49,6 +63,29 @@ public class SettingsPageTests
       Assert.Equal ("Homelab", settings.Title);
       Assert.Equal ("Everything in one place", settings.Motto);
       Assert.Equal (ColorMode.Dark, settings.ColorMode);
+    }
+  }
+
+  [Fact]
+  public async Task Post_AllowsClearingOptionalFields ()
+  {
+    await using var factory = new H2sWebApplicationFactory ();
+    var client              = factory.CreateClient (new () { AllowAutoRedirect = false });
+    var fields              = SettingsPageTests.Form (title: "Homelab", motto: "", slug: "")
+                                               .Select (f => f.Key == "Settings.LocalDomains" ? new (f.Key, "") : f);
+
+    var response = await FormPoster.PostAsync (client, SettingsPageTests.SettingsPath, handler: null, fields);
+
+    Assert.Equal (HttpStatusCode.Redirect, response.StatusCode);
+
+    var (scope, context) = factory.CreateContext ();
+
+    using (scope)
+    {
+      var settings = await context.DashboardSettings.SingleAsync (TestContext.Current.CancellationToken);
+
+      Assert.Equal ("", settings.Motto);
+      Assert.Equal ("", settings.LocalDomains);
     }
   }
 

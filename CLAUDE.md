@@ -56,6 +56,8 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
   - The Editor checks whether a selfh.st CDN icon exists through its own static `HttpClient` and caches the results in `IMemoryCache`. Keep that caching if you extend icon suggestion.
 - **Icons**: not stored locally. `Link.NormalizeIconName()` / `BuildIconUrl()` / `GetIconUrl()` produce selfh.st CDN URLs.
 - **Validation**: custom attributes live in `h2s/Validation/` (`HttpBaseUrlAttribute`, `PositiveIntegerStringAttribute`).
+  - `Program.cs` sets `SuppressImplicitRequiredAttributeForNonNullableReferenceTypes`, so form-bound models must mark required fields with an explicit `[Required]`.
+  - Optional non-nullable strings need `[DisplayFormat(ConvertEmptyStringToNull = false)]`. Otherwise an empty field binds as `null`.
 
 ## Conventions
 

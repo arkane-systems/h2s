@@ -16,16 +16,23 @@ public class DashboardSettings
   /// <summary>
   /// Gets or sets the main dashboard title displayed in the layout and page title.
   /// </summary>
+  [Required]
   public string Title { get; set; } = "";
 
   /// <summary>
   /// Gets or sets the optional subtitle or motto displayed beneath the title.
   /// </summary>
+  /// <remarks>
+  /// Optional but non-nullable, so an empty form field must bind as an empty string rather than <c>null</c>.
+  /// </remarks>
+  [DisplayFormat (ConvertEmptyStringToNull = false)]
   public string Motto { get; set; } = "";
 
   /// <summary>
   /// Gets or sets the list of domains treated as local when detecting external links.
   /// </summary>
+  /// <remarks>Optional but non-nullable; see <see cref="Motto"/>.</remarks>
+  [DisplayFormat (ConvertEmptyStringToNull = false)]
   public string LocalDomains { get; set; } = "";
 
   /// <summary>
