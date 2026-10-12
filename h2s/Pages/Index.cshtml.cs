@@ -134,8 +134,10 @@ public class IndexModel : PageModel
     if (!Uri.TryCreate (uriString: url, uriKind: UriKind.Absolute, result: out Uri? uri) || string.IsNullOrWhiteSpace (uri.Host))
       return false;
 
-    string host       = uri.Host.ToLowerInvariant ();
-    bool   isInternal = this.LocalDomains.Any (domain => (host == domain) || host.EndsWith ($".{domain}"));
+    string host = uri.Host.ToLowerInvariant ();
+    bool isInternal = this.LocalDomains.Any (domain => (host == domain) ||
+                                                       host.EndsWith (value: $".{domain}",
+                                                                      comparisonType: StringComparison.Ordinal));
 
     return !isInternal;
   }
