@@ -13,7 +13,7 @@ Run from the repository root:
 - Run (http://localhost:5284, Development): `dotnet run --project h2s/h2s.csproj`
 - Add migration: `dotnet ef migrations add <Name> --project h2s/h2s.csproj --startup-project h2s/h2s.csproj --output-dir Migrations`
 - Apply migrations manually: `dotnet ef database update --project h2s/h2s.csproj --startup-project h2s/h2s.csproj` (normally unnecessary: `Program.cs` calls `Database.Migrate()` on startup)
-- Container: `docker build -t h2s:local -f h2s/Dockerfile h2s` (build context is `h2s/`, not the repo root)
+- Container: `docker build -t h2s:local -f h2s/Dockerfile .` (or `wslc build` on Windows). The build context is the repo root, so `Directory.Build.props` and `.editorconfig` apply; the root `.dockerignore` limits what is sent.
 
 - Test: `dotnet test --solution h2s.slnx`. For a single test, add `--filter-method "*Post_SavesValidSettings"`; `--filter-class` and `--filter-namespace` also work.
 

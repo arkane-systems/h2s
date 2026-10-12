@@ -1,0 +1,11 @@
+# The image is built with the repository root as context (docker build -f h2s/Dockerfile .).
+# Send only what the build needs.
+*
+!Directory.Build.props
+!.editorconfig
+!h2s/
+h2s/bin/
+h2s/obj/
+h2s/App_Data/
+**/*.user
+**/.vs/

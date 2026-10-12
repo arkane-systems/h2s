@@ -1,8 +1,10 @@
 ﻿# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY . .
-RUN dotnet publish -c Release -o /app/publish
+# Build context is the repository root, so the shared build settings apply here as they do in development and CI.
+COPY Directory.Build.props .editorconfig ./
+COPY h2s/ h2s/
+RUN dotnet publish h2s/h2s.csproj -c Release -o /app/publish
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

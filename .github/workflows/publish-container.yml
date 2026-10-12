@@ -90,7 +90,7 @@ jobs:
         if: steps.branch_check.outputs.should_publish == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: ./h2s
+          context: .
           file: ./h2s/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
