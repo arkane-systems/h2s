@@ -1,11 +1,9 @@
-using System.Net;
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace h2s.Pages.Admin;
 
@@ -14,23 +12,20 @@ namespace h2s.Pages.Admin;
 /// </summary>
 public class EditorModel : PageModel
 {
-  private static readonly HttpClient IconProbeClient = new () { Timeout = TimeSpan.FromSeconds (4) };
-
-  private readonly IMemoryCache cache;
-
   private readonly DashboardContext         context;
+  private readonly IconCatalog              iconCatalog;
   private readonly DashboardSettingsService settingsService;
 
   /// <summary>
   ///   Initializes a new instance of the <see cref="EditorModel" /> class.
   /// </summary>
   /// <param name="context">The database context used to manage categories and links.</param>
-  /// <param name="cache">The cache used to avoid repeated icon availability probes.</param>
+  /// <param name="iconCatalog">The catalog used to suggest icons for link labels.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
-  public EditorModel (DashboardContext context, IMemoryCache cache, DashboardSettingsService settingsService)
+  public EditorModel (DashboardContext context, IconCatalog iconCatalog, DashboardSettingsService settingsService)
   {
     this.context         = context;
-    this.cache           = cache;
+    this.iconCatalog     = iconCatalog;
     this.settingsService = settingsService;
   }
 
@@ -350,22 +345,10 @@ public class EditorModel : PageModel
   /// <returns>A JSON payload indicating whether a matching icon was found.</returns>
   public async Task<IActionResult> OnGetSuggestIconAsync (string? label)
   {
-    string suggestedIconName = Link.NormalizeIconName (label ?? string.Empty);
+    string? suggestedIconName = await this.iconCatalog.SuggestIconNameAsync (label: label,
+                                                                             cancellationToken: this.HttpContext.RequestAborted);
 
-    if (string.IsNullOrWhiteSpace (suggestedIconName))
-      return new JsonResult (new { Found = false, SuggestedIconName = "" });
-
-    var cacheKey = $"icon-exists:{suggestedIconName}";
-    bool found = await this.cache.GetOrCreateAsync (key: cacheKey,
-                                                    factory: async entry =>
-                                                             {
-                                                               entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes (10);
-                                                               string iconUrl = Link.BuildIconUrl (suggestedIconName);
-
-                                                               return await EditorModel.IconExistsAsync (iconUrl);
-                                                             });
-
-    return new JsonResult (new { Found = found, SuggestedIconName = found ? suggestedIconName : "" });
+    return new JsonResult (new { Found = suggestedIconName != null, SuggestedIconName = suggestedIconName ?? "" });
   }
 
   /// <summary>
@@ -409,37 +392,4 @@ public class EditorModel : PageModel
   /// <returns><c>true</c> when the value is a positive integer string; otherwise, <c>false</c>.</returns>
   private static bool IsPositiveIntegerString (string value)
     => int.TryParse (s: value, result: out int parsedValue) && (parsedValue > 0);
-
-  /// <summary>
-  ///   Checks whether an icon URL exists on the remote CDN.
-  /// </summary>
-  /// <param name="url">The icon URL to probe.</param>
-  /// <returns><c>true</c> when the icon exists; otherwise, <c>false</c>.</returns>
-  private static async Task<bool> IconExistsAsync (string url)
-  {
-    try
-    {
-      using var headRequest = new HttpRequestMessage (method: HttpMethod.Head, requestUri: url);
-      using HttpResponseMessage headResponse =
-        await EditorModel.IconProbeClient.SendAsync (request: headRequest,
-                                                     completionOption: HttpCompletionOption.ResponseHeadersRead);
-
-      if (headResponse.IsSuccessStatusCode)
-        return true;
-
-      if (headResponse.StatusCode != HttpStatusCode.MethodNotAllowed)
-        return false;
-
-      using var getRequest = new HttpRequestMessage (method: HttpMethod.Get, requestUri: url);
-      using HttpResponseMessage getResponse =
-        await EditorModel.IconProbeClient.SendAsync (request: getRequest,
-                                                     completionOption: HttpCompletionOption.ResponseHeadersRead);
-
-      return getResponse.IsSuccessStatusCode;
-    }
-    catch
-    {
-      return false;
-    }
-  }
 }

@@ -36,6 +36,20 @@ builder.Services.AddMemoryCache ();
 builder.Services.AddHttpClient ();
 builder.Services.AddDbContext<DashboardContext> (options => options.UseSqlite (connectionString));
 builder.Services.AddScoped<DashboardSettingsService> ();
+builder.Services.AddScoped<IconCatalog> ();
+builder.Services.AddScoped<UrlProbe> ();
+
+// Named clients for outbound HTTP. The accept-any-certificate client exists only so UrlProbe can tell an untrusted
+// certificate from an unreachable server; never use it to fetch content.
+builder.Services.AddHttpClient (name: IconCatalog.ClientName, configureClient: client => client.Timeout = IconCatalog.Timeout);
+builder.Services.AddHttpClient (name: UrlProbe.ClientName,    configureClient: client => client.Timeout = UrlProbe.Timeout);
+builder.Services.AddHttpClient (name: UrlProbe.AcceptAnyCertificateClientName,
+                                configureClient: client => client.Timeout = UrlProbe.Timeout)
+       .ConfigurePrimaryHttpMessageHandler (() => new HttpClientHandler
+                                                  {
+                                                    ServerCertificateCustomValidationCallback =
+                                                      HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+                                                  });
 
 // The admin pages require the Admin policy. Its handler currently allows everyone; see AllowAllAdminHandler.
 builder.Services.AddAuthorizationBuilder ()
