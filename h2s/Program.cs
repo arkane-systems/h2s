@@ -1,6 +1,10 @@
+using h2s.Authorization;
 using h2s.Data;
 using h2s.Data.Seeding;
 using h2s.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 // The seed verb's options are not configuration keys, so keep them away from the command-line configuration provider.
@@ -20,7 +24,8 @@ string connectionString = SqliteConnectionStrings.ResolveDataSource (connectionS
 SqliteConnectionStrings.EnsureDirectoryExists (connectionString);
 
 // Register Razor Pages and application services used by the dashboard and admin UI.
-builder.Services.AddRazorPages ()
+builder.Services.AddRazorPages (options => options.Conventions.AuthorizeFolder (folderPath: "/Admin",
+                                                                                policy: AdminRequirement.PolicyName))
        .AddMvcOptions (options =>
                        {
                          // Form-bound models must state [Required] explicitly. Otherwise every non-nullable string
@@ -31,6 +36,33 @@ builder.Services.AddMemoryCache ();
 builder.Services.AddHttpClient ();
 builder.Services.AddDbContext<DashboardContext> (options => options.UseSqlite (connectionString));
 builder.Services.AddScoped<DashboardSettingsService> ();
+
+// The admin pages require the Admin policy. Its handler currently allows everyone; see AllowAllAdminHandler.
+builder.Services.AddAuthorizationBuilder ()
+       .AddPolicy (name: AdminRequirement.PolicyName,
+                   configurePolicy: policy => policy.AddRequirements (new AdminRequirement ()));
+builder.Services.AddSingleton<IAuthorizationHandler, AllowAllAdminHandler> ();
+
+// Keep Data Protection keys beside the database, so antiforgery tokens (and later, stored secrets) survive restarts.
+IDataProtectionBuilder dataProtection = builder.Services.AddDataProtection ()
+                                               .SetApplicationName ("h2s");
+string? dataDirectory = SqliteConnectionStrings.GetDataDirectory (connectionString);
+
+if (dataDirectory != null)
+  dataProtection.PersistKeysToFileSystem (new DirectoryInfo (Path.Combine (path1: dataDirectory, path2: "keys")));
+
+// The app runs behind a reverse proxy (Traefik) and is reachable only through it, so trust forwarded headers from any
+// address rather than only loopback.
+builder.Services.Configure<ForwardedHeadersOptions> (options =>
+                                                     {
+                                                       options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                                                                                  ForwardedHeaders.XForwardedProto;
+                                                       options.KnownIPNetworks.Clear ();
+                                                       options.KnownProxies.Clear ();
+                                                     });
+
+builder.Services.AddHealthChecks ()
+       .AddDbContextCheck<DashboardContext> ();
 
 WebApplication app = builder.Build ();
 
@@ -44,7 +76,10 @@ using (IServiceScope scope = app.Services.CreateScope ())
   db.Database.Migrate ();
 }
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline. Forwarded headers come first, so everything after sees the original scheme and
+// client address.
+app.UseForwardedHeaders ();
+
 if (!app.Environment.IsDevelopment ())
   _ = app.UseExceptionHandler ("/Error");
 
@@ -56,6 +91,9 @@ app.UseAuthorization ();
 app.MapStaticAssets ();
 app.MapRazorPages ()
    .WithStaticAssets ();
+
+// Liveness and readiness probe: succeeds when the database is reachable.
+app.MapHealthChecks ("/healthz");
 
 await app.RunAsync ();
 

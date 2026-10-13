@@ -1,5 +1,6 @@
 using h2s.Data;
 using h2s.Data.Seeding;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -55,6 +56,10 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                      services.RemoveAll<DbContextOptions<DashboardContext>> ();
                                      services.RemoveAll<IDbContextOptionsConfiguration<DashboardContext>> ();
                                      services.AddDbContext<DashboardContext> (options => options.UseSqlite (this.connection));
+
+                                     // Keep Data Protection keys in memory rather than in the source tree's App_Data.
+                                     services.Configure<KeyManagementOptions> (options => options.XmlRepository =
+                                                                                            new InMemoryXmlRepository ());
                                    });
   }
 

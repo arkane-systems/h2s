@@ -28,6 +28,22 @@ public class SqliteConnectionStringsTests
   }
 
   [Fact]
+  public void GetDataDirectory_ReturnsDatabaseDirectory ()
+  {
+    string directory = Path.Combine (path1: SqliteConnectionStringsTests.ContentRoot, path2: "App_Data");
+
+    Assert.Equal (expected: directory,
+                  actual:
+                  SqliteConnectionStrings.GetDataDirectory ($"Data Source={Path.Combine (path1: directory, path2: "h2s.db")}"));
+  }
+
+  [Theory]
+  [InlineData ("Data Source=:memory:")]
+  [InlineData ("Data Source=shared;Mode=Memory;Cache=Shared")]
+  public void GetDataDirectory_ReturnsNullForInMemoryDatabases (string connectionString)
+    => Assert.Null (SqliteConnectionStrings.GetDataDirectory (connectionString));
+
+  [Fact]
   public void ResolveDataSource_KeepsAbsolutePath ()
   {
     string absolute         = Path.Combine (path1: Path.GetTempPath (), path2: "elsewhere", path3: "h2s.db");
