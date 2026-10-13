@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using h2s.Models;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -188,6 +189,55 @@ public class EditorHandlerTests
                                                             cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
+  }
+
+  [Theory]
+  [InlineData (null, 11)]
+  [InlineData ("",   null)]
+  [InlineData ("15", 15)]
+  public async Task UpdateLink_ChangesMonitorIdOnlyWhenPosted (string? monitorId, int? expected)
+  {
+    await using var factory = new DashboardApplicationFactory ();
+    var (scope, context) = factory.CreateContext ();
+    Link jellyfin;
+
+    using (scope)
+    {
+      jellyfin = await context.Links.AsNoTracking ()
+                              .SingleAsync (predicate: l => l.Label == "Jellyfin",
+                                            cancellationToken: TestContext.Current.CancellationToken);
+    }
+
+    Assert.Equal (expected: 11, actual: jellyfin.MonitorId);
+
+    // The editor omits the field entirely when Uptime Kuma is not configured.
+    List<KeyValuePair<string, string>> fields =
+    [
+      new (key: "id", value: jellyfin.Id.ToString ()),
+      new (key: "categoryId", value: jellyfin.CategoryId.ToString ()),
+      new (key: "label", value: jellyfin.Label),
+      new (key: "url", value: jellyfin.Url),
+    ];
+
+    if (monitorId != null)
+      fields.Add (new KeyValuePair<string, string> (key: "monitorId", value: monitorId));
+
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "UpdateLink",
+                                                               fields: fields);
+
+    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
+
+    var (verifyScope, verifyContext) = factory.CreateContext ();
+
+    using (verifyScope)
+    {
+      Assert.Equal (expected: expected,
+                    actual: (await verifyContext.Links.SingleAsync (predicate: l => l.Id == jellyfin.Id,
+                                                                    cancellationToken: TestContext.Current.CancellationToken))
+                   .MonitorId);
+    }
   }
 
   [Fact]
