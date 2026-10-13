@@ -1,5 +1,5 @@
-﻿using System.Text.RegularExpressions;
-using h2s.Validation;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
 
 namespace h2s.Models;
 
@@ -44,8 +44,8 @@ public class Link
   ///   Gets or sets the optional Uptime Kuma monitor ID for this link.
   ///   Must be a positive integer when specified.
   /// </summary>
-  [PositiveIntegerString]
-  public string? MonitorId { get; set; }
+  [Range (minimum: 1, maximum: int.MaxValue, ErrorMessage = "Monitor ID must be a positive integer.")]
+  public int? MonitorId { get; set; }
 
   /// <summary>
   ///   Gets or sets the navigation property for the link's category.

@@ -31,24 +31,4 @@ public class ValidationAttributeTests
 
   [Fact]
   public void HttpBaseUrl_RejectsNonStrings () => Assert.False (new HttpBaseUrlAttribute ().IsValid (42));
-
-  [Theory]
-  [InlineData ("1")]
-  [InlineData ("42")]
-  [InlineData (null)]
-  [InlineData ("")]
-  public void PositiveIntegerString_AcceptsPositiveIntegersAndBlank (string? value)
-    => Assert.True (new PositiveIntegerStringAttribute ().IsValid (value));
-
-  [Theory]
-  [InlineData ("0")]
-  [InlineData ("-3")]
-  [InlineData ("1.5")]
-  [InlineData ("abc")]
-  [InlineData ("99999999999")]
-  public void PositiveIntegerString_RejectsOtherValues (string value)
-    => Assert.False (new PositiveIntegerStringAttribute ().IsValid (value));
-
-  [Fact]
-  public void PositiveIntegerString_RejectsNonStrings () => Assert.False (new PositiveIntegerStringAttribute ().IsValid (5));
 }

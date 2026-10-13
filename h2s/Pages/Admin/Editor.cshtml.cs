@@ -1,6 +1,7 @@
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
+using h2s.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -186,7 +187,7 @@ public class EditorModel : PageModel
   /// <param name="label">The display label for the link.</param>
   /// <param name="description">Optional descriptive text for the link.</param>
   /// <param name="iconName">Optional icon name to normalize and store.</param>
-  /// <param name="monitorId">Optional Uptime Kuma monitor ID as a positive integer string.</param>
+  /// <param name="monitorId">Optional Uptime Kuma monitor ID; blank for none.</param>
   /// <param name="url">The destination URL for the link.</param>
   /// <returns>A JSON payload describing the created link, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateLinkAsync (int     categoryId,
@@ -211,9 +212,7 @@ public class EditorModel : PageModel
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
       return this.BadRequest ("Selected category does not exist.");
 
-    string normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
-
-    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !EditorModel.IsPositiveIntegerString (normalizedMonitorId))
+    if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
       return this.BadRequest ("Monitor ID must be a positive integer.");
 
     var link = new Link
@@ -222,7 +221,7 @@ public class EditorModel : PageModel
                  Label       = normalizedLabel,
                  Description = (description ?? string.Empty).Trim (),
                  IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
-                 MonitorId   = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId,
+                 MonitorId   = parsedMonitorId,
                  Url         = normalizedUrl,
                };
 
@@ -287,16 +286,14 @@ public class EditorModel : PageModel
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
       return this.BadRequest ("Selected category does not exist.");
 
-    string normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
-
-    if (!string.IsNullOrWhiteSpace (normalizedMonitorId) && !EditorModel.IsPositiveIntegerString (normalizedMonitorId))
+    if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
       return this.BadRequest ("Monitor ID must be a positive integer.");
 
     link.CategoryId  = categoryId;
     link.Label       = normalizedLabel;
     link.Description = (description ?? string.Empty).Trim ();
     link.IconName    = Link.NormalizeIconName (iconName ?? string.Empty);
-    link.MonitorId   = string.IsNullOrWhiteSpace (normalizedMonitorId) ? null : normalizedMonitorId;
+    link.MonitorId   = parsedMonitorId;
     link.Url         = normalizedUrl;
 
     await this.context.SaveChangesAsync ();
@@ -384,12 +381,4 @@ public class EditorModel : PageModel
 
     return (uri.Scheme == Uri.UriSchemeHttp) || (uri.Scheme == Uri.UriSchemeHttps);
   }
-
-  /// <summary>
-  ///   Determines whether a string is a valid positive integer.
-  /// </summary>
-  /// <param name="value">The value to validate.</param>
-  /// <returns><c>true</c> when the value is a positive integer string; otherwise, <c>false</c>.</returns>
-  private static bool IsPositiveIntegerString (string value)
-    => int.TryParse (s: value, result: out int parsedValue) && (parsedValue > 0);
 }

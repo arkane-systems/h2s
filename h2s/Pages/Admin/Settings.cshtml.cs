@@ -1,6 +1,7 @@
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
+using h2s.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -112,17 +113,16 @@ public class SettingsModel : PageModel
   ///   Creates a new infrastructure group from posted values.
   /// </summary>
   /// <param name="name">The group display name.</param>
-  /// <param name="monitorId">The monitor ID as a positive integer string.</param>
+  /// <param name="monitorId">The monitor ID, which must be a positive integer.</param>
   /// <returns>A JSON payload describing the created group, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateInfrastructureGroupAsync (string? name, string? monitorId)
   {
-    string normalizedName      = (name      ?? string.Empty).Trim ();
-    string normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+    string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
       return this.BadRequest ("Group name is required.");
 
-    if (!SettingsModel.IsPositiveIntegerString (normalizedMonitorId))
+    if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
       return this.BadRequest ("Monitor ID must be a positive integer.");
 
     int nextSortOrder = await this.context.InfrastructureGroups
@@ -130,7 +130,7 @@ public class SettingsModel : PageModel
                                   .MaxAsync () ??
                         -1;
 
-    var group = new InfrastructureGroup { Name = normalizedName, MonitorId = normalizedMonitorId, SortOrder = nextSortOrder + 1 };
+    var group = new InfrastructureGroup { Name = normalizedName, MonitorId = parsedMonitorId, SortOrder = nextSortOrder + 1 };
 
     this.context.InfrastructureGroups.Add (group);
     await this.context.SaveChangesAsync ();
@@ -150,13 +150,12 @@ public class SettingsModel : PageModel
   /// <returns>A JSON payload describing the updated group, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateInfrastructureGroupAsync (int id, string? name, string? monitorId)
   {
-    string normalizedName      = (name      ?? string.Empty).Trim ();
-    string normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+    string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
       return this.BadRequest ("Group name is required.");
 
-    if (!SettingsModel.IsPositiveIntegerString (normalizedMonitorId))
+    if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
       return this.BadRequest ("Monitor ID must be a positive integer.");
 
     InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
@@ -165,7 +164,7 @@ public class SettingsModel : PageModel
       return this.NotFound ();
 
     group.Name      = normalizedName;
-    group.MonitorId = normalizedMonitorId;
+    group.MonitorId = parsedMonitorId;
     await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
@@ -238,12 +237,4 @@ public class SettingsModel : PageModel
     => this.context.InfrastructureGroups
            .OrderBy (g => g.SortOrder)
            .ThenBy (g => g.Name);
-
-  /// <summary>
-  ///   Determines whether the supplied string value is a positive integer.
-  /// </summary>
-  /// <param name="value">The value to validate.</param>
-  /// <returns><c>true</c> when the value is a positive integer string; otherwise, <c>false</c>.</returns>
-  private static bool IsPositiveIntegerString (string value)
-    => int.TryParse (s: value, result: out int parsedValue) && (parsedValue > 0);
 }

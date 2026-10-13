@@ -106,9 +106,9 @@ public class IndexModel : PageModel
   /// <param name="duration">Optional duration in hours for time-based badges.</param>
   /// <param name="label">Optional override for badge label text. Use an empty string to hide the label.</param>
   /// <returns>The badge URL, or an empty string if server URL is not configured.</returns>
-  public string BuildBadgeUrl (string monitorId, string type, int? duration = null, string? label = null)
+  public string BuildBadgeUrl (int monitorId, string type, int? duration = null, string? label = null)
   {
-    if (string.IsNullOrWhiteSpace (this.UptimeKumaServerUrl) || string.IsNullOrWhiteSpace (monitorId))
+    if (string.IsNullOrWhiteSpace (this.UptimeKumaServerUrl))
       return "";
 
     var baseUrl = $"{this.UptimeKumaServerUrl.TrimEnd ('/')}/api/badge/{monitorId}/{type}";

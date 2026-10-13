@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using h2s.Validation;
 
 namespace h2s.Models;
 
@@ -23,9 +22,8 @@ public class InfrastructureGroup
   ///   Gets or sets the Uptime Kuma monitor ID for this infrastructure group.
   ///   Must be a positive integer.
   /// </summary>
-  [Required]
-  [PositiveIntegerString]
-  public string MonitorId { get; set; } = "";
+  [Range (minimum: 1, maximum: int.MaxValue, ErrorMessage = "Monitor ID must be a positive integer.")]
+  public int MonitorId { get; set; }
 
   /// <summary>
   ///   Gets or sets the sort order for displaying infrastructure groups in the status bar.

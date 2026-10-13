@@ -64,14 +64,14 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 - **Uptime Kuma integration**: enabled only when `DashboardSettings.UptimeKumaServerUrl` is non-blank.
   - The browser loads badges directly from Kuma as `<img>` tags pointing at `{server}/api/badge/{monitorId}/{type}` (built in `IndexModel.BuildBadgeUrl`); the server never proxies them.
   - Infrastructure groups render the top status bar. The bar links to the Kuma status page only when `UptimeKumaStatusPageSlug` is set; otherwise it isn't clickable.
-  - `Link.MonitorId` renders per-link badges.
+  - `Link.MonitorId` (`int?`) renders per-link badges; `InfrastructureGroup.MonitorId` is a required `int`.
   - Monitors must be on a published Kuma status page or the badge shows N/A.
 - **Outbound HTTP** goes through named `IHttpClientFactory` clients registered in `Program.cs`, each with its timeout:
   - `UrlProbe` (`h2s/Services/`) checks that a URL is reachable, used by the Settings page for the Kuma URL. On a TLS auth failure it re-probes with the `UrlProbe.AcceptAnyCertificate` client, so it can report "untrusted certificate" rather than "unreachable". Never use that client to fetch content.
   - `IconCatalog` (`h2s/Services/`) checks whether a selfh.st CDN icon exists, used by the Editor's icon suggestion, and caches the results in `IMemoryCache`. Keep that caching if you extend icon suggestion.
   - Tests replace the network with `StubHttpClientFactory` and `StubHttpMessageHandler` (`tests/h2s.Tests/Infrastructure/`).
 - **Icons**: not stored locally. `Link.NormalizeIconName()` / `BuildIconUrl()` / `GetIconUrl()` produce selfh.st CDN URLs.
-- **Validation**: custom attributes live in `h2s/Validation/` (`HttpBaseUrlAttribute`, `PositiveIntegerStringAttribute`).
+- **Validation**: custom validation lives in `h2s/Validation/`: `HttpBaseUrlAttribute`, and `MonitorIdParser`, which the JSON handlers use to parse posted monitor IDs (positive integers in plain digits; blank means none where the ID is optional).
   - `Program.cs` sets `SuppressImplicitRequiredAttributeForNonNullableReferenceTypes`, so form-bound models must mark required fields with an explicit `[Required]`.
   - Optional non-nullable strings need `[DisplayFormat(ConvertEmptyStringToNull = false)]`. Otherwise an empty field binds as `null`.
 
