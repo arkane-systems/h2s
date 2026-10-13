@@ -109,13 +109,13 @@ public class EditorModel : PageModel
   /// </summary>
   /// <param name="name">The category display name.</param>
   /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
-  /// <returns>A JSON payload describing the created category, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the created category, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateCategoryAsync (string? name, bool isAdminCategory)
   {
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
-      return this.BadRequest ("Category name is required.");
+      return this.BadRequestProblem ("Category name is required.");
 
     var category = new Category { Name = normalizedName, IsAdminCategory = isAdminCategory };
 
@@ -134,19 +134,19 @@ public class EditorModel : PageModel
   /// <param name="id">The category identifier.</param>
   /// <param name="name">The updated category name.</param>
   /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
-  /// <returns>A JSON payload describing the updated category, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the updated category, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateCategoryAsync (int id, string? name, bool isAdminCategory)
   {
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
-      return this.BadRequest ("Category name is required.");
+      return this.BadRequestProblem ("Category name is required.");
 
     Category? category = await this.context.Categories
                                    .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
-      return this.NotFound ();
+      return this.NotFoundProblem ("Category not found.");
 
     category.Name            = normalizedName;
     category.IsAdminCategory = isAdminCategory;
@@ -165,14 +165,14 @@ public class EditorModel : PageModel
   ///   Deletes a category and its related links.
   /// </summary>
   /// <param name="id">The identifier of the category to remove.</param>
-  /// <returns>A JSON payload describing the deleted category, or <see cref="NotFoundResult" /> when it does not exist.</returns>
+  /// <returns>A JSON payload describing the deleted category, or a 404 problem response when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteCategoryAsync (int id)
   {
     Category? category = await this.context.Categories
                                    .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
-      return this.NotFound ();
+      return this.NotFoundProblem ("Category not found.");
 
     this.context.Categories.Remove (category);
     await this.context.SaveChangesAsync ();
@@ -189,7 +189,7 @@ public class EditorModel : PageModel
   /// <param name="iconName">Optional icon name to normalize and store.</param>
   /// <param name="monitorId">Optional Uptime Kuma monitor ID; blank for none.</param>
   /// <param name="url">The destination URL for the link.</param>
-  /// <returns>A JSON payload describing the created link, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the created link, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateLinkAsync (int     categoryId,
                                                           string? label,
                                                           string? description,
@@ -201,19 +201,19 @@ public class EditorModel : PageModel
     string normalizedUrl   = (url   ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedLabel))
-      return this.BadRequest ("Link label is required.");
+      return this.BadRequestProblem ("Link label is required.");
 
     if (string.IsNullOrWhiteSpace (normalizedUrl))
-      return this.BadRequest ("Link URL is required.");
+      return this.BadRequestProblem ("Link URL is required.");
 
     if (!EditorModel.IsValidWebUrl (normalizedUrl))
-      return this.BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
+      return this.BadRequestProblem ("Link URL must be a valid HTTP or HTTPS URL.");
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
-      return this.BadRequest ("Selected category does not exist.");
+      return this.BadRequestProblem ("Selected category does not exist.");
 
     if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
-      return this.BadRequest ("Monitor ID must be a positive integer.");
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
 
     var link = new Link
                {
@@ -259,7 +259,7 @@ public class EditorModel : PageModel
   ///   is kept.
   /// </param>
   /// <param name="url">The updated destination URL.</param>
-  /// <returns>A JSON payload describing the updated link, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the updated link, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateLinkAsync (int     id,
                                                           int     categoryId,
                                                           string? label,
@@ -272,25 +272,25 @@ public class EditorModel : PageModel
     string normalizedUrl   = (url   ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedLabel))
-      return this.BadRequest ("Link label is required.");
+      return this.BadRequestProblem ("Link label is required.");
 
     if (string.IsNullOrWhiteSpace (normalizedUrl))
-      return this.BadRequest ("Link URL is required.");
+      return this.BadRequestProblem ("Link URL is required.");
 
     if (!EditorModel.IsValidWebUrl (normalizedUrl))
-      return this.BadRequest ("Link URL must be a valid HTTP or HTTPS URL.");
+      return this.BadRequestProblem ("Link URL must be a valid HTTP or HTTPS URL.");
 
     Link? link = await this.context.Links
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
-      return this.NotFound ();
+      return this.NotFoundProblem ("Link not found.");
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
-      return this.BadRequest ("Selected category does not exist.");
+      return this.BadRequestProblem ("Selected category does not exist.");
 
     if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
-      return this.BadRequest ("Monitor ID must be a positive integer.");
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
 
     link.CategoryId  = categoryId;
     link.Label       = normalizedLabel;
@@ -327,14 +327,14 @@ public class EditorModel : PageModel
   ///   Deletes a link.
   /// </summary>
   /// <param name="id">The identifier of the link to remove.</param>
-  /// <returns>A JSON payload describing the deleted link, or <see cref="NotFoundResult" /> when it does not exist.</returns>
+  /// <returns>A JSON payload describing the deleted link, or a 404 problem response when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteLinkAsync (int id)
   {
     Link? link = await this.context.Links
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
-      return this.NotFound ();
+      return this.NotFoundProblem ("Link not found.");
 
     this.context.Links.Remove (link);
     await this.context.SaveChangesAsync ();

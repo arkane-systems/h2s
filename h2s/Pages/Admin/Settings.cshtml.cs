@@ -114,16 +114,16 @@ public class SettingsModel : PageModel
   /// </summary>
   /// <param name="name">The group display name.</param>
   /// <param name="monitorId">The monitor ID, which must be a positive integer.</param>
-  /// <returns>A JSON payload describing the created group, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the created group, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateInfrastructureGroupAsync (string? name, string? monitorId)
   {
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
-      return this.BadRequest ("Group name is required.");
+      return this.BadRequestProblem ("Group name is required.");
 
     if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
-      return this.BadRequest ("Monitor ID must be a positive integer.");
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
 
     int nextSortOrder = await this.context.InfrastructureGroups
                                   .Select (g => (int?)g.SortOrder)
@@ -147,21 +147,21 @@ public class SettingsModel : PageModel
   /// <param name="id">The group identifier.</param>
   /// <param name="name">The updated display name.</param>
   /// <param name="monitorId">The updated monitor ID.</param>
-  /// <returns>A JSON payload describing the updated group, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the updated group, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateInfrastructureGroupAsync (int id, string? name, string? monitorId)
   {
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
-      return this.BadRequest ("Group name is required.");
+      return this.BadRequestProblem ("Group name is required.");
 
     if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
-      return this.BadRequest ("Monitor ID must be a positive integer.");
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
 
     InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
 
     if (group == null)
-      return this.NotFound ();
+      return this.NotFoundProblem ("Infrastructure group not found.");
 
     group.Name      = normalizedName;
     group.MonitorId = parsedMonitorId;
@@ -177,13 +177,13 @@ public class SettingsModel : PageModel
   ///   Deletes an infrastructure group.
   /// </summary>
   /// <param name="id">The identifier of the group to remove.</param>
-  /// <returns>A JSON payload describing the deleted group, or <see cref="NotFoundResult" /> when it does not exist.</returns>
+  /// <returns>A JSON payload describing the deleted group, or a 404 problem response when it does not exist.</returns>
   public async Task<IActionResult> OnPostDeleteInfrastructureGroupAsync (int id)
   {
     InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
 
     if (group == null)
-      return this.NotFound ();
+      return this.NotFoundProblem ("Infrastructure group not found.");
 
     this.context.InfrastructureGroups.Remove (group);
     await this.context.SaveChangesAsync ();
@@ -195,18 +195,18 @@ public class SettingsModel : PageModel
   ///   Reorders infrastructure groups according to the provided ID sequence.
   /// </summary>
   /// <param name="orderedIds">The desired ordered set of group IDs.</param>
-  /// <returns>A JSON payload confirming success, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload confirming success, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostReorderInfrastructureGroupsAsync (string[]? orderedIds)
   {
     if ((orderedIds == null) || (orderedIds.Length == 0))
-      return this.BadRequest ("Ordered IDs are required.");
+      return this.BadRequestProblem ("Ordered IDs are required.");
 
     var ids = new List<int> (orderedIds.Length);
 
     foreach (string idValue in orderedIds)
     {
       if (!int.TryParse (s: idValue, result: out int parsedId) || (parsedId <= 0))
-        return this.BadRequest ("Ordered IDs must contain valid positive integers.");
+        return this.BadRequestProblem ("Ordered IDs must contain valid positive integers.");
 
       ids.Add (parsedId);
     }
@@ -216,7 +216,7 @@ public class SettingsModel : PageModel
                                                  .ToListAsync ();
 
     if (groups.Count != ids.Count)
-      return this.BadRequest ("One or more infrastructure groups do not exist.");
+      return this.BadRequestProblem ("One or more infrastructure groups do not exist.");
 
     for (var i = 0; i < ids.Count; i++)
     {

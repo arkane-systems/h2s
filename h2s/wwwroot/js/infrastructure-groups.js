@@ -2,6 +2,7 @@
 function initInfrastructureGroups(config) {
     const urls = config.urls;
     let groups = [...config.initialGroups];
+    const { getJson, postForm } = window.h2sApi;
 
     const message = document.getElementById('infrastructure-group-message');
     const tableBody = document.getElementById('infrastructure-group-table-body');
@@ -12,7 +13,6 @@ function initInfrastructureGroups(config) {
     const editName = document.getElementById('edit-infrastructure-group-name');
     const editMonitorId = document.getElementById('edit-infrastructure-group-monitor-id');
     const cancelEdit = document.getElementById('cancel-edit-infrastructure-group');
-    const token = document.querySelector('#settings-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const uptimeKumaServerUrl = document.getElementById('Settings_UptimeKumaServerUrl');
     const infrastructureGroupsSection = document.getElementById('infrastructure-groups-section');
 
@@ -73,36 +73,6 @@ function initInfrastructureGroups(config) {
     };
 
     const isPositiveInteger = (value) => /^[1-9][0-9]*$/.test(value ?? '');
-
-    const postForm = async (url, data) => {
-        const body = new URLSearchParams(data);
-        body.set('__RequestVerificationToken', token);
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'RequestVerificationToken': token
-            },
-            body
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || 'Request failed.');
-        }
-
-        return response.json();
-    };
-
-    const getJson = async (url) => {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error('Unable to load groups.');
-        }
-
-        return response.json();
-    };
 
     const hideEdit = () => {
         editCard?.classList.add('d-none');

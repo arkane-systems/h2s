@@ -1,4 +1,5 @@
 using h2s.Data;
+using h2s.Models;
 using h2s.Pages;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
@@ -26,6 +27,31 @@ public class IndexModelTests
     IndexModel model = await IndexModelTests.LoadAsync (localDomains: "https://Home.Arpa/, .corp.example.com");
 
     Assert.Equal (expected: expected, actual: model.IsExternalLink (url));
+  }
+
+  [Theory]
+  [InlineData ("https://status.home.arpa/", 11,   "https://status.home.arpa/api/badge/11/status?style=flat&label=")]
+  [InlineData ("https://status.home.arpa/", null, null)]
+  [InlineData (null,                        11,   null)]
+  public async Task CreateLinkTile_ShowsBadgeOnlyForMonitoredLinksWithKuma (string? kumaServerUrl,
+                                                                            int?    monitorId,
+                                                                            string? expectedBadgeUrl)
+  {
+    IndexModel model = await IndexModelTests.LoadAsync (localDomains: "home.arpa", kumaServerUrl: kumaServerUrl);
+
+    LinkTile tile =
+      model.CreateLinkTile (new Link { Label = "Jellyfin", Url = "https://jellyfin.home.arpa/", MonitorId = monitorId });
+
+    Assert.Equal (expected: expectedBadgeUrl, actual: tile.StatusBadgeUrl);
+    Assert.False (tile.IsExternal);
+  }
+
+  [Fact]
+  public async Task CreateLinkTile_FlagsExternalLinks ()
+  {
+    IndexModel model = await IndexModelTests.LoadAsync (localDomains: "home.arpa");
+
+    Assert.True (model.CreateLinkTile (new Link { Label = "GitHub", Url = "https://github.com/" }).IsExternal);
   }
 
   [Fact]

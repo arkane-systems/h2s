@@ -124,6 +124,18 @@ public class IndexModel : PageModel
   }
 
   /// <summary>
+  ///   Builds the view model for a link's tile.
+  /// </summary>
+  /// <param name="link">The link to show.</param>
+  /// <returns>The tile, with its external flag and, when Uptime Kuma is configured and the link has a monitor, its status badge.</returns>
+  public LinkTile CreateLinkTile (Link link)
+    => new (Link: link,
+            IsExternal: this.IsExternalLink (link.Url),
+            StatusBadgeUrl: this.IsUptimeKumaConfigured && link.MonitorId.HasValue
+                              ? this.BuildBadgeUrl (monitorId: link.MonitorId.Value, type: "status", label: "")
+                              : null);
+
+  /// <summary>
   ///   Determines whether a link target should be marked as external based on the configured local domains.
   /// </summary>
   /// <param name="url">The absolute URL to evaluate.</param>

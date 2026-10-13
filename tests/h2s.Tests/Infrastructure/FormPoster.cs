@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -56,6 +57,26 @@ public static partial class FormPoster
   /// <returns>The root JSON element.</returns>
   public static async Task<JsonElement> ReadJsonAsync (HttpResponseMessage response)
     => await response.Content.ReadFromJsonAsync<JsonElement> (TestContext.Current.CancellationToken);
+
+  /// <summary>
+  ///   Asserts that a response is an RFC 9457 problem with the given status and detail, and returns its body.
+  /// </summary>
+  /// <param name="response">The response.</param>
+  /// <param name="status">The expected HTTP status.</param>
+  /// <param name="detail">The expected problem detail.</param>
+  /// <returns>The problem document.</returns>
+  public static async Task<JsonElement> AssertProblemAsync (HttpResponseMessage response, HttpStatusCode status, string detail)
+  {
+    Assert.Equal (expected: status,                     actual: response.StatusCode);
+    Assert.Equal (expected: "application/problem+json", actual: response.Content.Headers.ContentType?.MediaType);
+
+    JsonElement problem = await FormPoster.ReadJsonAsync (response);
+
+    Assert.Equal (expected: (int)status, actual: problem.GetProperty ("status").GetInt32 ());
+    Assert.Equal (expected: detail,      actual: problem.GetProperty ("detail").GetString ());
+
+    return problem;
+  }
 
   [GeneratedRegex ("""<input[^>]*name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""")]
   private static partial Regex AntiforgeryTokenPattern ();

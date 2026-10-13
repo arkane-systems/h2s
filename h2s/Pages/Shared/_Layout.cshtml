@@ -81,7 +81,8 @@
         </nav>
     </header>
 
-    <form id="toggle-color-mode-form" asp-page="/Admin/ToggleColorMode" method="post" style="display:none">
+    @* Every page carries an antiforgery token here; wwwroot/js/api.js sends it with each JSON handler request. *@
+    <form id="antiforgery-token" class="d-none">
         @Html.AntiForgeryToken()
     </form>
 
@@ -102,11 +103,12 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
-    <script src="https://cdn.jsdelivr.net/npm/trianglify@4.1.1/dist/trianglify.bundle.js"></script>
+    <script src="~/js/api.js" asp-append-version="true"></script>
+    <script src="~/js/lowpoly.js" asp-append-version="true"></script>
     <script>
         (function () {
-            // Trianglify color palettes per theme
-            const trianglifyColors = {
+            // Low-poly background palettes per theme
+            const backgroundColors = {
                 light: ['#1e1b4b', '#fbbf24'],
                 dark:  ['#1f1b5f', '#6d28d9', '#d8b4fe']
             };
@@ -114,10 +116,9 @@
             const backgroundHost = document.querySelector('.app-background');
             const header = document.querySelector('header');
             const footer = document.querySelector('footer');
-            const trianglifyFactory = window.Trianglify || window.trianglify;
 
             const renderPattern = () => {
-                if (!backgroundHost || typeof trianglifyFactory !== 'function') return;
+                if (!backgroundHost || !window.h2sLowPoly) return;
 
                 const top = Math.max(header?.offsetHeight ?? 0, 0);
                 const footerHeight = Math.max(footer?.offsetHeight ?? 0, 0);
@@ -129,18 +130,16 @@
                 backgroundHost.style.height = `${height}px`;
 
                 const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-                const colors = isDark ? trianglifyColors.dark : trianglifyColors.light;
+                const colors = isDark ? backgroundColors.dark : backgroundColors.light;
 
-                const pattern = trianglifyFactory({
+                backgroundHost.innerHTML = '';
+                const svg = window.h2sLowPoly.createSvg({
                     width,
                     height,
                     cellSize: 170,
                     variance: 0.75,
-                    xColors: colors
+                    colors
                 });
-
-                backgroundHost.innerHTML = '';
-                const svg = pattern.toSVG();
                 svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
                 svg.classList.add('app-background-svg');
                 backgroundHost.appendChild(svg);
@@ -172,18 +171,7 @@
 
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', () => {
-                    const form  = document.getElementById('toggle-color-mode-form');
-                    const token = form?.querySelector('input[name="__RequestVerificationToken"]')?.value;
-
-                    fetch(toggleBtn.dataset.url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'RequestVerificationToken': token ?? ''
-                        },
-                        body: token ? `__RequestVerificationToken=${encodeURIComponent(token)}` : ''
-                    })
-                    .then(r => r.json())
+                    window.h2sApi.postForm(toggleBtn.dataset.url)
                     .then(data => {
                         // data.colorMode is 'Auto', 'Light', or 'Dark'
                         const modeMap = { Auto: 0, Light: 1, Dark: 2 };

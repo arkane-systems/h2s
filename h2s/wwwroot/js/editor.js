@@ -27,7 +27,7 @@ function initEditor(config) {
         showClientError(message);
     });
 
-    const token = document.querySelector('#editor-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
+    const { getJson, postForm } = window.h2sApi;
 
     const categoryElements = {
         message: document.getElementById('category-message'),
@@ -130,38 +130,6 @@ function initEditor(config) {
     const clearMessage = (element) => {
         element.classList.add('d-none');
         element.textContent = '';
-    };
-
-    // Posts form-style data to a Razor Pages handler while including the anti-forgery token.
-    const postForm = async (url, data) => {
-        const body = new URLSearchParams(data);
-        body.set('__RequestVerificationToken', token);
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'RequestVerificationToken': token
-            },
-            body
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || 'Request failed.');
-        }
-
-        return response.json();
-    };
-
-    // Fetches JSON from a page handler without allowing cached responses.
-    const getJson = async (url) => {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error('Unable to load data.');
-        }
-
-        return response.json();
     };
 
     let iconSuggestionDebounceHandle;
