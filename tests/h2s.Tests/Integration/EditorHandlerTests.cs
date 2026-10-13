@@ -87,7 +87,33 @@ public class EditorHandlerTests
 
     Assert.Equal (expected: "Media",     actual: json.GetProperty ("categoryName").GetString ());
     Assert.Equal (expected: "navidrome", actual: json.GetProperty ("iconName").GetString ());
-    Assert.Equal (expected: "14",        actual: json.GetProperty ("monitorId").GetString ());
+    Assert.Equal (expected: 14,          actual: json.GetProperty ("monitorId").GetInt32 ());
+  }
+
+  [Fact]
+  public async Task CreateLink_StoresBlankMonitorIdAsNone ()
+  {
+    await using var factory    = new DashboardApplicationFactory ();
+    int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Media");
+
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: EditorHandlerTests.EditorPath,
+                                                               handler: "CreateLink",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "categoryId",
+                                                                                                   value: categoryId.ToString ()),
+                                                                 new KeyValuePair<string, string> (key: "label",
+                                                                                                   value: "Navidrome"),
+                                                                 new KeyValuePair<string, string> (key: "url",
+                                                                                                   value:
+                                                                                                   "https://music.home.arpa/"),
+                                                                 new KeyValuePair<string, string> (key: "monitorId", value: "  "),
+                                                               ]);
+
+    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
+    Assert.Equal (expected: JsonValueKind.Null,
+                  actual: (await FormPoster.ReadJsonAsync (response)).GetProperty ("monitorId").ValueKind);
   }
 
   [Theory]
@@ -95,6 +121,9 @@ public class EditorHandlerTests
   [InlineData ("Navidrome", "",                         "")]
   [InlineData ("Navidrome", "ftp://music.home.arpa/",   "")]
   [InlineData ("Navidrome", "https://music.home.arpa/", "0")]
+  [InlineData ("Navidrome", "https://music.home.arpa/", "-3")]
+  [InlineData ("Navidrome", "https://music.home.arpa/", "abc")]
+  [InlineData ("Navidrome", "https://music.home.arpa/", "99999999999")]
   public async Task CreateLink_RejectsInvalidInput (string label, string url, string monitorId)
   {
     await using var factory    = new DashboardApplicationFactory ();

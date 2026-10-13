@@ -77,17 +77,17 @@ public static class DevDataSeeder
                                                                         host: "jellyfin",
                                                                         description: "Movies, TV and music",
                                                                         iconName: "jellyfin",
-                                                                        monitorId: "11"),
+                                                                        monitorId: 11),
                                                DevDataSeeder.LocalLink (label: "Sonarr",
                                                                         host: "sonarr",
                                                                         description: "TV series manager",
                                                                         iconName: "sonarr",
-                                                                        monitorId: "12"),
+                                                                        monitorId: 12),
                                                DevDataSeeder.LocalLink (label: "Radarr",
                                                                         host: "radarr",
                                                                         description: "Movie manager",
                                                                         iconName: "radarr",
-                                                                        monitorId: "13"),
+                                                                        monitorId: 13),
                                                DevDataSeeder.LocalLink (label: "Audiobookshelf",
                                                                         host: "audiobooks",
                                                                         description: "",
@@ -99,7 +99,7 @@ public static class DevDataSeeder
                                                                         host: "homeassistant",
                                                                         description: "Home automation",
                                                                         iconName: "home-assistant",
-                                                                        monitorId: "21"),
+                                                                        monitorId: 21),
                                                DevDataSeeder.LocalLink (label: "Frigate",
                                                                         host: "frigate",
                                                                         description: "Camera NVR",
@@ -134,17 +134,17 @@ public static class DevDataSeeder
                                                                         host: "proxmox",
                                                                         description: "Hypervisor cluster",
                                                                         iconName: "proxmox",
-                                                                        monitorId: "1"),
+                                                                        monitorId: 1),
                                                DevDataSeeder.LocalLink (label: "TrueNAS",
                                                                         host: "truenas",
                                                                         description: "Storage",
                                                                         iconName: "truenas-scale",
-                                                                        monitorId: "2"),
+                                                                        monitorId: 2),
                                                DevDataSeeder.LocalLink (label: "Traefik",
                                                                         host: "traefik",
                                                                         description: "Ingress dashboard",
                                                                         iconName: "traefik",
-                                                                        monitorId: "3"),
+                                                                        monitorId: 3),
                                                DevDataSeeder.LocalLink (label: "Uptime Kuma",
                                                                         host: "status",
                                                                         description: "Service monitoring",
@@ -156,7 +156,7 @@ public static class DevDataSeeder
                                                                         host: "unifi",
                                                                         description: "Network controller",
                                                                         iconName: "ubiquiti-unifi",
-                                                                        monitorId: "4"),
+                                                                        monitorId: 4),
                                                DevDataSeeder.LocalLink (label: "Pi-hole",
                                                                         host: "pihole",
                                                                         description: "DNS filtering",
@@ -169,9 +169,9 @@ public static class DevDataSeeder
   /// <returns>The infrastructure groups.</returns>
   private static IEnumerable<InfrastructureGroup> CreateInfrastructureGroups ()
   {
-    yield return new InfrastructureGroup { Name = "Compute", MonitorId = "1", SortOrder = 0 };
-    yield return new InfrastructureGroup { Name = "Storage", MonitorId = "2", SortOrder = 1 };
-    yield return new InfrastructureGroup { Name = "Network", MonitorId = "4", SortOrder = 2 };
+    yield return new InfrastructureGroup { Name = "Compute", MonitorId = 1, SortOrder = 0 };
+    yield return new InfrastructureGroup { Name = "Storage", MonitorId = 2, SortOrder = 1 };
+    yield return new InfrastructureGroup { Name = "Network", MonitorId = 4, SortOrder = 2 };
   }
 
   /// <summary>
@@ -193,7 +193,7 @@ public static class DevDataSeeder
   /// <param name="iconName">The selfh.st icon name, or an empty string for none.</param>
   /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
   /// <returns>The link.</returns>
-  private static Link LocalLink (string label, string host, string description, string iconName, string? monitorId = null)
+  private static Link LocalLink (string label, string host, string description, string iconName, int? monitorId = null)
     => DevDataSeeder.ExternalLink (label: label,
                                    url: $"https://{host}.{DevDataSeeder.LocalDomain}/",
                                    description: description,
@@ -209,7 +209,7 @@ public static class DevDataSeeder
   /// <param name="iconName">The selfh.st icon name, or an empty string for none.</param>
   /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
   /// <returns>The link.</returns>
-  private static Link ExternalLink (string label, string url, string description, string iconName, string? monitorId = null)
+  private static Link ExternalLink (string label, string url, string description, string iconName, int? monitorId = null)
     => new ()
        {
          Label       = label,

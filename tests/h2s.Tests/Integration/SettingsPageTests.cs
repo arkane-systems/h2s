@@ -14,6 +14,45 @@ public class SettingsPageTests
   private const string SettingsPath = "/Admin/Settings";
 
   [Fact]
+  public async Task CreateInfrastructureGroup_ReturnsNumericMonitorId ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: SettingsPageTests.SettingsPath,
+                                                               handler: "CreateInfrastructureGroup",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "name",      value: "Edge"),
+                                                                 new KeyValuePair<string, string> (key: "monitorId", value: " 35 "),
+                                                               ]);
+
+    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
+    Assert.Equal (expected: 35, actual: (await FormPoster.ReadJsonAsync (response)).GetProperty ("monitorId").GetInt32 ());
+  }
+
+  [Theory]
+  [InlineData ("")]
+  [InlineData ("0")]
+  [InlineData ("abc")]
+  public async Task CreateInfrastructureGroup_RejectsInvalidMonitorId (string monitorId)
+  {
+    await using var factory = new DashboardApplicationFactory ();
+
+    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                               pagePath: SettingsPageTests.SettingsPath,
+                                                               handler: "CreateInfrastructureGroup",
+                                                               fields:
+                                                               [
+                                                                 new KeyValuePair<string, string> (key: "name", value: "Edge"),
+                                                                 new KeyValuePair<string, string> (key: "monitorId",
+                                                                                                   value: monitorId),
+                                                               ]);
+
+    Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
+  }
+
+  [Fact]
   public async Task Post_RedisplaysPageForInvalidInput ()
   {
     await using var factory = new DashboardApplicationFactory ();

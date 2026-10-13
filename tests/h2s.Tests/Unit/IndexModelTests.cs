@@ -42,13 +42,17 @@ public class IndexModelTests
     IndexModel model = await IndexModelTests.LoadAsync (localDomains: "", kumaServerUrl: "https://status.home.arpa/");
 
     Assert.Equal (expected: "https://status.home.arpa/api/badge/7/status?style=flat",
-                  actual: model.BuildBadgeUrl (monitorId: "7", type: "status"));
+                  actual: model.BuildBadgeUrl (monitorId: 7, type: "status"));
     Assert.Equal (expected: "https://status.home.arpa/api/badge/7/uptime/24?style=flat",
-                  actual: model.BuildBadgeUrl (monitorId: "7", type: "uptime", duration: 24));
+                  actual: model.BuildBadgeUrl (monitorId: 7, type: "uptime", duration: 24));
     Assert.Equal (expected: "https://status.home.arpa/api/badge/7/status?style=flat&label=",
-                  actual: model.BuildBadgeUrl (monitorId: "7", type: "status", label: ""));
-    Assert.Equal (expected: "", actual: model.BuildBadgeUrl (monitorId: "", type: "status"));
+                  actual: model.BuildBadgeUrl (monitorId: 7, type: "status", label: ""));
   }
+
+  [Fact]
+  public async Task BuildBadgeUrl_IsEmptyWithoutKumaServer ()
+    => Assert.Equal (expected: "",
+                     actual: (await IndexModelTests.LoadAsync (localDomains: "")).BuildBadgeUrl (monitorId: 7, type: "status"));
 
   [Fact]
   public async Task BuildStatusPageUrl_RequiresSlug ()

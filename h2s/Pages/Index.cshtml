@@ -84,14 +84,14 @@
                 {
                     var isExternal = Model.IsExternalLink(link.Url);
 
-                    <a class="link-block text-decoration-none text-body @(Model.IsUptimeKumaConfigured && !string.IsNullOrWhiteSpace(link.MonitorId) ? "has-link-status-badge" : "")" href="@link.Url">
+                    <a class="link-block text-decoration-none text-body @(Model.IsUptimeKumaConfigured && link.MonitorId.HasValue ? "has-link-status-badge" : "")" href="@link.Url">
                         @if (isExternal)
                         {
                             <span class="link-external-flag" title="External site" aria-label="External site">External</span>
                         }
-                        @if (Model.IsUptimeKumaConfigured && !string.IsNullOrWhiteSpace(link.MonitorId))
+                        @if (Model.IsUptimeKumaConfigured && link.MonitorId.HasValue)
                         {
-                            <img class="link-status-badge" src="@Model.BuildBadgeUrl(link.MonitorId, "status", label: "")" alt="@($"{link.Label} status")" loading="lazy" />
+                            <img class="link-status-badge" src="@Model.BuildBadgeUrl(link.MonitorId.Value, "status", label: "")" alt="@($"{link.Label} status")" loading="lazy" />
                         }
                         <div class="link-block-icon-wrap">
                             @if (!string.IsNullOrWhiteSpace(link.IconName))
