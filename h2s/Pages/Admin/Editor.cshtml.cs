@@ -254,7 +254,10 @@ public class EditorModel : PageModel
   /// <param name="label">The updated display label.</param>
   /// <param name="description">The updated descriptive text.</param>
   /// <param name="iconName">The updated icon name.</param>
-  /// <param name="monitorId">The updated Uptime Kuma monitor ID.</param>
+  /// <param name="monitorId">
+  ///   The updated Uptime Kuma monitor ID; blank to remove it. When the field is not posted at all, the stored monitor ID
+  ///   is kept.
+  /// </param>
   /// <param name="url">The updated destination URL.</param>
   /// <returns>A JSON payload describing the updated link, or an error response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateLinkAsync (int     id,
@@ -293,8 +296,12 @@ public class EditorModel : PageModel
     link.Label       = normalizedLabel;
     link.Description = (description ?? string.Empty).Trim ();
     link.IconName    = Link.NormalizeIconName (iconName ?? string.Empty);
-    link.MonitorId   = parsedMonitorId;
     link.Url         = normalizedUrl;
+
+    // Without Uptime Kuma the editor has no monitor ID field and omits it, which leaves the stored monitor ID alone;
+    // only a posted (possibly blank) value replaces it.
+    if (this.Request.Form.ContainsKey (nameof (monitorId)))
+      link.MonitorId = parsedMonitorId;
 
     await this.context.SaveChangesAsync ();
 

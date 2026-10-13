@@ -546,16 +546,22 @@ function initEditor(config) {
             return;
         }
 
+        const data = {
+            id,
+            categoryId,
+            label,
+            description: linkElements.editDescription.value,
+            iconName: linkElements.editIconName.value,
+            url
+        };
+
+        // Without Uptime Kuma there is no monitor ID field; omit it so the server keeps the stored monitor ID.
+        if (linkElements.editMonitorId) {
+            data.monitorId = monitorId;
+        }
+
         try {
-            await postForm(urls.updateLink, {
-                id,
-                categoryId,
-                label,
-                description: linkElements.editDescription.value,
-                iconName: linkElements.editIconName.value,
-                monitorId,
-                url
-            });
+            await postForm(urls.updateLink, data);
 
             hideLinkEdit();
             await loadCategories();
