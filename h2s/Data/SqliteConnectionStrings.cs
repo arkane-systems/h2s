@@ -38,17 +38,29 @@ public static class SqliteConnectionStrings
   /// <param name="connectionString">A SQLite connection string with an absolute <c>Data Source</c>.</param>
   public static void EnsureDirectoryExists (string connectionString)
   {
+    string? directory = SqliteConnectionStrings.GetDataDirectory (connectionString);
+
+    if (directory != null)
+      Directory.CreateDirectory (directory);
+  }
+
+  /// <summary>
+  ///   Gets the directory that holds a file-based SQLite database, where other persistent application data lives too.
+  /// </summary>
+  /// <param name="connectionString">A SQLite connection string with an absolute <c>Data Source</c>.</param>
+  /// <returns>The database directory, or <c>null</c> for an in-memory database.</returns>
+  public static string? GetDataDirectory (string connectionString)
+  {
     ArgumentNullException.ThrowIfNull (connectionString);
 
     var builder = new SqliteConnectionStringBuilder (connectionString);
 
     if (SqliteConnectionStrings.IsInMemory (builder))
-      return;
+      return null;
 
     string? directory = Path.GetDirectoryName (builder.DataSource);
 
-    if (!string.IsNullOrEmpty (directory))
-      Directory.CreateDirectory (directory);
+    return string.IsNullOrEmpty (directory) ? null : directory;
   }
 
   /// <summary>

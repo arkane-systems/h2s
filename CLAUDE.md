@@ -14,13 +14,16 @@ Run from the repository root:
 - Add migration: `dotnet ef migrations add <Name> --project h2s/h2s.csproj --startup-project h2s/h2s.csproj --output-dir Migrations`
 - Apply migrations manually: `dotnet ef database update --project h2s/h2s.csproj --startup-project h2s/h2s.csproj` (normally unnecessary: `Program.cs` calls `Database.Migrate()` on startup)
 - Container: `docker build -t h2s:local -f h2s/Dockerfile .` (or `wslc build` on Windows). The build context is the repo root, so `Directory.Build.props` and `.editorconfig` apply; the root `.dockerignore` limits what is sent.
+  - The build stage publishes for `$TARGETARCH`, so only that architecture's native SQLite library ships.
+  - The image runs as `$APP_UID` (1654). Deployments may override the UID to match the data volume, so nothing outside `/app/data` may need to be writable.
+  - `Microsoft.EntityFrameworkCore.Tools` is `Publish="false"`: `dotnet ef` needs it in the build output, but its Roslyn and MSBuild dependencies stay out of the image. Don't add design-time packages without the same treatment.
 
 - Test: `dotnet test --solution h2s.slnx`. For a single test, add `--filter-method "*Post_SavesValidSettings"`; `--filter-class` and `--filter-namespace` also work.
 
 Tests are xUnit v3 in `tests/h2s.Tests`, run on Microsoft.Testing.Platform. `global.json` opts `dotnet test` into MTP, which the .NET 10 SDK requires for xUnit v3, so `dotnet test` takes `--solution`/`--project` rather than a positional path.
 
 - `Unit/` tests use `TestDatabase`, a migrated in-memory SQLite database, optionally seeded.
-- `Integration/` tests host the app with `DashboardApplicationFactory` over a private in-memory database seeded by `DevDataSeeder`. Create one factory per test that changes data.
+- `Integration/` tests host the app with `DashboardApplicationFactory` over a private in-memory database seeded by `DevDataSeeder`, with Data Protection keys held in memory. Create one factory per test that changes data.
 - Posting to Razor handlers needs an antiforgery token; use `FormPoster.PostAsync`.
 - Pass `TestContext.Current.CancellationToken` to async calls; the xUnit analyzers flag it otherwise.
 
@@ -34,7 +37,7 @@ Code style:
 - Don't run `dotnet format whitespace`; it fights the ReSharper alignment rules.
 - The build reports the `.editorconfig` rules as warnings (`EnforceCodeStyleInBuild`). `-p:ContinuousIntegrationBuild=true` makes all warnings errors.
 
-The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data/h2s.db`. `Program.cs` resolves a relative `Data Source` against the content root (`SqliteConnectionStrings`), giving `h2s/App_Data/h2s.db`, which is gitignored and dockerignored. Production uses `/app/data/h2s.db`, a mounted volume. Don't name a data directory `data`: on Windows it collides with the `h2s/Data/` source folder. Sample data lives in `h2s/Data/Seeding/DevDataSeeder.cs`; keep it in step with schema changes, since the AddDashboardSettings migration inserts the settings row and the seeder updates it. Any new environment keeps the same connection string key and the SQLite provider. The app is single-instance only: SQLite with no concurrency support.
+The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data/h2s.db`. `Program.cs` resolves a relative `Data Source` against the content root (`SqliteConnectionStrings`), giving `h2s/App_Data/h2s.db`, which is gitignored and dockerignored. Production uses `/app/data/h2s.db`, a mounted volume. Don't name a data directory `data`: on Windows it collides with the `h2s/Data/` source folder. Data Protection keys persist to a `keys` directory beside the database (`SqliteConnectionStrings.GetDataDirectory`), so antiforgery tokens survive restarts. Sample data lives in `h2s/Data/Seeding/DevDataSeeder.cs`; keep it in step with schema changes, since the AddDashboardSettings migration inserts the settings row and the seeder updates it. Any new environment keeps the same connection string key and the SQLite provider. The app is single-instance only: SQLite with no concurrency support.
 
 ## Architecture
 
@@ -49,7 +52,10 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
     - Each link shows a selfh.st icon when `IconName` is set, otherwise a fallback dot. Links whose host isn't in `LocalDomains` get an "External" badge.
     - A Bing search box sits at the top; keep additions visually compatible with the card/grid layout.
   - `Pages/Shared/_Layout.cshtml` holds the navbar, including the links to Editor and Settings. It injects `DashboardSettingsService` directly for the title, motto and theme. It also holds the inline pre-CSS theme script and the Trianglify background renderer.
-  - `Pages/Admin/*` (Editor, Settings, ToggleColorMode) are unauthenticated by design for now.
+  - `Pages/Admin/*` (Editor, Settings, ToggleColorMode) require the `Admin` policy (`AuthorizeFolder` in `Program.cs`). Its only requirement, `AdminRequirement`, is satisfied for everyone by `AllowAllAdminHandler` (`h2s/Authorization/`). That's the authorization seam: authentication will come from a homelab-wide project, which replaces the handler. Don't add login or authentication to h2s itself.
+- **Hosting**:
+  - `/healthz` is a health check (DbContext) for Kubernetes liveness and readiness probes.
+  - `UseForwardedHeaders` runs first and trusts `X-Forwarded-For`/`-Proto` from any address, because the app is only reachable through Traefik.
 - **Editor and Settings are JSON-handler pages, not scaffolded CRUD.** The server renders the initial state, then `wwwroot/js/editor.js` / `wwwroot/js/infrastructure-groups.js` call named page handlers (`OnPostCreateCategoryAsync`, `OnPostUpdateLinkAsync`, `OnPostReorderInfrastructureGroupsAsync`, …) via `fetch`. When you change editor or settings behavior, update the Razor markup, the PageModel handler and the JS contract together.
 - **Color mode**: the `ColorMode` enum has the values `Auto` (0, follows `prefers-color-scheme`), `Light` (1) and `Dark` (2).
   - An inline script in the `<head>` of `_Layout.cshtml` sets `data-bs-theme` on `<html>` before CSS loads, so the wrong theme never flashes on load.
@@ -72,7 +78,7 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 - Keep edits minimal and local.
 - Stay within Razor Pages: no MVC controllers, no Blazor, no new frontend frameworks. Site styling goes in `h2s/wwwroot/css/site.css`.
 - New services go in `h2s/Services/` and are registered as scoped in `Program.cs` unless they clearly need another lifetime. Keep the `AddHttpClient()`, `MapStaticAssets()` and `MapRazorPages().WithStaticAssets()` calls.
-- Namespaces follow folders: `h2s.Data`, `h2s.Models`, `h2s.Services`, `h2s.Validation`, `h2s.Pages`, `h2s.Pages.Admin`.
+- Namespaces follow folders: `h2s.Authorization`, `h2s.Data`, `h2s.Models`, `h2s.Services`, `h2s.Validation`, `h2s.Pages`, `h2s.Pages.Admin`.
 - C# style: the root `.editorconfig` is the source of truth. Its ReSharper section is generated from the house ReSharper profile. `h2s.slnx.DotSettings` is the team-shared ReSharper layer. It holds the full house code-style settings, taken from the author's global ReSharper settings because the profile export alone was incomplete. It also holds what EditorConfig can't express: the member layout pattern and XML formatter settings. ReSharper may append `SettingsMigration` markers to it. Watch for migrations rewriting the layout pattern; one once swapped in a `#region`-based pattern, and the house pattern uses no regions. `Directory.Build.props` holds the shared project settings. In short:
   - 2-space indent, Allman braces, and a space before parentheses in calls and declarations (`Foo ()`). Aligned assignments, initializers and multiline arguments, and trailing commas in multiline lists. Lines wrap at 132 columns.
   - Qualify instance members with `this.` and static members with their type name (`Link.NormalizeIconName`).

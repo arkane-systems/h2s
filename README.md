@@ -31,10 +31,12 @@ A GitHub Actions workflow (`.github/workflows/publish-container.yml`) publishes 
 Create a local folder for persistent data, then run:
 
 ```bash
-docker run --rm -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 -v "$(pwd)/data:/app/data" h2s:local
+docker run --rm -p 8080:8080 --user "$(id -u):$(id -g)" -v "$(pwd)/data:/app/data" h2s:local
 ```
 
-The app expects the SQLite database at `/app/data/h2s.db` inside the container.
+The app keeps its SQLite database (`h2s.db`) and its Data Protection keys (`keys/`) in `/app/data` inside the container. The image runs as the non-root `app` user (UID 1654) by default; any UID works as long as it can write to `/app/data`, which is why the example runs as your own user.
+
+The app serves `/healthz`, which returns `Healthy` when the database is reachable.
 
 
 ## Running on Kubernetes
@@ -81,6 +83,14 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
           volumeMounts:
             - mountPath: "/app/data"
               name: "h2s-config"
@@ -124,9 +134,10 @@ spec:
 *Notes:*
 
 - The *Deployment* uses a Recreate strategy since the app doesn't support multiple instances running concurrently against the same database.
-- The *Deployment*'s *securityContext* runs the container as a non-root user for better security. The non-root user in particular is chosen to match the permissions of the mounted volume, which is owned by that user on my NFS server. If you use a different storage solution, you may need to adjust the UID/GID accordingly, and will definitely need to adjust the volume definition.
+- The image runs as a non-root user (UID 1654) by default. The *Deployment*'s *securityContext* overrides that UID to match the permissions of the mounted volume, which is owned by that user on my NFS server. If you use a different storage solution, you may need to adjust the UID/GID accordingly (or drop them to use the default), and will definitely need to adjust the volume definition.
+- The liveness and readiness probes use `/healthz`, which checks that the database is reachable.
 - My cluster and network is dual-stacked IPv4/IPv6, hence the *ipFamilyPolicy* setting in the *Service* definition. You will need to remove or change this if yours is not.
-- The *Ingress* is configured for Traefik with TLS enabled, but you can adjust the annotations and TLS settings as needed for your ingress controller and environment. It also (as does h2s itself) assumes that HTTPS will be handled entirely by the ingress controller and the app itself need only concern itself with HTTP.
+- The *Ingress* is configured for Traefik with TLS enabled, but you can adjust the annotations and TLS settings as needed for your ingress controller and environment. It also (as does h2s itself) assumes that HTTPS will be handled entirely by the ingress controller and the app itself need only concern itself with HTTP. h2s honors the `X-Forwarded-For` and `X-Forwarded-Proto` headers from any proxy, so it sees the original client address and scheme; don't expose it directly to untrusted networks.
 
 
 ## Using the dashboard
