@@ -51,16 +51,19 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
     - Categories sort by `IsAdminCategory`, then `Name`; admin categories render after a grid break, tinted red.
     - Links within a category sort by `Label`.
     - Each link shows a selfh.st icon when `IconName` is set, otherwise a fallback dot. Links whose host isn't in `LocalDomains` get an "External" badge.
+    - Tiles render through the `Pages/Shared/_LinkTile` partial, whose `LinkTile` view model comes from `IndexModel.CreateLinkTile`. The Kuma status bar is the `_UptimeStatusBar` partial.
     - A Bing search box sits at the top; keep additions visually compatible with the card/grid layout.
-  - `Pages/Shared/_Layout.cshtml` holds the navbar, including the links to Editor and Settings. It injects `DashboardSettingsService` directly for the title, motto and theme. It also holds the inline pre-CSS theme script and the Trianglify background renderer.
+  - `Pages/Shared/_Layout.cshtml` holds the navbar, including the links to Editor and Settings. It injects `DashboardSettingsService` directly for the title, motto and theme. It also holds the inline pre-CSS theme script and the background renderer, which draws through `wwwroot/js/lowpoly.js`, a small dependency-free replacement for Trianglify (Trianglify is GPL-3.0). The layout renders the page's one antiforgery token for `api.js`.
   - `Pages/Admin/*` (Editor, Settings, ToggleColorMode) require the `Admin` policy (`AuthorizeFolder` in `Program.cs`). Its only requirement, `AdminRequirement`, is satisfied for everyone by `AllowAllAdminHandler` (`h2s/Authorization/`). That's the authorization seam: authentication will come from a homelab-wide project, which replaces the handler. Don't add login or authentication to h2s itself.
 - **Hosting**:
   - `/healthz` is a health check (DbContext) for Kubernetes liveness and readiness probes.
   - `UseForwardedHeaders` runs first and trusts `X-Forwarded-For`/`-Proto` from any address, because the app is only reachable through Traefik.
-- **Editor and Settings are JSON-handler pages, not scaffolded CRUD.** The server renders the initial state, then `wwwroot/js/editor.js` / `wwwroot/js/infrastructure-groups.js` call named page handlers (`OnPostCreateCategoryAsync`, `OnPostUpdateLinkAsync`, `OnPostReorderInfrastructureGroupsAsync`, …) via `fetch`. When you change editor or settings behavior, update the Razor markup, the PageModel handler and the JS contract together.
+- **Editor and Settings are JSON-handler pages, not scaffolded CRUD.** The server renders the initial state, then `wwwroot/js/editor.js` / `wwwroot/js/infrastructure-groups.js` call named page handlers (`OnPostCreateCategoryAsync`, `OnPostUpdateLinkAsync`, `OnPostReorderInfrastructureGroupsAsync`, …). When you change editor or settings behavior, update the Razor markup, the PageModel handler and the JS contract together.
+  - Client scripts call handlers through `wwwroot/js/api.js` (`h2sApi.getJson`, `h2sApi.postForm`), which sends the antiforgery token and turns error responses into `Error`s carrying the problem's `detail`.
+  - JSON handlers report failures as RFC 9457 ProblemDetails (`application/problem+json`) via `this.BadRequestProblem (...)` / `this.NotFoundProblem (...)` (`h2s/Pages/PageModelProblemExtensions.cs`), not bare `BadRequest`/`NotFound`. Tests check them with `FormPoster.AssertProblemAsync`.
 - **Color mode**: the `ColorMode` enum has the values `Auto` (0, follows `prefers-color-scheme`), `Light` (1) and `Dark` (2).
   - An inline script in the `<head>` of `_Layout.cshtml` sets `data-bs-theme` on `<html>` before CSS loads, so the wrong theme never flashes on load.
-  - The navbar toggle posts to `/Admin/ToggleColorMode`, which cycles the mode and returns JSON. The client then updates `data-bs-theme` and re-renders Trianglify.
+  - The navbar toggle posts to `/Admin/ToggleColorMode`, which cycles the mode and returns JSON. The client then updates `data-bs-theme` and re-renders the background.
 - **Uptime Kuma integration**: enabled only when `DashboardSettings.UptimeKumaServerUrl` is non-blank.
   - The browser loads badges directly from Kuma as `<img>` tags pointing at `{server}/api/badge/{monitorId}/{type}` (built in `IndexModel.BuildBadgeUrl`); the server never proxies them.
   - Infrastructure groups render the top status bar. The bar links to the Kuma status page only when `UptimeKumaStatusPageSlug` is set; otherwise it isn't clickable.
@@ -79,6 +82,7 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 
 - Keep edits minimal and local.
 - Stay within Razor Pages: no MVC controllers, no Blazor, no new frontend frameworks. Site styling goes in `h2s/wwwroot/css/site.css`.
+- Client libraries are committed under `h2s/wwwroot/lib/`; don't load scripts from a CDN at runtime. h2s is MIT, so check a library's licence before vendoring it (no GPL).
 - New services go in `h2s/Services/` and are registered as scoped in `Program.cs` unless they clearly need another lifetime. Keep the `AddHttpClient()`, `MapStaticAssets()` and `MapRazorPages().WithStaticAssets()` calls.
 - Namespaces follow folders: `h2s.Authorization`, `h2s.Data`, `h2s.Models`, `h2s.Services`, `h2s.Validation`, `h2s.Pages`, `h2s.Pages.Admin`.
 - C# style: the root `.editorconfig` is the source of truth. Its ReSharper section is generated from the house ReSharper profile. `h2s.slnx.DotSettings` is the team-shared ReSharper layer. It holds the full house code-style settings, taken from the author's global ReSharper settings because the profile export alone was incomplete. It also holds what EditorConfig can't express: the member layout pattern and XML formatter settings. ReSharper may append `SettingsMigration` markers to it. Watch for migrations rewriting the layout pattern; one once swapped in a `#region`-based pattern, and the house pattern uses no regions. `Directory.Build.props` holds the shared project settings. In short:
@@ -95,7 +99,7 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 - Dark mode:
   - Prefer Bootstrap theme-aware utilities (`bg-body`, `bg-body-tertiary`, `text-body`, `text-muted`, `border`) and CSS variables (`var(--bs-body-bg)`, `var(--bs-border-color)`, `rgba(var(--bs-body-bg-rgb), …)`) over hard-coded colors.
   - Scope theme-specific overrides with `[data-bs-theme="dark"]` / `[data-bs-theme="light"]`.
-  - JS visuals read `document.documentElement.getAttribute('data-bs-theme')` and re-render when it changes; the Trianglify background is the reference implementation.
+  - JS visuals read `document.documentElement.getAttribute('data-bs-theme')` and re-render when it changes; the low-poly background is the reference implementation.
   - Translucent surfaces follow the existing `category-box`, `link-block` and `home-search-form` styles.
 
 ## CI and release

@@ -145,10 +145,6 @@
     </div>
 </section>
 
-<form id="settings-antiforgery" method="post" class="d-none">
-    @Html.AntiForgeryToken()
-</form>
-
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
     <script src="~/js/infrastructure-groups.js" asp-append-version="true"></script>

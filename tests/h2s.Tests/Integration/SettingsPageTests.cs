@@ -49,7 +49,9 @@ public class SettingsPageTests
                                                                                                    value: monitorId),
                                                                ]);
 
-    Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
+    await FormPoster.AssertProblemAsync (response: response,
+                                         status: HttpStatusCode.BadRequest,
+                                         detail: "Monitor ID must be a positive integer.");
   }
 
   [Fact]

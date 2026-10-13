@@ -1,0 +1,36 @@
+﻿@model IndexModel
+@* The Uptime Kuma status bar: a status and uptime badge pair per infrastructure group. It links to the Kuma status page
+   when a slug is configured; otherwise it isn't clickable. *@
+@{
+    var statusPageUrl = Model.BuildStatusPageUrl();
+
+    void RenderBadges()
+    {
+        <div class="category-box-body">
+            <div class="uptime-badge-list">
+                @foreach (var group in Model.InfrastructureGroups)
+                {
+                    <div class="uptime-badge-group">
+                        <div class="uptime-badge-label">@group.Name</div>
+                        <div class="uptime-badge-pair">
+                            <img src="@Model.BuildBadgeUrl(group.MonitorId, "status")" alt="@($"{group.Name} status")" loading="lazy" />
+                            <img src="@Model.BuildBadgeUrl(group.MonitorId, "uptime", Model.UptimeKumaDefaultDuration)" alt="@($"{group.Name} uptime")" loading="lazy" />
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+@if (!string.IsNullOrWhiteSpace(statusPageUrl))
+{
+    <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@statusPageUrl" target="_blank" rel="noopener noreferrer">
+        @{ RenderBadges(); }
+    </a>
+}
+else
+{
+    <section class="uptime-status-bar uptime-status-bar-static category-box border">
+        @{ RenderBadges(); }
+    </section>
+}

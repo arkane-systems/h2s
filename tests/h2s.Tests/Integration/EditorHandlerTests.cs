@@ -56,7 +56,9 @@ public class EditorHandlerTests
                                                                  new KeyValuePair<string, string> (key: "name", value: "   "),
                                                                ]);
 
-    Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
+    await FormPoster.AssertProblemAsync (response: response,
+                                         status: HttpStatusCode.BadRequest,
+                                         detail: "Category name is required.");
   }
 
   [Fact]
@@ -260,7 +262,7 @@ public class EditorHandlerTests
                                                                                                    "https://ghost.home.arpa/"),
                                                                ]);
 
-    Assert.Equal (expected: HttpStatusCode.NotFound, actual: response.StatusCode);
+    await FormPoster.AssertProblemAsync (response: response, status: HttpStatusCode.NotFound, detail: "Link not found.");
   }
 
   /// <summary>
