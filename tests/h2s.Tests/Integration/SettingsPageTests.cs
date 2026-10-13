@@ -112,6 +112,38 @@ public class SettingsPageTests
   }
 
   [Fact]
+  public async Task Post_UpdatesTheRenderedDashboard ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+    HttpClient      client  = factory.CreateClient ();
+
+    // Render once first, so the settings are cached before they change.
+    _ = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+    _ = await FormPoster.PostAsync (client: client,
+                                    pagePath: SettingsPageTests.SettingsPath,
+                                    handler: null,
+                                    fields: SettingsPageTests.Form (title: "Renamed Lab", motto: "", slug: ""));
+
+    string html = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Contains (expectedSubstring: "<title>h2s - Renamed Lab</title>", actualString: html);
+  }
+
+  [Fact]
+  public async Task ToggleColorMode_UpdatesTheRenderedDashboard ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+    HttpClient      client  = factory.CreateClient ();
+
+    _ = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+    _ = await FormPoster.PostAsync (client: client, pagePath: "/Admin/ToggleColorMode", handler: null, fields: []);
+
+    string html = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Contains (expectedSubstring: $"data-color-mode=\"{(int)ColorMode.Light}\"", actualString: html);
+  }
+
+  [Fact]
   public async Task ToggleColorMode_CyclesThroughModes ()
   {
     await using var factory = new DashboardApplicationFactory ();

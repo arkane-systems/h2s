@@ -42,7 +42,8 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 ## Architecture
 
 - **Data**: one `DashboardContext` (`h2s/Data/`) with `Categories`, `Links`, `InfrastructureGroups` and `DashboardSettings`.
-  - `DashboardSettings` is a singleton row enforced by a check constraint (`Id = 1`). Always read and write it through `DashboardSettingsService`. If the row is missing, the service creates it with the defaults `Title = "Dashboard"`, empty `Motto` and `LocalDomains`, `ColorMode = Auto` and `UptimeKumaDefaultDuration = 24`. It also resets a stored duration of 0 or less to 24.
+  - `DashboardSettings` is a singleton row enforced by a check constraint (`Id = 1`). Always read and write it through `DashboardSettingsService`. If the row is missing, the service creates it with the defaults `Title = "Dashboard"`, empty `Motto` and `LocalDomains`, `ColorMode = Auto` and `UptimeKumaDefaultDuration = 24`. It returns 24 in place of a stored duration of 0 or less, without writing it back.
+  - The service caches the settings in `IMemoryCache` (5-minute expiry) and hands out copies, which callers may change and pass to `SaveSettingsAsync`. Saving invalidates the cache. Writes that bypass the service (the seeder, `ExecuteUpdate` in tests) show up only after expiry, so in integration tests change settings before the first request.
   - Categories and links are accessed directly through `DashboardContext` in the PageModels, with no repository layer. Don't add a service for them without a clear need.
 - **Schema changes**: update the model, `DashboardContext` and a new migration together. Migrations are applied automatically at startup, including in production.
 - **Pages**:
@@ -65,9 +66,10 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
   - Infrastructure groups render the top status bar. The bar links to the Kuma status page only when `UptimeKumaStatusPageSlug` is set; otherwise it isn't clickable.
   - `Link.MonitorId` renders per-link badges.
   - Monitors must be on a published Kuma status page or the badge shows N/A.
-- **Outbound HTTP**:
-  - The Settings page checks that the Kuma URL is reachable through `IHttpClientFactory`. On a TLS auth failure it re-probes without certificate validation, so it can report "untrusted certificate" rather than "unreachable".
-  - The Editor checks whether a selfh.st CDN icon exists through its own static `HttpClient` and caches the results in `IMemoryCache`. Keep that caching if you extend icon suggestion.
+- **Outbound HTTP** goes through named `IHttpClientFactory` clients registered in `Program.cs`, each with its timeout:
+  - `UrlProbe` (`h2s/Services/`) checks that a URL is reachable, used by the Settings page for the Kuma URL. On a TLS auth failure it re-probes with the `UrlProbe.AcceptAnyCertificate` client, so it can report "untrusted certificate" rather than "unreachable". Never use that client to fetch content.
+  - `IconCatalog` (`h2s/Services/`) checks whether a selfh.st CDN icon exists, used by the Editor's icon suggestion, and caches the results in `IMemoryCache`. Keep that caching if you extend icon suggestion.
+  - Tests replace the network with `StubHttpClientFactory` and `StubHttpMessageHandler` (`tests/h2s.Tests/Infrastructure/`).
 - **Icons**: not stored locally. `Link.NormalizeIconName()` / `BuildIconUrl()` / `GetIconUrl()` produce selfh.st CDN URLs.
 - **Validation**: custom attributes live in `h2s/Validation/` (`HttpBaseUrlAttribute`, `PositiveIntegerStringAttribute`).
   - `Program.cs` sets `SuppressImplicitRequiredAttributeForNonNullableReferenceTypes`, so form-bound models must mark required fields with an explicit `[Required]`.

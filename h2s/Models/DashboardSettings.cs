@@ -61,4 +61,10 @@ public class DashboardSettings
   [Display (Name = "Default uptime duration (hours)")]
   [Range (minimum: 1, maximum: int.MaxValue, ErrorMessage = "Default uptime duration (hours) must be at least 1.")]
   public int UptimeKumaDefaultDuration { get; set; } = 24;
+
+  /// <summary>
+  ///   Creates a copy of these settings.
+  /// </summary>
+  /// <returns>A new instance with the same values.</returns>
+  public DashboardSettings Clone () => (DashboardSettings)this.MemberwiseClone ();
 }

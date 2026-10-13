@@ -1,5 +1,6 @@
 using System.Net;
 using h2s.Authorization;
+using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -39,6 +40,19 @@ public class HostingTests
     Assert.Equal (expected: ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto, actual: options.ForwardedHeaders);
     Assert.Empty (options.KnownIPNetworks);
     Assert.Empty (options.KnownProxies);
+  }
+
+  [Theory]
+  [InlineData (IconCatalog.ClientName,                  4)]
+  [InlineData (UrlProbe.ClientName,                     5)]
+  [InlineData (UrlProbe.AcceptAnyCertificateClientName, 5)]
+  public async Task HttpClients_AreRegisteredWithTimeouts (string name, int timeoutSeconds)
+  {
+    await using var factory = new DashboardApplicationFactory ();
+
+    HttpClient client = factory.Services.GetRequiredService<IHttpClientFactory> ().CreateClient (name);
+
+    Assert.Equal (expected: TimeSpan.FromSeconds (timeoutSeconds), actual: client.Timeout);
   }
 
   [Fact]

@@ -3,6 +3,7 @@ using h2s.Pages;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace h2s.Tests.Unit;
 
@@ -83,7 +84,8 @@ public class IndexModelTests
                                                                                             valueExpression: kumaSlug),
                                                         cancellationToken: TestContext.Current.CancellationToken);
 
-    var model = new IndexModel (context: context, settingsService: new DashboardSettingsService (context));
+    using var cache = new MemoryCache (new MemoryCacheOptions ());
+    var model = new IndexModel (context: context, settingsService: new DashboardSettingsService (context: context, cache: cache));
     await model.OnGetAsync ();
 
     return model;
