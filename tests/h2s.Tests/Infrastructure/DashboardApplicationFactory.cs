@@ -1,5 +1,8 @@
+using System.Net;
+using System.Text;
 using h2s.Data;
 using h2s.Data.Seeding;
+using h2s.Services;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -20,12 +23,45 @@ namespace h2s.Tests.Infrastructure;
 /// </summary>
 public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
 {
+  /// <summary>
+  ///   The selfh.st icon index the stubbed CDN serves: a few icons the sample data and tests use.
+  /// </summary>
+  public const string IconIndexJson = """
+                                      [
+                                        { "Name": "Jellyfin", "Reference": "jellyfin" },
+                                        { "Name": "Home Assistant", "Reference": "home-assistant" },
+                                        { "Name": "GitHub", "Reference": "github" },
+                                        { "Name": "Navidrome", "Reference": "navidrome" }
+                                      ]
+                                      """;
+
   private readonly SqliteConnection connection = new ("Data Source=:memory:");
 
   /// <summary>
   ///   Initializes a new instance of the <see cref="DashboardApplicationFactory" /> class.
   /// </summary>
   public DashboardApplicationFactory () => this.connection.Open ();
+
+  /// <summary>
+  ///   Gets or sets how the stubbed network answers the icon catalog and the page metadata reader. By default it serves
+  ///   <see cref="IconIndexJson" /> as the icon index and 404 for everything else. Set it before the first request.
+  /// </summary>
+  public Func<HttpRequestMessage, HttpResponseMessage> Outbound { get; set; } = DashboardApplicationFactory.ServeIconIndex;
+
+  /// <summary>
+  ///   Answers with the stub icon index for its URL, and 404 for any other.
+  /// </summary>
+  /// <param name="request">The outbound request.</param>
+  /// <returns>The response.</returns>
+  public static HttpResponseMessage ServeIconIndex (HttpRequestMessage request)
+    => request.RequestUri == new Uri (IconCatalog.IndexUrl)
+         ? new HttpResponseMessage (HttpStatusCode.OK)
+           {
+             Content = new StringContent (content: DashboardApplicationFactory.IconIndexJson,
+                                          encoding: Encoding.UTF8,
+                                          mediaType: "application/json"),
+           }
+         : new HttpResponseMessage (HttpStatusCode.NotFound);
 
   /// <summary>
   ///   Creates a database context over the factory's database for arranging or asserting on data directly.
@@ -56,6 +92,15 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                      services.RemoveAll<DbContextOptions<DashboardContext>> ();
                                      services.RemoveAll<IDbContextOptionsConfiguration<DashboardContext>> ();
                                      services.AddDbContext<DashboardContext> (options => options.UseSqlite (this.connection));
+
+                                     // Keep the icon catalog and the page metadata reader off the network.
+                                     foreach (string name in new[] { IconCatalog.ClientName, PageMetadataReader.ClientName })
+                                     {
+                                       services.AddHttpClient (name)
+                                               .ConfigurePrimaryHttpMessageHandler (() => new StubHttpMessageHandler (request
+                                                                                                                        => this
+                                                                                                                         .Outbound (request)));
+                                     }
 
                                      // Keep Data Protection keys in memory rather than in the source tree's App_Data.
                                      services.Configure<KeyManagementOptions> (options => options.XmlRepository =

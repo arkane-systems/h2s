@@ -56,5 +56,16 @@ window.h2sApi = (() => {
         return response.json();
     };
 
-    return { getJson, postForm };
+    // Fetches text, such as a server-rendered partial, from a page handler without allowing cached responses.
+    const getText = async (url) => {
+        const response = await fetch(url, { cache: 'no-store' });
+
+        if (!response.ok) {
+            throw await toError(response, 'Unable to load data.');
+        }
+
+        return response.text();
+    };
+
+    return { getJson, getText, postForm };
 })();

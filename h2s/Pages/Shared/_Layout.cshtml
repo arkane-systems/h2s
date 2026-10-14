@@ -109,6 +109,10 @@
     @* wwwroot/js/modules/toast.js shows its toasts here. *@
     <div id="toast-host" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
+    @* Modal dialogs render here, outside .app-content: its z-index makes a stacking context that would trap a modal
+       beneath Bootstrap's backdrop. *@
+    @await RenderSectionAsync("Dialogs", required: false)
+
     <footer class="border-top footer text-muted py-3">
         <div class="container">
             &copy; 2026 Arkane Systems & Alistair J. R. Young - <strong>h2s</strong> - vibe-coded with <span class="text-danger">♥</span> and GitHub Copilot

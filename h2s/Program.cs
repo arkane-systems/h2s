@@ -38,11 +38,23 @@ builder.Services.AddDbContext<DashboardContext> (options => options.UseSqlite (c
 builder.Services.AddScoped<DashboardSettingsService> ();
 builder.Services.AddScoped<IconCatalog> ();
 builder.Services.AddScoped<UrlProbe> ();
+builder.Services.AddScoped<PageMetadataReader> ();
 
 // Named clients for outbound HTTP. The accept-any-certificate client exists only so UrlProbe can tell an untrusted
 // certificate from an unreachable server; never use it to fetch content.
 builder.Services.AddHttpClient (name: IconCatalog.ClientName, configureClient: client => client.Timeout = IconCatalog.Timeout);
-builder.Services.AddHttpClient (name: UrlProbe.ClientName,    configureClient: client => client.Timeout = UrlProbe.Timeout);
+
+// Fetches the pages people add links to, for suggestions. It names itself, since some sites refuse anonymous clients,
+// and follows only a few redirects.
+builder.Services.AddHttpClient (name: PageMetadataReader.ClientName,
+                                configureClient: client =>
+                                                 {
+                                                   client.Timeout = PageMetadataReader.Timeout;
+                                                   client.DefaultRequestHeaders.UserAgent
+                                                         .ParseAdd ("h2s (+https://github.com/arkane-systems/h2s)");
+                                                 })
+       .ConfigurePrimaryHttpMessageHandler (() => new HttpClientHandler { MaxAutomaticRedirections = 5 });
+builder.Services.AddHttpClient (name: UrlProbe.ClientName, configureClient: client => client.Timeout = UrlProbe.Timeout);
 builder.Services.AddHttpClient (name: UrlProbe.AcceptAnyCertificateClientName,
                                 configureClient: client => client.Timeout = UrlProbe.Timeout)
        .ConfigurePrimaryHttpMessageHandler (() => new HttpClientHandler

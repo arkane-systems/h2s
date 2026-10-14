@@ -31,9 +31,12 @@
     <div id="edit-mode" class="edit-mode-banner category-box border"
          data-reorder-categories-url="@Url.Page("/Admin/Editor", "ReorderCategories")"
          data-reorder-links-url="@Url.Page("/Admin/Editor", "ReorderLinks")">
-        <div class="category-box-body">
-            <strong>Edit mode.</strong> Drag the <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys,
-            to rearrange categories and links. Changes save as you go.
+        <div class="category-box-body d-flex flex-wrap align-items-center gap-2">
+            <span class="me-auto">
+                <strong>Edit mode.</strong> Click a tile or a category's <span aria-hidden="true">✎</span> to change it. Drag the
+                <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to rearrange. Changes save as you go.
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-category">+ Add category</button>
         </div>
     </div>
 }
@@ -56,24 +59,23 @@
                 <button type="button" class="drag-handle category-drag-handle" title="Drag to move" aria-label="Move category @category.Name">⠿</button>
             }
             <h2 class="h5 mb-0">@category.Name</h2>
+            @if (Model.IsEditMode)
+            {
+                <button type="button" class="category-edit-button ms-auto" title="Edit category" aria-label="Edit category @category.Name"
+                        data-role="edit-category">✎</button>
+            }
         </header>
         <div class="category-box-body">
             <div class="link-block-list" data-category-id="@category.Id">
                 @foreach (var link in category.Links)
                 {
-                    @if (Model.IsEditMode)
-                    {
-                        <div class="link-slot" data-link-id="@link.Id">
-                            <button type="button" class="drag-handle link-drag-handle" title="Drag to move" aria-label="Move @link.Label">⠿</button>
-                            <partial name="_LinkTile" model="Model.CreateLinkTile(link)" />
-                        </div>
-                    }
-                    else
-                    {
-                        <partial name="_LinkTile" model="Model.CreateLinkTile(link)" />
-                    }
+                    <partial name="@(Model.IsEditMode ? "_EditableLinkSlot" : "_LinkTile")" model="Model.CreateLinkTile(link)" />
                 }
             </div>
+            @if (Model.IsEditMode)
+            {
+                <button type="button" class="btn btn-sm btn-link link-add-button" data-role="add-link">+ Add link</button>
+            }
         </div>
     </section>
 
@@ -83,6 +85,14 @@
     }
 }
 </div>
+
+@section Dialogs {
+    @if (Model.IsEditMode)
+    {
+        <partial name="_LinkDialog" model="new LinkDialogModel(Model.Categories, Model.IsUptimeKumaConfigured)" />
+        <partial name="_CategoryDialog" />
+    }
+}
 
 @section Scripts {
     @if (Model.IsEditMode)

@@ -43,7 +43,8 @@ public class HostingTests
   }
 
   [Theory]
-  [InlineData (IconCatalog.ClientName,                  4)]
+  [InlineData (IconCatalog.ClientName,                  15)]
+  [InlineData (PageMetadataReader.ClientName,           5)]
   [InlineData (UrlProbe.ClientName,                     5)]
   [InlineData (UrlProbe.AcceptAnyCertificateClientName, 5)]
   public async Task HttpClients_AreRegisteredWithTimeouts (string name, int timeoutSeconds)

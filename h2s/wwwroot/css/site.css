@@ -240,7 +240,8 @@ footer,
   margin-bottom: 1rem;
 }
 
-.drag-handle {
+.drag-handle,
+.category-edit-button {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -258,14 +259,22 @@ footer,
   touch-action: none;
 }
 
+.category-edit-button {
+  cursor: pointer;
+  font-size: 1rem;
+}
+
 .drag-handle:hover,
-.drag-handle:focus-visible {
+.drag-handle:focus-visible,
+.category-edit-button:hover,
+.category-edit-button:focus-visible {
   color: var(--bs-emphasis-color);
   background-color: rgba(var(--bs-body-bg-rgb), 0.62);
   border-color: var(--bs-border-color);
 }
 
-.drag-handle:focus-visible {
+.drag-handle:focus-visible,
+.category-edit-button:focus-visible {
   outline: 0;
   box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
 }
@@ -290,11 +299,26 @@ footer,
   gap: 0.4rem;
 }
 
+/* In edit mode a tile opens the link dialog rather than the link. */
 .link-slot .link-block {
   flex: 1 1 auto;
   min-width: 0;
-  pointer-events: none;
+  cursor: pointer;
 }
+
+.link-add-button {
+  margin-top: 0.6rem;
+  padding-left: 0;
+  text-decoration: none;
+}
+
+/* The link dialog's preview is the real tile markup; the container is inert, so it is shown but not followed. */
+.link-dialog-preview {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background-color: var(--bs-tertiary-bg);
+}
+
 
 .sortable-ghost {
   opacity: 0.4;

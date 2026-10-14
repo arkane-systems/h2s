@@ -139,6 +139,30 @@ spec:
 - My cluster and network is dual-stacked IPv4/IPv6, hence the *ipFamilyPolicy* setting in the *Service* definition. You will need to remove or change this if yours is not.
 - The *Ingress* is configured for Traefik with TLS enabled, but you can adjust the annotations and TLS settings as needed for your ingress controller and environment. It also (as does h2s itself) assumes that HTTPS will be handled entirely by the ingress controller and the app itself need only concern itself with HTTP. h2s honors the `X-Forwarded-For` and `X-Forwarded-Proto` headers from any proxy, so it sees the original client address and scheme; don't expose it directly to untrusted networks.
 
+#### Trusting a homelab certificate authority
+
+When you add a link, h2s fetches the page from the server to suggest a label from its title. Later versions use the same kind of fetch for favicons and the Uptime Kuma monitor list. These requests validate certificates normally, so internal sites whose certificates come from your own CA quietly produce no suggestions until the container trusts that CA. Nothing else is affected.
+
+To trust it, mount the CA certificate (PEM format) into the container, and add its directory to `SSL_CERT_DIR`, keeping the system directory so public sites still work. For example, with the CA in a ConfigMap named `homelab-ca`:
+
+```yaml
+      volumes:
+        - name: homelab-ca
+          configMap:
+            name: homelab-ca          # contains homelab-ca.crt
+      containers:
+        - name: h2s
+          env:
+            - name: SSL_CERT_DIR
+              value: /etc/ssl/certs:/app/ca
+          volumeMounts:
+            - mountPath: /app/ca
+              name: homelab-ca
+              readOnly: true
+```
+
+This needs no root access and no rebuilt image.
+
 
 ## Using the dashboard
 
@@ -179,6 +203,15 @@ Each group renders as a status + uptime badge pair in the top status bar.
 > Important: For badges to work in h2s, the monitor must be included on a Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
 
 Save changes to apply them across the app.
+
+### Edit mode
+
+Click **Edit** in the navbar to edit the dashboard in place; **Done** returns to the normal view.
+
+- Drag the ⠿ handles to reorder categories (within the regular or admin section) and links (within or between categories). A focused handle also responds to the arrow keys. Each move saves straight away.
+- Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL: h2s suggests a label from the page title and a [selfh.st](https://selfh.st/icons/) icon from the label, title or host name, and shows a live preview of the tile.
+- Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
+- Deletes take effect immediately, and the toast that confirms them has an **Undo** button.
 
 ### Editor page
 
