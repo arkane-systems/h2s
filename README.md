@@ -141,7 +141,7 @@ spec:
 
 #### Trusting a homelab certificate authority
 
-When you add a link, h2s fetches the page from the server to suggest a label from its title. Later versions use the same kind of fetch for favicons and the Uptime Kuma monitor list. These requests validate certificates normally, so internal sites whose certificates come from your own CA quietly produce no suggestions until the container trusts that CA. Nothing else is affected.
+When you add a link, h2s fetches the page from the server, following redirects from the base URL, to suggest a label and an icon from its title and the app name it declares. Later versions use the same kind of fetch for favicons and the Uptime Kuma monitor list. These requests validate certificates normally, so internal sites whose certificates come from your own CA quietly produce no suggestions until the container trusts that CA. Nothing else is affected.
 
 To trust it, mount the CA certificate (PEM format) into the container, and add its directory to `SSL_CERT_DIR`, keeping the system directory so public sites still work. For example, with the CA in a ConfigMap named `homelab-ca`:
 
@@ -209,7 +209,7 @@ Save changes to apply them across the app.
 Click **Edit** in the navbar to edit the dashboard in place; **Done** returns to the normal view.
 
 - Drag the ⠿ handles to reorder categories (within the regular or admin section) and links (within or between categories). A focused handle also responds to the arrow keys. Each move saves straight away.
-- Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL: h2s suggests a label from the page title and a [selfh.st](https://selfh.st/icons/) icon from the label, title or host name, and shows a live preview of the tile.
+- Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
 - Deletes take effect immediately, and the toast that confirms them has an **Undo** button.
 

@@ -53,10 +53,11 @@ export class LinkDialog {
         this.suggestedUrl = null;
         this.previewRequest = 0;
 
-        const suggestSoon = debounce(() => this.suggest(), 600);
         const previewSoon = debounce(() => this.refreshPreview(), 250);
 
-        this.fields.url.addEventListener('input', suggestSoon);
+        // Look the page up once the URL is complete: when it's pasted, or when focus leaves the field. Looking up while
+        // someone types would chase every partial host name.
+        this.fields.url.addEventListener('paste', () => window.setTimeout(() => this.suggest(), 0));
         this.fields.url.addEventListener('change', () => this.suggest());
         for (const name of ['label', 'iconName']) {
             // Typing in a field takes it over from the suggestions.
@@ -120,7 +121,7 @@ export class LinkDialog {
     // Asks the server what it can suggest for the URL, and fills in the label and icon unless they were typed in.
     async suggest() {
         const url = this.fields.url.value.trim();
-        // Typing and then leaving the field both ask; one lookup per URL is enough.
+        // Pasting and then leaving the field both ask; one lookup per URL is enough.
         if (!isWebUrl(url) || url === this.suggestedUrl) {
             return;
         }
@@ -141,12 +142,12 @@ export class LinkDialog {
             }
 
             const notes = [];
-            if (suggestion.title && (this.autofilled.label || !this.fields.label.value.trim())) {
-                this.fields.label.value = suggestion.title;
+            if (suggestion.label && (this.autofilled.label || !this.fields.label.value.trim())) {
+                this.fields.label.value = suggestion.label;
                 this.autofilled.label = true;
-                notes.push('Label suggested from the page title.');
-            } else if (!suggestion.title) {
-                notes.push("Couldn't read a title from the page.");
+                notes.push('Label suggested from the page.');
+            } else if (!suggestion.label) {
+                notes.push("Couldn't read a name from the page.");
             }
 
             if (suggestion.iconName && (this.autofilled.iconName || !this.fields.iconName.value.trim())) {

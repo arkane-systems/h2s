@@ -120,6 +120,174 @@ public class PageMetadataReaderTests
     Assert.Empty (handler.Requests);
   }
 
+  [Theory]
+  [InlineData ("Loading...",                  true)]
+  [InlineData ("Loading…",                    true)]
+  [InlineData ("401 Unauthorized",            true)]
+  [InlineData ("Error 404 - Not Found",       true)]
+  [InlineData ("403",                         true)]
+  [InlineData ("Sign in",                     true)]
+  [InlineData ("Welcome to nginx!",           true)]
+  [InlineData ("React App",                   true)]
+  [InlineData ("Plex",                        false)]
+  [InlineData ("Home Assistant",              false)]
+  [InlineData ("Dashboard - Grafana",         false)]
+  [InlineData ("Proxmox Virtual Environment", false)]
+  public void IsGenericTitle_SpotsTitlesThatDescribeAState (string title, bool expected)
+    => Assert.Equal (expected: expected, actual: PageMetadataReader.IsGenericTitle (title));
+
+  [Theory]
+  [InlineData ("Login | Grocy", "Grocy")]
+  [InlineData ("Dashboard - ESPHome", "ESPHome")]
+  [InlineData ("Paperless-ngx sign in", "Paperless-ngx")]
+  [InlineData ("Welcome Back! Please Log in | Ring", "Ring")]
+  [InlineData ("Sign in to Gitea", "Gitea")]
+  [InlineData ("Microsoft 365 - Sign into Copilot", "Microsoft 365 - Copilot")]
+  [InlineData ("Sign in to your account", null)]
+  [InlineData ("Gitea: Git with a cup of tea", "Gitea")]
+  [InlineData ("GitHub - louislam/uptime-kuma: A fancy self-hosted monitoring tool · GitHub", "GitHub - louislam/uptime-kuma")]
+  [InlineData ("Calibre-Web | Books", "Calibre-Web | Books")]
+  [InlineData ("Xerox WorkCentre 6015NI - 172.16.1.39", "Xerox WorkCentre 6015NI - 172.16.1.39")]
+  [InlineData ("Plex", "Plex")]
+  [InlineData ("Login", null)]
+  [InlineData ("Loading... | Please wait", null)]
+  public void CleanTitle_DropsGenericPartsAndTaglines (string title, string? expected)
+    => Assert.Equal (expected: expected, actual: PageMetadataReader.CleanTitle (title));
+
+  [Fact]
+  public void GetTitleParts_ListsTheMeaningfulParts ()
+    => Assert.Equal (expected: ["Grocy", "Kitchen"], actual: PageMetadataReader.GetTitleParts ("Login | Grocy - Kitchen: stock"));
+
+  [Theory]
+  [InlineData ("""<meta http-equiv="refresh" content="0; url=/ui/">""",                       "https://nas.home.arpa/ui/")]
+  [InlineData ("""<META CONTENT="5;URL='https://other.home.arpa/x'" HTTP-EQUIV="Refresh">""", "https://other.home.arpa/x")]
+  [InlineData ("""<script>window.location = window.location.href.match(/(^.+\/)[^\/]*$/)[1] + 'web/index.html';</script>""",
+               "https://nas.home.arpa/web/index.html")]
+  [InlineData ("""<script>location.href="/admin/";</script>""",              "https://nas.home.arpa/admin/")]
+  [InlineData ("""<script>window.location.replace('login.html')</script>""", "https://nas.home.arpa/login.html")]
+  [InlineData ("""<meta http-equiv="refresh" content="30">""",               null)]
+  [InlineData ("""<script>location.href = 'javascript:void(0)';</script>""", null)]
+  [InlineData ("""<script>if (location.href == '/x') {}</script>""",         null)]
+  [InlineData ("""<html><head><title>Plain</title></head></html>""",         null)]
+  public void FindClientRedirect_FindsMetaRefreshesAndScriptRedirects (string html, string? expected)
+    => Assert.Equal (expected: expected,
+                     actual: PageMetadataReader.FindClientRedirect (html: html, pageUri: new Uri ("https://nas.home.arpa/"))
+                                              ?.AbsoluteUri);
+
+  [Fact]
+  public void FindClientRedirect_IgnoresScriptsOnFullPages ()
+  {
+    var html = $"<script>location.href = '/elsewhere';</script>{new string (c: ' ', count: 5000)}<p>Real content</p>";
+
+    Assert.Null (PageMetadataReader.FindClientRedirect (html: html, pageUri: new Uri ("https://nas.home.arpa/")));
+  }
+
+  [Fact]
+  public async Task ReadAsync_FollowsAScriptRedirectFromAnErrorPage ()
+  {
+    // What Plex answers at its base URL: a 401 page whose script sends browsers to the web app.
+    var handler = new StubHttpMessageHandler (request => request.RequestUri!.AbsolutePath switch
+                                                         {
+                                                           "/" => PageMetadataReaderTests.Html (html:
+                                                                                                "<html><head><script>window.location = window.location.href.match(/(^.+\\/)[^\\/]*$/)[1] + 'web/index.html';</script><title>Unauthorized</title></head></html>",
+                                                                                                status: HttpStatusCode
+                                                                                                 .Unauthorized),
+                                                           "/web/index.html" =>
+                                                             PageMetadataReaderTests.Html ("<title>Plex</title>"),
+                                                           _ => new HttpResponseMessage (HttpStatusCode.NotFound),
+                                                         });
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://plex.home.arpa:32400/",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: "Plex", actual: metadata.SuggestedLabel);
+  }
+
+  [Fact]
+  public async Task ReadAsync_FollowsAMetaRefresh ()
+  {
+    var handler = new StubHttpMessageHandler (request => request.RequestUri!.AbsolutePath == "/"
+                                                           ? PageMetadataReaderTests
+                                                            .Html ("""<head><meta http-equiv="refresh" content="0;url=/ui/"><title>Redirecting...</title></head>""")
+                                                           : PageMetadataReaderTests.Html ("<title>OPNsense</title>"));
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://firewall.home.arpa/",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: "OPNsense", actual: metadata.Title);
+  }
+
+  [Fact]
+  public async Task ReadAsync_NeverTakesAnErrorPagesTitle ()
+  {
+    StubHttpMessageHandler handler = new (_ => PageMetadataReaderTests.Html (html: "<title>Login - Sonarr</title>",
+                                                                             status: HttpStatusCode.Unauthorized));
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://sonarr.home.arpa/",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.True (metadata.IsEmpty);
+  }
+
+  [Fact]
+  public async Task ReadAsync_ReadsAppNamesWhenTheTitleIsGeneric ()
+  {
+    var handler = new StubHttpMessageHandler (request => request.RequestUri!.AbsolutePath switch
+                                                         {
+                                                           "/web/manifest.json" => new HttpResponseMessage (HttpStatusCode.OK)
+                                                                                   {
+                                                                                     Content =
+                                                                                       new StringContent (content:
+                                                                                                          """{ "short_name": "Jellyfin", "name": "Jellyfin Media Server" }""",
+                                                                                                          encoding: Encoding.UTF8,
+                                                                                                          mediaType:
+                                                                                                          "application/manifest+json"),
+                                                                                   },
+                                                           _ => PageMetadataReaderTests.Html ("""
+                                                                                              <head>
+                                                                                                <title>Loading…</title>
+                                                                                                <link crossorigin="use-credentials" rel="manifest" href="manifest.json">
+                                                                                                <meta content="Jelly" name="application-name">
+                                                                                                <meta property="og:site_name" content="Jellyfin">
+                                                                                              </head>
+                                                                                              """),
+                                                         });
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://jellyfin.home.arpa/web/",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Null (metadata.Title);
+    Assert.Equal (expected: ["Jellyfin", "Jellyfin Media Server", "Jelly"], actual: metadata.AppNames);
+    Assert.Equal (expected: "Jellyfin",                                     actual: metadata.SuggestedLabel);
+    Assert.Contains (collection: handler.Requests,
+                     filter: r => r.RequestUri == new Uri ("https://jellyfin.home.arpa/web/manifest.json"));
+  }
+
+  [Fact]
+  public async Task ReadAsync_FollowsAtMostTwoClientRedirects ()
+  {
+    // Each page refreshes to the next, forever.
+    var handler = new StubHttpMessageHandler (request =>
+                                              {
+                                                int page = int.Parse (request.RequestUri!.AbsolutePath.Trim ('/'));
+
+                                                return
+                                                  PageMetadataReaderTests
+                                                   .Html ($"""<meta http-equiv="refresh" content="0;url=/{page + 1}"><title>Page {page}</title>""");
+                                              });
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://loop.home.arpa/1",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: 1 + PageMetadataReader.MaxClientRedirects, actual: handler.Requests.Count);
+    Assert.Equal (expected: "Page 3",                                  actual: metadata.Title);
+  }
+
   /// <summary>
   ///   Creates a handler that answers every request with an HTML page.
   /// </summary>
@@ -130,6 +298,15 @@ public class PageMetadataReaderTests
                  {
                    Content = new StringContent (content: html, encoding: Encoding.UTF8, mediaType: "text/html"),
                  });
+
+  /// <summary>
+  ///   Creates an HTML response.
+  /// </summary>
+  /// <param name="html">The page.</param>
+  /// <param name="status">The response status.</param>
+  /// <returns>The response.</returns>
+  private static HttpResponseMessage Html (string html, HttpStatusCode status = HttpStatusCode.OK)
+    => new (status) { Content = new StringContent (content: html, encoding: Encoding.UTF8, mediaType: "text/html") };
 
   /// <summary>
   ///   Creates a reader whose page client uses the given handler.

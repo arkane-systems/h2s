@@ -481,21 +481,30 @@ public class EditorModel : PageModel
   }
 
   /// <summary>
-  ///   Suggests a label and an icon for a link from its URL: the label from the page title, and the icon from the label,
-  ///   the title or the host name.
+  ///   Suggests a label and an icon for a link from its URL, following the URL to the page that describes the app. The
+  ///   label is the page title, or else the app's name; the icon matches the label, the app's names, the title or the
+  ///   host name.
   /// </summary>
   /// <param name="url">The link URL.</param>
   /// <param name="label">The label entered so far, if any; it is tried first when suggesting an icon.</param>
-  /// <returns>A JSON payload with the page title and the icon name, either of which may be <c>null</c>.</returns>
+  /// <returns>A JSON payload with the suggested label and the icon name, either of which may be <c>null</c>.</returns>
   public async Task<IActionResult> OnGetSuggestLinkAsync (string? url, string? label)
   {
     CancellationToken cancellationToken = this.HttpContext.RequestAborted;
-    PageMetadata      metadata          = await this.pageMetadataReader.ReadAsync (url: url, cancellationToken: cancellationToken);
+    PageMetadata      metadata = await this.pageMetadataReader.ReadAsync (url: url, cancellationToken: cancellationToken);
+    List<string?>     names = [label, .. metadata.AppNames, metadata.Title, .. PageMetadataReader.GetTitleParts (metadata.Title)];
+
+    // Whole names first, then the host, then each name's first word as a last resort.
     string? iconName =
-      await this.iconCatalog.SuggestIconNameAsync (candidates: [label, metadata.Title, .. IconCatalog.GetHostCandidates (url)],
+      await this.iconCatalog.SuggestIconNameAsync (candidates:
+                                                   [
+                                                     .. names,
+                                                     .. IconCatalog.GetHostCandidates (url),
+                                                     .. IconCatalog.GetFirstWords (names),
+                                                   ],
                                                    cancellationToken: cancellationToken);
 
-    return new JsonResult (new { metadata.Title, IconName = iconName });
+    return new JsonResult (new { Label = metadata.SuggestedLabel, IconName = iconName });
   }
 
   /// <summary>

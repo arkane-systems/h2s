@@ -27,7 +27,7 @@ public class LinkDialogHandlerTests
                                                                   query:
                                                                   "handler=SuggestLink&url=https%3A%2F%2Fmusic.home.arpa%2F");
 
-    Assert.Equal (expected: "Navidrome", actual: json.GetProperty ("title").GetString ());
+    Assert.Equal (expected: "Navidrome", actual: json.GetProperty ("label").GetString ());
     Assert.Equal (expected: "navidrome", actual: json.GetProperty ("iconName").GetString ());
   }
 
@@ -41,7 +41,7 @@ public class LinkDialogHandlerTests
                                                                   query:
                                                                   "handler=SuggestLink&url=https%3A%2F%2Fjellyfin.home.arpa%2Fweb%2F");
 
-    Assert.Equal (expected: JsonValueKind.Null, actual: json.GetProperty ("title").ValueKind);
+    Assert.Equal (expected: JsonValueKind.Null, actual: json.GetProperty ("label").ValueKind);
     Assert.Equal (expected: "jellyfin",         actual: json.GetProperty ("iconName").GetString ());
   }
 

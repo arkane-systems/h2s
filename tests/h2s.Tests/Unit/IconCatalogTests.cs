@@ -100,6 +100,11 @@ public class IconCatalogTests
   public void GetHostCandidates_UsesTheFirstLabelAndTheOneBeforeTheTld (string url, string[] expected)
     => Assert.Equal (expected: expected, actual: IconCatalog.GetHostCandidates (url));
 
+  [Fact]
+  public void GetFirstWords_TakesTheFirstWordOfMultiWordNames ()
+    => Assert.Equal (expected: ["QNAP", "Tailscale"],
+                     actual: IconCatalog.GetFirstWords (["QNAP Turbo NAS", "Plex", null, "Tailscale Session Recorder", "Up next"]));
+
   /// <summary>
   ///   Creates a handler that serves a small icon index.
   /// </summary>

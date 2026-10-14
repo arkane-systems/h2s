@@ -100,6 +100,18 @@ public partial class IconCatalog
   }
 
   /// <summary>
+  ///   Gets the first word of each name, for a last try at matching an icon: <c>QNAP</c> in <c>QNAP Turbo NAS</c>, or
+  ///   <c>Tailscale</c> in <c>Tailscale Session Recorder</c>. Single-word names and words under three characters are
+  ///   skipped.
+  /// </summary>
+  /// <param name="names">The names.</param>
+  /// <returns>The first words, in order.</returns>
+  public static IEnumerable<string> GetFirstWords (IEnumerable<string?> names)
+    => names.Select (n => n?.Trim ().Split (separator: ' ', count: 2, options: StringSplitOptions.RemoveEmptyEntries) ?? [])
+            .Where (words => (words.Length == 2) && (words[0].Length >= 3))
+            .Select (words => words[0]);
+
+  /// <summary>
   ///   Gets the icon index, downloading it when it is not cached.
   /// </summary>
   /// <param name="cancellationToken">A token used to cancel the download.</param>
