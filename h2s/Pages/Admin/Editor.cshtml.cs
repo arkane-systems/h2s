@@ -1,3 +1,4 @@
+using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
@@ -15,6 +16,7 @@ public class EditorModel : PageModel
 {
   private readonly DashboardContext         context;
   private readonly IconCatalog              iconCatalog;
+  private readonly PageMetadataReader       pageMetadataReader;
   private readonly DashboardSettingsService settingsService;
 
   /// <summary>
@@ -23,11 +25,16 @@ public class EditorModel : PageModel
   /// <param name="context">The database context used to manage categories and links.</param>
   /// <param name="iconCatalog">The catalog used to suggest icons for link labels.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
-  public EditorModel (DashboardContext context, IconCatalog iconCatalog, DashboardSettingsService settingsService)
+  /// <param name="pageMetadataReader">The reader used to suggest a label from a link's page.</param>
+  public EditorModel (DashboardContext         context,
+                      IconCatalog              iconCatalog,
+                      DashboardSettingsService settingsService,
+                      PageMetadataReader       pageMetadataReader)
   {
-    this.context         = context;
-    this.iconCatalog     = iconCatalog;
-    this.settingsService = settingsService;
+    this.context            = context;
+    this.iconCatalog        = iconCatalog;
+    this.settingsService    = settingsService;
+    this.pageMetadataReader = pageMetadataReader;
   }
 
   /// <summary>
@@ -174,19 +181,25 @@ public class EditorModel : PageModel
   ///   Deletes a category and its related links.
   /// </summary>
   /// <param name="id">The identifier of the category to remove.</param>
-  /// <returns>A JSON payload describing the deleted category, or a 404 problem response when it does not exist.</returns>
+  /// <returns>
+  ///   A JSON payload with the deleted category's ID and a snapshot that <see cref="OnPostRestoreCategoryAsync" /> can
+  ///   recreate it from, or a 404 problem response when it does not exist.
+  /// </returns>
   public async Task<IActionResult> OnPostDeleteCategoryAsync (int id)
   {
     Category? category = await this.context.Categories
+                                   .Include (c => c.Links)
                                    .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
       return this.NotFoundProblem ("Category not found.");
 
+    CategorySnapshot snapshot = CategorySnapshot.From (category);
+
     this.context.Categories.Remove (category);
     await this.context.SaveChangesAsync ();
 
-    return new JsonResult (new { DeletedId = id });
+    return new JsonResult (new { DeletedId = id, Restore = snapshot });
   }
 
   /// <summary>
@@ -209,14 +222,8 @@ public class EditorModel : PageModel
     string normalizedLabel = (label ?? string.Empty).Trim ();
     string normalizedUrl   = (url   ?? string.Empty).Trim ();
 
-    if (string.IsNullOrWhiteSpace (normalizedLabel))
-      return this.BadRequestProblem ("Link label is required.");
-
-    if (string.IsNullOrWhiteSpace (normalizedUrl))
-      return this.BadRequestProblem ("Link URL is required.");
-
-    if (!EditorModel.IsValidWebUrl (normalizedUrl))
-      return this.BadRequestProblem ("Link URL must be a valid HTTP or HTTPS URL.");
+    if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl) is { } invalid)
+      return this.BadRequestProblem (invalid);
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
       return this.BadRequestProblem ("Selected category does not exist.");
@@ -281,14 +288,8 @@ public class EditorModel : PageModel
     string normalizedLabel = (label ?? string.Empty).Trim ();
     string normalizedUrl   = (url   ?? string.Empty).Trim ();
 
-    if (string.IsNullOrWhiteSpace (normalizedLabel))
-      return this.BadRequestProblem ("Link label is required.");
-
-    if (string.IsNullOrWhiteSpace (normalizedUrl))
-      return this.BadRequestProblem ("Link URL is required.");
-
-    if (!EditorModel.IsValidWebUrl (normalizedUrl))
-      return this.BadRequestProblem ("Link URL must be a valid HTTP or HTTPS URL.");
+    if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl) is { } invalid)
+      return this.BadRequestProblem (invalid);
 
     Link? link = await this.context.Links
                            .FirstOrDefaultAsync (l => l.Id == id);
@@ -341,7 +342,10 @@ public class EditorModel : PageModel
   ///   Deletes a link.
   /// </summary>
   /// <param name="id">The identifier of the link to remove.</param>
-  /// <returns>A JSON payload describing the deleted link, or a 404 problem response when it does not exist.</returns>
+  /// <returns>
+  ///   A JSON payload with the deleted link's ID and a snapshot that <see cref="OnPostRestoreLinkAsync" /> can recreate it
+  ///   from, or a 404 problem response when it does not exist.
+  /// </returns>
   public async Task<IActionResult> OnPostDeleteLinkAsync (int id)
   {
     Link? link = await this.context.Links
@@ -350,10 +354,202 @@ public class EditorModel : PageModel
     if (link == null)
       return this.NotFoundProblem ("Link not found.");
 
+    LinkSnapshot snapshot = LinkSnapshot.From (link);
+
     this.context.Links.Remove (link);
     await this.context.SaveChangesAsync ();
 
-    return new JsonResult (new { DeletedId = id });
+    return new JsonResult (new { DeletedId = id, Restore = snapshot });
+  }
+
+  /// <summary>
+  ///   Recreates a deleted link from the snapshot its delete returned, at its old position in its category.
+  /// </summary>
+  /// <param name="snapshot">The <see cref="LinkSnapshot" />, as JSON.</param>
+  /// <returns>
+  ///   A JSON payload describing the recreated link, a 400 problem response when the snapshot is invalid, or a 404 problem
+  ///   response when its category no longer exists.
+  /// </returns>
+  public async Task<IActionResult> OnPostRestoreLinkAsync (string? snapshot)
+  {
+    var restore = EditorModel.ReadSnapshot<LinkSnapshot> (snapshot);
+
+    if (restore == null)
+      return this.BadRequestProblem ("The link to restore is missing or malformed.");
+
+    if (!await this.context.Categories.AnyAsync (c => c.Id == restore.CategoryId))
+      return this.NotFoundProblem ("The link's category no longer exists.");
+
+    if (EditorModel.ValidateSnapshot (restore) is { } invalid)
+      return this.BadRequestProblem (invalid);
+
+    int count    = await this.context.Links.CountAsync (l => l.CategoryId == restore.CategoryId);
+    int position = Math.Clamp (value: restore.SortOrder, min: 0, max: count);
+
+    _ = await this.context.Links
+                  .Where (l => (l.CategoryId == restore.CategoryId) && (l.SortOrder >= position))
+                  .ExecuteUpdateAsync (s => s.SetProperty (propertyExpression: l => l.SortOrder,
+                                                           valueExpression: l => l.SortOrder + 1));
+
+    Link link = EditorModel.CreateLink (snapshot: restore, sortOrder: position);
+    link.CategoryId = restore.CategoryId;
+
+    this.context.Links.Add (link);
+    await this.context.SaveChangesAsync ();
+
+    return new JsonResult (new
+                           {
+                             link.Id,
+                             link.CategoryId,
+                             link.Label,
+                             link.Description,
+                             link.IconName,
+                             link.MonitorId,
+                             link.Url,
+                             link.SortOrder,
+                           });
+  }
+
+  /// <summary>
+  ///   Recreates a deleted category and its links from the snapshot its delete returned, at its old position in its
+  ///   section.
+  /// </summary>
+  /// <param name="snapshot">The <see cref="CategorySnapshot" />, as JSON.</param>
+  /// <returns>A JSON payload with the recreated category's ID, or a 400 problem response when the snapshot is invalid.</returns>
+  public async Task<IActionResult> OnPostRestoreCategoryAsync (string? snapshot)
+  {
+    var restore = EditorModel.ReadSnapshot<CategorySnapshot> (snapshot);
+
+    if (restore == null)
+      return this.BadRequestProblem ("The category to restore is missing or malformed.");
+
+    string name = (restore.Name ?? string.Empty).Trim ();
+
+    if (string.IsNullOrWhiteSpace (name))
+      return this.BadRequestProblem ("Category name is required.");
+
+    List<LinkSnapshot> links = restore.Links ?? [];
+
+    if (links.Select (EditorModel.ValidateSnapshot).FirstOrDefault (e => e != null) is { } invalid)
+      return this.BadRequestProblem (invalid);
+
+    int count    = await this.context.Categories.CountAsync (c => c.IsAdminCategory == restore.IsAdminCategory);
+    int position = Math.Clamp (value: restore.SortOrder, min: 0, max: count);
+
+    _ = await this.context.Categories
+                  .Where (c => (c.IsAdminCategory == restore.IsAdminCategory) && (c.SortOrder >= position))
+                  .ExecuteUpdateAsync (s => s.SetProperty (propertyExpression: c => c.SortOrder,
+                                                           valueExpression: c => c.SortOrder + 1));
+
+    var category = new Category
+                   {
+                     Name            = name,
+                     IsAdminCategory = restore.IsAdminCategory,
+                     SortOrder       = position,
+                     Links           = [.. links.Select ((l, i) => EditorModel.CreateLink (snapshot: l, sortOrder: i))],
+                   };
+
+    this.context.Categories.Add (category);
+    await this.context.SaveChangesAsync ();
+
+    return new JsonResult (new { category.Id });
+  }
+
+  /// <summary>
+  ///   Returns one link, for the link dialog to edit.
+  /// </summary>
+  /// <param name="id">The link identifier.</param>
+  /// <returns>A JSON payload describing the link, or a 404 problem response when it does not exist.</returns>
+  public async Task<IActionResult> OnGetLinkAsync (int id)
+  {
+    var link = await this.context.Links
+                         .AsNoTracking ()
+                         .Where (l => l.Id == id)
+                         .Select (l => new
+                                       {
+                                         l.Id,
+                                         l.CategoryId,
+                                         l.Label,
+                                         l.Description,
+                                         l.IconName,
+                                         l.MonitorId,
+                                         l.Url,
+                                       })
+                         .FirstOrDefaultAsync ();
+
+    return link == null ? this.NotFoundProblem ("Link not found.") : new JsonResult (link);
+  }
+
+  /// <summary>
+  ///   Suggests a label and an icon for a link from its URL, following the URL to the page that describes the app. The
+  ///   label is the page title, or else the app's name; the icon matches the label, the app's names, the title or the
+  ///   host name.
+  /// </summary>
+  /// <param name="url">The link URL.</param>
+  /// <param name="label">The label entered so far, if any; it is tried first when suggesting an icon.</param>
+  /// <returns>A JSON payload with the suggested label and the icon name, either of which may be <c>null</c>.</returns>
+  public async Task<IActionResult> OnGetSuggestLinkAsync (string? url, string? label)
+  {
+    CancellationToken cancellationToken = this.HttpContext.RequestAborted;
+    PageMetadata      metadata = await this.pageMetadataReader.ReadAsync (url: url, cancellationToken: cancellationToken);
+    List<string?>     names = [label, .. metadata.AppNames, metadata.Title, .. PageMetadataReader.GetTitleParts (metadata.Title)];
+
+    // Whole names first, then the host, then each name's first word as a last resort.
+    string? iconName =
+      await this.iconCatalog.SuggestIconNameAsync (candidates:
+                                                   [
+                                                     .. names,
+                                                     .. IconCatalog.GetHostCandidates (url),
+                                                     .. IconCatalog.GetFirstWords (names),
+                                                   ],
+                                                   cancellationToken: cancellationToken);
+
+    return new JsonResult (new { Label = metadata.SuggestedLabel, IconName = iconName });
+  }
+
+  /// <summary>
+  ///   Renders the tile a link would have on the dashboard, for the link dialog's live preview. Nothing is saved.
+  /// </summary>
+  /// <param name="label">The link label.</param>
+  /// <param name="url">The link URL.</param>
+  /// <param name="description">The link description.</param>
+  /// <param name="iconName">The selfh.st icon name.</param>
+  /// <param name="monitorId">The Uptime Kuma monitor ID; ignored when blank or invalid.</param>
+  /// <returns>The tile's HTML.</returns>
+  public async Task<IActionResult> OnGetTilePreviewAsync (string? label,
+                                                          string? url,
+                                                          string? description,
+                                                          string? iconName,
+                                                          string? monitorId)
+  {
+    _ = MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId);
+
+    var link = new Link
+               {
+                 Label       = (label       ?? string.Empty).Trim (),
+                 Url         = (url         ?? string.Empty).Trim (),
+                 Description = (description ?? string.Empty).Trim (),
+                 IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
+                 MonitorId   = parsedMonitorId,
+               };
+
+    return this.Partial (viewName: "_LinkTile", model: await this.CreateTileAsync (link));
+  }
+
+  /// <summary>
+  ///   Renders a saved link as dashboard edit mode shows it, so the page can show a new or changed link without reloading.
+  /// </summary>
+  /// <param name="id">The link identifier.</param>
+  /// <returns>The link slot's HTML, or a 404 problem response when the link does not exist.</returns>
+  public async Task<IActionResult> OnGetLinkSlotAsync (int id)
+  {
+    Link? link = await this.context.Links
+                           .AsNoTracking ()
+                           .FirstOrDefaultAsync (l => l.Id == id);
+
+    return link == null
+             ? this.NotFoundProblem ("Link not found.")
+             : this.Partial (viewName: "_EditableLinkSlot", model: await this.CreateTileAsync (link));
   }
 
   /// <summary>
@@ -516,6 +712,83 @@ public class EditorModel : PageModel
                   .MaxAsync () ??
         -1) +
        1;
+
+  /// <summary>
+  ///   Builds a link's tile with the current dashboard settings.
+  /// </summary>
+  /// <param name="link">The link.</param>
+  /// <returns>The tile.</returns>
+  private async Task<LinkTile> CreateTileAsync (Link link)
+    => new LinkTileFactory (await this.settingsService.GetSettingsAsync ()).Create (link);
+
+  /// <summary>
+  ///   Checks a link's required fields.
+  /// </summary>
+  /// <param name="label">The trimmed label.</param>
+  /// <param name="url">The trimmed URL.</param>
+  /// <returns>The problem with the link, or <c>null</c> when it is valid.</returns>
+  private static string? ValidateLink (string label, string url)
+  {
+    if (string.IsNullOrWhiteSpace (label))
+      return "Link label is required.";
+
+    if (string.IsNullOrWhiteSpace (url))
+      return "Link URL is required.";
+
+    return EditorModel.IsValidWebUrl (url) ? null : "Link URL must be a valid HTTP or HTTPS URL.";
+  }
+
+  /// <summary>
+  ///   Checks a link snapshot before restoring it.
+  /// </summary>
+  /// <param name="snapshot">The snapshot.</param>
+  /// <returns>The problem with the snapshot, or <c>null</c> when it is valid.</returns>
+  private static string? ValidateSnapshot (LinkSnapshot snapshot)
+  {
+    if (snapshot.MonitorId is <= 0)
+      return "Monitor ID must be a positive integer.";
+
+    return EditorModel.ValidateLink (label: (snapshot.Label ?? string.Empty).Trim (), url: (snapshot.Url ?? string.Empty).Trim ());
+  }
+
+  /// <summary>
+  ///   Creates a link from a validated snapshot. The caller sets its category.
+  /// </summary>
+  /// <param name="snapshot">The snapshot.</param>
+  /// <param name="sortOrder">The link's position within its category.</param>
+  /// <returns>The link.</returns>
+  private static Link CreateLink (LinkSnapshot snapshot, int sortOrder)
+    => new ()
+       {
+         Label       = (snapshot.Label       ?? string.Empty).Trim (),
+         Description = (snapshot.Description ?? string.Empty).Trim (),
+         IconName    = Link.NormalizeIconName (snapshot.IconName ?? string.Empty),
+         MonitorId   = snapshot.MonitorId,
+         Url         = (snapshot.Url ?? string.Empty).Trim (),
+         SortOrder   = sortOrder,
+       };
+
+  /// <summary>
+  ///   Reads a snapshot posted back by Undo.
+  /// </summary>
+  /// <typeparam name="T">The snapshot type.</typeparam>
+  /// <param name="json">The snapshot, as JSON.</param>
+  /// <returns>The snapshot, or <c>null</c> when it is missing or malformed.</returns>
+  private static T? ReadSnapshot<T> (string? json)
+    where T : class
+  {
+    if (string.IsNullOrWhiteSpace (json))
+      return null;
+
+    try
+    {
+      return JsonSerializer.Deserialize<T> (json: json, options: JsonSerializerOptions.Web);
+    }
+    catch (JsonException)
+    {
+      return null;
+    }
+  }
 
   /// <summary>
   ///   Determines whether a string is a valid absolute HTTP or HTTPS URL.

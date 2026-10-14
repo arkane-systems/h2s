@@ -17,6 +17,8 @@ public class IndexModel : PageModel
   private readonly DashboardContext         context;
   private readonly DashboardSettingsService settingsService;
 
+  private LinkTileFactory tiles = new (new DashboardSettings ());
+
   /// <summary>
   ///   Initializes a new instance of the <see cref="IndexModel" /> class.
   /// </summary>
@@ -67,8 +69,6 @@ public class IndexModel : PageModel
   /// </summary>
   public bool IsUptimeKumaConfigured => !string.IsNullOrWhiteSpace (this.UptimeKumaServerUrl);
 
-  private HashSet<string> LocalDomains { get; set; } = new ();
-
   /// <summary>
   ///   Loads the dashboard categories and local-domain settings required by the page.
   /// </summary>
@@ -87,7 +87,7 @@ public class IndexModel : PageModel
                                 .ToListAsync ();
 
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
-    this.LocalDomains = IndexModel.ParseLocalDomains (settings.LocalDomains);
+    this.tiles = new LinkTileFactory (settings);
 
     // Load Uptime Kuma configuration
     this.UptimeKumaServerUrl       = settings.UptimeKumaServerUrl;
@@ -125,94 +125,19 @@ public class IndexModel : PageModel
   /// <param name="label">Optional override for badge label text. Use an empty string to hide the label.</param>
   /// <returns>The badge URL, or an empty string if server URL is not configured.</returns>
   public string BuildBadgeUrl (int monitorId, string type, int? duration = null, string? label = null)
-  {
-    if (string.IsNullOrWhiteSpace (this.UptimeKumaServerUrl))
-      return "";
-
-    var baseUrl = $"{this.UptimeKumaServerUrl.TrimEnd ('/')}/api/badge/{monitorId}/{type}";
-
-    if (duration.HasValue)
-      baseUrl += $"/{duration.Value}";
-
-    var query = "style=flat";
-    if (label != null)
-      query += $"&label={Uri.EscapeDataString (label)}";
-
-    return $"{baseUrl}?{query}";
-  }
+    => this.tiles.BuildBadgeUrl (monitorId: monitorId, type: type, duration: duration, label: label);
 
   /// <summary>
   ///   Builds the view model for a link's tile.
   /// </summary>
   /// <param name="link">The link to show.</param>
   /// <returns>The tile, with its external flag and, when Uptime Kuma is configured and the link has a monitor, its status badge.</returns>
-  public LinkTile CreateLinkTile (Link link)
-    => new (Link: link,
-            IsExternal: this.IsExternalLink (link.Url),
-            StatusBadgeUrl: this.IsUptimeKumaConfigured && link.MonitorId.HasValue
-                              ? this.BuildBadgeUrl (monitorId: link.MonitorId.Value, type: "status", label: "")
-                              : null);
+  public LinkTile CreateLinkTile (Link link) => this.tiles.Create (link);
 
   /// <summary>
   ///   Determines whether a link target should be marked as external based on the configured local domains.
   /// </summary>
   /// <param name="url">The absolute URL to evaluate.</param>
   /// <returns><c>true</c> when the URL points to an external host; otherwise, <c>false</c>.</returns>
-  public bool IsExternalLink (string url)
-  {
-    if (this.LocalDomains.Count == 0)
-      return false;
-
-    if (!Uri.TryCreate (uriString: url, uriKind: UriKind.Absolute, result: out Uri? uri) || string.IsNullOrWhiteSpace (uri.Host))
-      return false;
-
-    string host = uri.Host.ToLowerInvariant ();
-    bool isInternal = this.LocalDomains.Any (domain => (host == domain) ||
-                                                       host.EndsWith (value: $".{domain}",
-                                                                      comparisonType: StringComparison.Ordinal));
-
-    return !isInternal;
-  }
-
-  /// <summary>
-  ///   Parses the configured local-domain list into a normalized set of unique host names.
-  /// </summary>
-  /// <param name="domains">The raw domain list from settings.</param>
-  /// <returns>A case-insensitive set of normalized domains.</returns>
-  private static HashSet<string> ParseLocalDomains (string domains)
-  {
-    var parsedDomains = new HashSet<string> (StringComparer.OrdinalIgnoreCase);
-
-    if (string.IsNullOrWhiteSpace (domains))
-      return parsedDomains;
-
-    var separators = new[] { ',', ';', '\n', '\r', '\t', ' ' };
-
-    foreach (string value in domains.Split (separator: separators,
-                                            options: StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-    {
-      string normalized = IndexModel.NormalizeDomain (value);
-      if (!string.IsNullOrWhiteSpace (normalized))
-        _ = parsedDomains.Add (normalized);
-    }
-
-    return parsedDomains;
-  }
-
-  /// <summary>
-  ///   Normalizes a configured domain or URL down to its lowercase host name.
-  /// </summary>
-  /// <param name="domain">The raw domain or URL value.</param>
-  /// <returns>The normalized host name, or an empty string when the input is blank.</returns>
-  private static string NormalizeDomain (string domain)
-  {
-    if (string.IsNullOrWhiteSpace (domain))
-      return "";
-
-    if (Uri.TryCreate (uriString: domain.Trim (), uriKind: UriKind.Absolute, result: out Uri? parsedUri) &&
-        !string.IsNullOrWhiteSpace (parsedUri.Host))
-      return parsedUri.Host.Trim ().TrimStart ('.').ToLowerInvariant ();
-
-    return domain.Trim ().TrimStart ('.').ToLowerInvariant ();
-  }
+  public bool IsExternalLink (string url) => this.tiles.IsExternalLink (url);
 }
