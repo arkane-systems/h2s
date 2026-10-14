@@ -21,6 +21,12 @@ public class Category
   public bool IsAdminCategory { get; set; }
 
   /// <summary>
+  ///   Gets or sets the position of the category within its section of the dashboard (regular or admin).
+  ///   Categories are ordered by this value in ascending order.
+  /// </summary>
+  public int SortOrder { get; set; }
+
+  /// <summary>
   ///   Gets or sets the links assigned to the category.
   /// </summary>
   public List<Link> Links { get; set; } = new ();

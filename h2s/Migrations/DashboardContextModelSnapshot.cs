@@ -29,6 +29,9 @@ namespace h2s.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("Categories");
@@ -115,6 +118,9 @@ namespace h2s.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("MonitorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Url")

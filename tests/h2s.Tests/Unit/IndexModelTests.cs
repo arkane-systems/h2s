@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using h2s.Data;
 using h2s.Models;
 using h2s.Pages;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -115,9 +117,27 @@ public class IndexModelTests
                                                         cancellationToken: TestContext.Current.CancellationToken);
 
     using var cache = new MemoryCache (new MemoryCacheOptions ());
-    var model = new IndexModel (context: context, settingsService: new DashboardSettingsService (context: context, cache: cache));
+    var model = new IndexModel (context: context,
+                                settingsService: new DashboardSettingsService (context: context, cache: cache),
+                                authorizationService: new AllowAllAuthorizationService ());
     await model.OnGetAsync ();
 
     return model;
+  }
+
+  /// <summary>
+  ///   An authorization service that grants everything. These tests never request edit mode, the only thing it guards.
+  /// </summary>
+  private sealed class AllowAllAuthorizationService : IAuthorizationService
+  {
+    /// <inheritdoc />
+    public Task<AuthorizationResult> AuthorizeAsync (ClaimsPrincipal                        user,
+                                                     object?                                resource,
+                                                     IEnumerable<IAuthorizationRequirement> requirements)
+      => Task.FromResult (AuthorizationResult.Success ());
+
+    /// <inheritdoc />
+    public Task<AuthorizationResult> AuthorizeAsync (ClaimsPrincipal user, object? resource, string policyName)
+      => Task.FromResult (AuthorizationResult.Success ());
   }
 }

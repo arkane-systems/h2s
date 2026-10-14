@@ -68,11 +68,15 @@ public static class DevDataSeeder
   /// <summary>
   ///   Creates the sample categories and their links.
   /// </summary>
-  /// <returns>The categories, each with its links attached.</returns>
+  /// <returns>
+  ///   The categories, each with its links attached. Neither is in alphabetical order, so the dashboard visibly follows
+  ///   <see cref="Category.SortOrder" /> and <see cref="Link.SortOrder" />.
+  /// </returns>
   private static IEnumerable<Category> CreateCategories ()
   {
     yield return DevDataSeeder.CreateCategory (name: "Media",
                                                isAdminCategory: false,
+                                               sortOrder: 0,
                                                DevDataSeeder.LocalLink (label: "Jellyfin",
                                                                         host: "jellyfin",
                                                                         description: "Movies, TV and music",
@@ -95,6 +99,7 @@ public static class DevDataSeeder
 
     yield return DevDataSeeder.CreateCategory (name: "Home",
                                                isAdminCategory: false,
+                                               sortOrder: 1,
                                                DevDataSeeder.LocalLink (label: "Home Assistant",
                                                                         host: "homeassistant",
                                                                         description: "Home automation",
@@ -115,6 +120,7 @@ public static class DevDataSeeder
 
     yield return DevDataSeeder.CreateCategory (name: "Reference",
                                                isAdminCategory: false,
+                                               sortOrder: 2,
                                                DevDataSeeder.ExternalLink (label: "selfh.st icons",
                                                                            url: "https://selfh.st/icons/",
                                                                            description: "Icon catalog used by h2s",
@@ -130,6 +136,7 @@ public static class DevDataSeeder
 
     yield return DevDataSeeder.CreateCategory (name: "Infrastructure",
                                                isAdminCategory: true,
+                                               sortOrder: 0,
                                                DevDataSeeder.LocalLink (label: "Proxmox",
                                                                         host: "proxmox",
                                                                         description: "Hypervisor cluster",
@@ -152,6 +159,7 @@ public static class DevDataSeeder
 
     yield return DevDataSeeder.CreateCategory (name: "Network",
                                                isAdminCategory: true,
+                                               sortOrder: 1,
                                                DevDataSeeder.LocalLink (label: "UniFi",
                                                                         host: "unifi",
                                                                         description: "Network controller",
@@ -179,10 +187,16 @@ public static class DevDataSeeder
   /// </summary>
   /// <param name="name">The category name.</param>
   /// <param name="isAdminCategory">Whether the category belongs in the admin section.</param>
-  /// <param name="links">The links in the category.</param>
+  /// <param name="sortOrder">The category's position within its section.</param>
+  /// <param name="links">The links in the category, in display order.</param>
   /// <returns>The category.</returns>
-  private static Category CreateCategory (string name, bool isAdminCategory, params Link[] links)
-    => new () { Name = name, IsAdminCategory = isAdminCategory, Links = [.. links] };
+  private static Category CreateCategory (string name, bool isAdminCategory, int sortOrder, params Link[] links)
+  {
+    for (var i = 0; i < links.Length; i++)
+      links[i].SortOrder = i;
+
+    return new Category { Name = name, IsAdminCategory = isAdminCategory, SortOrder = sortOrder, Links = [.. links] };
+  }
 
   /// <summary>
   ///   Creates a link to a host within the sample local domain.

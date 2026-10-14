@@ -198,18 +198,8 @@ public class SettingsModel : PageModel
   /// <returns>A JSON payload confirming success, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostReorderInfrastructureGroupsAsync (string[]? orderedIds)
   {
-    if ((orderedIds == null) || (orderedIds.Length == 0))
-      return this.BadRequestProblem ("Ordered IDs are required.");
-
-    var ids = new List<int> (orderedIds.Length);
-
-    foreach (string idValue in orderedIds)
-    {
-      if (!int.TryParse (s: idValue, result: out int parsedId) || (parsedId <= 0))
-        return this.BadRequestProblem ("Ordered IDs must contain valid positive integers.");
-
-      ids.Add (parsedId);
-    }
+    if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+      return this.BadRequestProblem (error);
 
     List<InfrastructureGroup> groups = await this.context.InfrastructureGroups
                                                  .Where (g => ids.Contains (g.Id))

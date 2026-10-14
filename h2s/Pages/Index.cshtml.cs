@@ -1,6 +1,8 @@
+using h2s.Authorization;
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +13,7 @@ namespace h2s.Pages;
 /// </summary>
 public class IndexModel : PageModel
 {
+  private readonly IAuthorizationService    authorizationService;
   private readonly DashboardContext         context;
   private readonly DashboardSettingsService settingsService;
 
@@ -19,16 +22,25 @@ public class IndexModel : PageModel
   /// </summary>
   /// <param name="context">The database context used to load categories and links.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
-  public IndexModel (DashboardContext context, DashboardSettingsService settingsService)
+  /// <param name="authorizationService">The service used to check whether the user may enter edit mode.</param>
+  public IndexModel (DashboardContext         context,
+                     DashboardSettingsService settingsService,
+                     IAuthorizationService    authorizationService)
   {
-    this.context         = context;
-    this.settingsService = settingsService;
+    this.context              = context;
+    this.settingsService      = settingsService;
+    this.authorizationService = authorizationService;
   }
 
   /// <summary>
   ///   Gets the ordered set of categories and links displayed on the dashboard.
   /// </summary>
   public List<Category> Categories { get; set; } = new ();
+
+  /// <summary>
+  ///   Gets a value indicating whether the dashboard is in edit mode, where categories and links can be rearranged.
+  /// </summary>
+  public bool IsEditMode { get; private set; }
 
   /// <summary>
   ///   Gets the infrastructure groups for displaying Uptime Kuma monitoring badges.
@@ -60,11 +72,17 @@ public class IndexModel : PageModel
   /// <summary>
   ///   Loads the dashboard categories and local-domain settings required by the page.
   /// </summary>
-  public async Task OnGetAsync ()
+  /// <param name="edit">Whether edit mode is requested. It is granted only to users who satisfy the Admin policy.</param>
+  public async Task OnGetAsync (bool edit = false)
   {
+    this.IsEditMode = edit &&
+                      (await this.authorizationService.AuthorizeAsync (user: this.User, policyName: AdminRequirement.PolicyName))
+                     .Succeeded;
+
     this.Categories = await this.context.Categories
-                                .Include (c => c.Links)
+                                .Include (c => c.Links.OrderBy (l => l.SortOrder).ThenBy (l => l.Label))
                                 .OrderBy (c => c.IsAdminCategory)
+                                .ThenBy (c => c.SortOrder)
                                 .ThenBy (c => c.Name)
                                 .ToListAsync ();
 
