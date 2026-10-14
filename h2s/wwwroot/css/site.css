@@ -235,6 +235,75 @@ footer,
   font-size: 0.9rem;
 }
 
+/* Dashboard edit mode (/?edit=true, wwwroot/js/modules/edit-mode.js) */
+.edit-mode-banner {
+  margin-bottom: 1rem;
+}
+
+.drag-handle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  color: var(--bs-emphasis-color);
+  background-color: rgba(var(--bs-body-bg-rgb), 0.62);
+  border-color: var(--bs-border-color);
+}
+
+.drag-handle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+
+.is-editing .category-box-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* An outlined drop zone, tall enough to drop into even when the category is empty. */
+.is-editing .link-block-list {
+  min-height: 3rem;
+  border-radius: 0.5rem;
+  outline: 1px dashed var(--bs-border-color);
+  outline-offset: 0.25rem;
+}
+
+.link-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.link-slot .link-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.sortable-ghost {
+  opacity: 0.4;
+}
+
+.is-saving .drag-handle {
+  cursor: progress;
+}
+
 .uptime-status-bar {
   width: 100%;
   min-width: 0;

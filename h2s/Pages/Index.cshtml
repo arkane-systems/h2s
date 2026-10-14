@@ -2,6 +2,7 @@
 @model IndexModel
 @{
     ViewData["Title"] = "";
+    ViewData["IsEditMode"] = Model.IsEditMode;
     var adminSectionStarted = false;
     var hasRenderedRegularCategory = false;
 }
@@ -25,7 +26,19 @@
     </div>
 </section>
 
-<div class="category-grid">
+@if (Model.IsEditMode)
+{
+    <div id="edit-mode" class="edit-mode-banner category-box border"
+         data-reorder-categories-url="@Url.Page("/Admin/Editor", "ReorderCategories")"
+         data-reorder-links-url="@Url.Page("/Admin/Editor", "ReorderLinks")">
+        <div class="category-box-body">
+            <strong>Edit mode.</strong> Drag the <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys,
+            to rearrange categories and links. Changes save as you go.
+        </div>
+    </div>
+}
+
+<div class="category-grid @(Model.IsEditMode ? "is-editing" : "")">
 @foreach (var category in Model.Categories)
 {
     @if (category.IsAdminCategory && hasRenderedRegularCategory && !adminSectionStarted)
@@ -34,15 +47,31 @@
         adminSectionStarted = true;
     }
 
-    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "")">
+    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "")"
+             data-category-id="@category.Id"
+             data-admin-category="@(category.IsAdminCategory ? "true" : "false")">
         <header class="category-box-header">
+            @if (Model.IsEditMode)
+            {
+                <button type="button" class="drag-handle category-drag-handle" title="Drag to move" aria-label="Move category @category.Name">⠿</button>
+            }
             <h2 class="h5 mb-0">@category.Name</h2>
         </header>
         <div class="category-box-body">
-            <div class="link-block-list">
-                @foreach (var link in category.Links.OrderBy(l => l.Label))
+            <div class="link-block-list" data-category-id="@category.Id">
+                @foreach (var link in category.Links)
                 {
-                    <partial name="_LinkTile" model="Model.CreateLinkTile(link)" />
+                    @if (Model.IsEditMode)
+                    {
+                        <div class="link-slot" data-link-id="@link.Id">
+                            <button type="button" class="drag-handle link-drag-handle" title="Drag to move" aria-label="Move @link.Label">⠿</button>
+                            <partial name="_LinkTile" model="Model.CreateLinkTile(link)" />
+                        </div>
+                    }
+                    else
+                    {
+                        <partial name="_LinkTile" model="Model.CreateLinkTile(link)" />
+                    }
                 }
             </div>
         </div>
@@ -54,3 +83,10 @@
     }
 }
 </div>
+
+@section Scripts {
+    @if (Model.IsEditMode)
+    {
+        <script type="module" src="~/js/modules/edit-mode.js" asp-append-version="true"></script>
+    }
+}

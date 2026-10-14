@@ -48,6 +48,11 @@ public class Link
   public int? MonitorId { get; set; }
 
   /// <summary>
+  ///   Gets or sets the position of the link within its category. Links are ordered by this value in ascending order.
+  /// </summary>
+  public int SortOrder { get; set; }
+
+  /// <summary>
   ///   Gets or sets the navigation property for the link's category.
   /// </summary>
   public Category? Category { get; set; }

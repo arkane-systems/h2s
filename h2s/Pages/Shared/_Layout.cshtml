@@ -9,6 +9,7 @@
         ? appTitle
         : $"{appTitle} - {pageTitle}";
     var colorModeInt = (int)settings.ColorMode;
+    var isEditMode = ViewData["IsEditMode"] is true;
     var (colorModeIcon, colorModeTitle) = settings.ColorMode switch
     {
         ColorMode.Light => ("☀", "Light mode (click to switch to dark)"),
@@ -61,6 +62,17 @@
                     <ul class="navbar-nav me-auto">
                     </ul>
                     <ul class="navbar-nav align-items-center">
+                        <li class="nav-item me-sm-2">
+                            @if (isEditMode)
+                            {
+                                <a class="btn btn-sm btn-primary" asp-area="" asp-page="/Index" title="Leave edit mode">Done</a>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-outline-secondary" asp-area="" asp-page="/Index" asp-route-edit="true"
+                                   title="Rearrange the dashboard">Edit</a>
+                            }
+                        </li>
                         <li class="nav-item">
                             <button id="color-mode-toggle"
                                     class="nav-link icon-nav-link"
@@ -93,6 +105,9 @@
             @RenderBody()
         </main>
     </div>
+
+    @* wwwroot/js/modules/toast.js shows its toasts here. *@
+    <div id="toast-host" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
     <footer class="border-top footer text-muted py-3">
         <div class="container">
