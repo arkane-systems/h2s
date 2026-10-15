@@ -178,7 +178,7 @@ Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its
 
 - **General**: the **title** and **motto** shown in the navbar, and the **local domains**. Type each domain and press Enter, comma or space to add it as a chip; × removes one. Links to hosts outside these domains get an "External" badge.
 - **Appearance**: the **color mode** (Auto follows the device's light or dark setting). The ◑ button in the navbar cycles through the same modes.
-- **Integrations**: Uptime Kuma, below.
+- **Integrations**: one card per integration; Uptime Kuma, below, is the only one so far.
 - **Backup**: export and import the whole configuration, below.
 
 #### Uptime Kuma integration
@@ -193,7 +193,7 @@ You can optionally enable service-health badges powered by Uptime Kuma:
 
 ##### Infrastructure groups (top status bar)
 
-With Uptime Kuma configured, add infrastructure groups under **Integrations**. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor from the status page, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
+With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor from the status page, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
 
 > Important: For badges to work in h2s, the monitor must be included on a Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
 

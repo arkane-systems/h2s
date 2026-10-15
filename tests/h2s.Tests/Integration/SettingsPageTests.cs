@@ -64,7 +64,7 @@ public class SettingsPageTests
                                .GetStringAsync (requestUri: SettingsPageTests.SettingsPath,
                                                 cancellationToken: TestContext.Current.CancellationToken);
 
-    foreach (string section in new[] { "general", "appearance", "integrations", "backup" })
+    foreach (string section in new[] { "general", "appearance", "integrations", "uptime-kuma", "backup" })
       Assert.Contains (expectedSubstring: $"""<section id="{section}" """, actualString: html);
 
     Assert.Contains (expectedSubstring: """value="Development""",              actualString: html);
