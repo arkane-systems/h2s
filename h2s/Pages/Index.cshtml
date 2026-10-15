@@ -84,6 +84,10 @@
         <partial name="_CategoryDialog" />
         <partial name="_PanelDialog" />
     }
+    else
+    {
+        <partial name="_QuickLaunch" model="Model.QuickLaunchEngines" />
+    }
 }
 
 @section Scripts {
@@ -91,5 +95,9 @@
     @if (Model.IsEditMode)
     {
         <script type="module" src="~/js/modules/edit-mode.js" asp-append-version="true"></script>
+    }
+    else
+    {
+        <script type="module" src="~/js/modules/quick-launch.js" asp-append-version="true"></script>
     }
 }

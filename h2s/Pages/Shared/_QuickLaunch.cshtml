@@ -1,0 +1,36 @@
+﻿@using h2s.Panels
+@model IReadOnlyList<SearchPanelEngine>
+@* Quick launch (wwwroot/js/modules/quick-launch.js): a floating box that typing anywhere on the dashboard (or /) opens.
+   It filters the tiles as you type; with no matches, or a !shortcut, it offers these engines, in Settings order, and
+   searches through /Search. *@
+<div id="quick-launch" class="quick-launch" hidden data-search-url="@Url.Page("/Search")">
+    <div class="quick-launch-box" role="search" aria-label="Quick launch">
+        <div class="quick-launch-field">
+            <span class="quick-launch-icon" aria-hidden="true">⌕</span>
+            <input type="search" class="form-control quick-launch-input" data-role="quick-launch-input" autocomplete="off"
+                   spellcheck="false" placeholder="Find a link, or search the web" aria-label="Find a link, or search the web"
+                   aria-describedby="quick-launch-hint" />
+            <kbd class="quick-launch-key" aria-hidden="true">Esc</kbd>
+        </div>
+        <div class="quick-launch-hint" id="quick-launch-hint" aria-live="polite" data-role="quick-launch-hint"></div>
+        @if (Model.Count > 0)
+        {
+            <ul class="quick-launch-engines" data-role="quick-launch-engines" aria-label="Search engines" hidden>
+                @foreach (var engine in Model)
+                {
+                    <li>
+                        <button type="button" class="quick-launch-engine" tabindex="-1" data-engine-id="@engine.Id"
+                                data-engine-name="@engine.Name" data-shortcut="@engine.Shortcut"
+                                data-default="@(engine.IsDefault ? "true" : "false")">
+                            <span class="me-auto">Search with @engine.Name</span>
+                            @if (engine.Shortcut.Length > 0)
+                            {
+                                <kbd class="home-search-shortcut">!@engine.Shortcut</kbd>
+                            }
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>

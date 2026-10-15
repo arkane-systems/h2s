@@ -63,7 +63,7 @@ public class SearchEngineTests
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Equal (expected: ["Google", "Bing", "DuckDuckGo"],
-                  actual: Regex.Matches (input: html, pattern: "data-engine-name=\"([^\"]+)\"")
+                  actual: Regex.Matches (input: html, pattern: "home-search-engine-item\"[^>]*data-engine-name=\"([^\"]+)\"")
                                .Select (m => m.Groups[1].Value));
     Assert.Contains (expectedSubstring: """<kbd class="home-search-shortcut">!g</kbd>""",           actualString: html);
     Assert.Contains (expectedSubstring: """<input type="hidden" name="engine" value="" disabled""", actualString: html);
