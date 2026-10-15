@@ -1,0 +1,23 @@
+﻿@using h2s.Panels
+@model PanelView
+@* A panel in dashboard edit mode: a bar above it with its drag handle, kind and ✎ (which opens the panel dialog). An
+   empty panel shows why in its place. *@
+<div class="panel-slot" data-panel-id="@Model.Id" data-panel-kind="@Model.Kind">
+    <div class="panel-edit-bar">
+        <button type="button" class="drag-handle panel-drag-handle" title="Drag to move"
+                aria-label="Move panel @Model.DisplayName">⠿</button>
+        <span class="panel-edit-name">@Model.DisplayName</span>
+        <button type="button" class="category-edit-button panel-edit-button" title="Edit panel"
+                aria-label="Edit panel @Model.DisplayName" data-role="edit-panel">✎</button>
+    </div>
+    @if (Model.Content.IsEmpty)
+    {
+        <div class="panel-placeholder category-box border">
+            <div class="category-box-body text-body-secondary">@Model.Content.EmptyMessage</div>
+        </div>
+    }
+    else
+    {
+        <partial name="@Model.Content.PartialName" model="Model.Content.Model" />
+    }
+</div>

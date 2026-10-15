@@ -1,0 +1,47 @@
+﻿@* The add/edit panel dialog for dashboard edit mode, driven by wwwroot/js/modules/panel-dialog.js. Its option fields
+   are built from the kind's schema. *@
+<div class="modal fade" id="panel-dialog" tabindex="-1" aria-labelledby="panel-dialog-title" aria-hidden="true"
+     data-kinds-url="@Url.Page("/Admin/Editor", "PanelKinds")"
+     data-panel-url="@Url.Page("/Admin/Editor", "Panel")"
+     data-slot-url="@Url.Page("/Admin/Editor", "PanelSlot")"
+     data-create-url="@Url.Page("/Admin/Editor", "CreatePanel")"
+     data-update-url="@Url.Page("/Admin/Editor", "UpdatePanel")"
+     data-delete-url="@Url.Page("/Admin/Editor", "DeletePanel")"
+     data-restore-url="@Url.Page("/Admin/Editor", "RestorePanel")">
+    <div class="modal-dialog">
+        <form class="modal-content" novalidate>
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="panel-dialog-title">Add panel</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-none" role="alert" data-role="error"></div>
+
+                <div data-role="new-only">
+                    <div class="mb-3">
+                        <label for="panel-dialog-kind" class="form-label">Kind</label>
+                        <select class="form-select" id="panel-dialog-kind" name="kind" required></select>
+                        <div class="form-text" data-role="kind-note"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="panel-dialog-zone" class="form-label">Place</label>
+                        <select class="form-select" id="panel-dialog-zone" name="zone">
+                            <option value="Top">Above the categories</option>
+                            <option value="Bottom">Below the categories</option>
+                        </select>
+                        <div class="form-text">It goes at the end; drag it from there.</div>
+                    </div>
+                </div>
+
+                <div data-role="options"></div>
+                <p class="text-body-secondary mb-0 d-none" data-role="no-options"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto d-none" data-role="delete">Delete panel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" data-role="save">Save</button>
+            </div>
+        </form>
+    </div>
+</div>

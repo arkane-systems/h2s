@@ -1,7 +1,7 @@
 ﻿@using h2s.Panels
 @model PanelZoneModel
 @* One zone of panels, above or below the categories. Outside edit mode an empty zone renders nothing. In edit mode the
-   zone is always there, as a drop target, and each panel gets a handle; an empty panel shows why in its place. *@
+   zone is always there, as a drop target, and each panel renders as an _EditablePanelSlot. *@
 @if (Model.IsEditMode || Model.Panels.Count > 0)
 {
     var zoneName = Model.Zone.ToString();
@@ -13,30 +13,8 @@
          data-empty-label="@($"No panels {where} the categories. Drag one here.")">
         @foreach (var panel in Model.Panels)
         {
-            @if (Model.IsEditMode)
-            {
-                <div class="panel-slot" data-panel-id="@panel.Id" data-panel-kind="@panel.Kind">
-                    <div class="panel-edit-bar">
-                        <button type="button" class="drag-handle panel-drag-handle" title="Drag to move"
-                                aria-label="Move panel @panel.DisplayName">⠿</button>
-                        <span class="panel-edit-name">@panel.DisplayName</span>
-                    </div>
-                    @if (panel.Content.IsEmpty)
-                    {
-                        <div class="panel-placeholder category-box border">
-                            <div class="category-box-body text-body-secondary">@panel.Content.EmptyMessage</div>
-                        </div>
-                    }
-                    else
-                    {
-                        <partial name="@panel.Content.PartialName" model="panel.Content.Model" />
-                    }
-                </div>
-            }
-            else
-            {
-                <partial name="@panel.Content.PartialName" model="panel.Content.Model" />
-            }
+            <partial name="@(Model.IsEditMode ? "_EditablePanelSlot" : panel.Content.PartialName)"
+                     model="@(Model.IsEditMode ? (object)panel : panel.Content.Model)" />
         }
     </div>
 }

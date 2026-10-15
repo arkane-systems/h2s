@@ -1,8 +1,9 @@
 /* Dashboard edit mode (/?edit=true): rearranges categories, links and panels by drag and drop or the keyboard, saving
-   each move, and adds, edits and deletes links and categories through their dialogs, with Undo for deletes. */
+   each move, and adds, edits and deletes them through their dialogs, with Undo for deletes. */
 import Sortable from '../../lib/sortablejs/modular/sortable.esm.js';
 import { CategoryDialog } from './category-dialog.js';
 import { LinkDialog } from './link-dialog.js';
+import { PanelDialog } from './panel-dialog.js';
 import { showToast } from './toast.js';
 
 const config = document.getElementById('edit-mode');
@@ -37,6 +38,7 @@ function initEditMode(config, grid) {
     const labelOf = slot => slot.querySelector('.link-block-title')?.textContent ?? 'link';
     const panelSlots = zone => [...zone.querySelectorAll(':scope > .panel-slot')];
     const panelNameOf = slot => slot.querySelector('.panel-edit-name')?.textContent ?? 'panel';
+    const zoneFor = name => panelZones.find(zone => zone.dataset.zone === name);
 
     // Tiles keep their markup, but in edit mode they open the link dialog rather than the link.
     const prepareSlot = slot => {
@@ -110,10 +112,62 @@ function initEditMode(config, grid) {
             if (event.target.closest('a[href]')) {
                 event.preventDefault();
             }
+
+            const edit = event.target.closest('[data-role="edit-panel"]');
+            if (edit) {
+                panelDialog.openExisting(edit.closest('.panel-slot').dataset.panelId)
+                    .catch(error => showToast(`Couldn't open the panel: ${error.message}`));
+            }
         });
 
         zone.addEventListener('keydown', event => movePanelByKey(event));
     }
+
+    // Shows a saved panel: in place when it's already on the page, at the given position in its zone otherwise.
+    const showPanel = async (panel, position = null) => {
+        const slot = await panelDialog.fetchSlot(panel.id);
+        const existing = document.querySelector(`.panel-slot[data-panel-id="${panel.id}"]`);
+        if (existing) {
+            existing.replaceWith(slot);
+            return;
+        }
+        const zone = zoneFor(panel.zone);
+        zone.insertBefore(slot, position === null ? null : panelSlots(zone)[position] ?? null);
+    };
+
+    const panelDialog = new PanelDialog(document.getElementById('panel-dialog'), {
+        onSaved: async (panel, isNew) => {
+            try {
+                await showPanel(panel);
+                showToast(`${isNew ? 'Added' : 'Saved'} the ${panel.displayName.toLowerCase()} panel.`,
+                    { variant: 'success', delay: 3000 });
+            } catch {
+                window.location.reload();
+            }
+        },
+        onDeleted: result => {
+            const slot = document.querySelector(`.panel-slot[data-panel-id="${result.deletedId}"]`);
+            const name = slot ? panelNameOf(slot).toLowerCase() : 'the';
+            slot?.remove();
+            showToast(`Deleted the ${name} panel.`, {
+                variant: 'secondary',
+                delay: 8000,
+                action: {
+                    label: 'Undo',
+                    onClick: async () => {
+                        try {
+                            const panel = await panelDialog.restore(result.restore);
+                            await showPanel(panel, panel.sortOrder);
+                        } catch (error) {
+                            showToast(`Couldn't restore the panel: ${error.message}`);
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    config.querySelector('[data-role="add-panel"]')?.addEventListener('click', () => panelDialog.openNew());
 
     // Keyboard: arrow keys move a panel one place; past the end of its zone, it moves into the other one.
     const movePanelByKey = event => {
