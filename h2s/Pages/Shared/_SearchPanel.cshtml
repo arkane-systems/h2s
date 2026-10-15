@@ -1,15 +1,19 @@
 ﻿@using h2s.Panels
 @model SearchPanelModel
-@* The search panel: a web search form. *@
+@* The search panel: a web search form. /Search picks the engine, so a !shortcut works without script. *@
+@{
+    var shortcuts = Model.Shortcuts.Count > 0 ? $"Start or end with {string.Join(", ", Model.Shortcuts)} to pick an engine." : null;
+}
 <section class="home-search-box category-box border">
     <div class="category-box-body">
-        <form class="home-search-form" action="https://www.bing.com/search" method="get" role="search">
+        <form class="home-search-form" asp-page="/Search" method="get" role="search">
             <span class="home-search-icon" aria-hidden="true">⌕</span>
             <input type="search"
                    name="q"
                    class="form-control home-search-input"
                    placeholder="@Model.Placeholder"
-                   aria-label="Search with Bing"
+                   aria-label="@($"Search with {Model.EngineName}")"
+                   title="@shortcuts"
                    required />
         </form>
     </div>

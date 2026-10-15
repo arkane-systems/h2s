@@ -151,6 +151,112 @@ public class DashboardBackupServiceTests
   }
 
   [Fact]
+  public async Task ExportThenImport_ReproducesTheSearchEngines ()
+  {
+    await using var source = await TestDatabase.CreateAsync (seed: true);
+    await using var target = await TestDatabase.CreateAsync ();
+    string          json;
+
+    await using (DashboardContext context = source.CreateContext ())
+    {
+      context.SearchEngines.Add (new SearchEngine
+                                 {
+                                   Name        = "Wikipedia",
+                                   UrlTemplate = "https://en.wikipedia.org/w/index.php?search={query}",
+                                   Shortcut    = "w",
+                                   IsDefault   = true,
+                                   SortOrder   = 3,
+                                 });
+      await context.SearchEngines.Where (e => e.Name == "Bing")
+                   .ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression: e => e.IsDefault,
+                                                                              valueExpression: false),
+                                        cancellationToken: TestContext.Current.CancellationToken);
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+
+      json = JsonSerializer.Serialize (value: await DashboardBackupServiceTests.CreateService (context)
+                                                                               .ExportAsync (TestContext.Current.CancellationToken),
+                                       options: DashboardBackup.JsonOptions);
+    }
+
+    Assert.True (DashboardBackupService.TryRead (json: json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+
+    await using DashboardContext targetContext = target.CreateContext ();
+    await DashboardBackupServiceTests.CreateService (targetContext)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected:
+                  [
+                    ("Bing", "b", false, 0), ("DuckDuckGo", "d", false, 1), ("Google", "g", false, 2), ("Wikipedia", "w", true, 3),
+                  ],
+                  actual: await DashboardBackupServiceTests.DescribeEnginesAsync (targetContext));
+  }
+
+  [Fact]
+  public async Task ImportAsync_GivesAFileFromBeforeSearchEnginesTheDefaultEngines ()
+  {
+    await using var              database = await TestDatabase.CreateAsync (seed: true);
+    await using DashboardContext context  = database.CreateContext ();
+    await context.SearchEngines.ExecuteDeleteAsync (TestContext.Current.CancellationToken);
+
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 2,
+                          "settings": { "title": "Old", "colorMode": "Auto", "uptimeKumaDefaultDuration": 24 },
+                          "categories": [], "panels": [],
+                          "searchEngines": [ { "name": "Ignored", "urlTemplate": "nonsense" } ]
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    Assert.Null (backup!.SearchEngines);
+
+    await DashboardBackupServiceTests.CreateService (context)
+                                     .ImportAsync (backup: backup, cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: [("Bing", "b", true, 0), ("DuckDuckGo", "d", false, 1), ("Google", "g", false, 2)],
+                  actual: await DashboardBackupServiceTests.DescribeEnginesAsync (context));
+  }
+
+  [Fact]
+  public void TryRead_ChecksSearchEngines ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 3,
+                          "settings": { "title": "Home", "colorMode": "Auto", "uptimeKumaDefaultDuration": 24 },
+                          "categories": [], "panels": [],
+                          "searchEngines": [
+                            { "name": "A", "urlTemplate": "https://a.example/?q={query}", "shortcut": "!A", "isDefault": true },
+                            { "name": "B", "urlTemplate": "https://b.example/?q={query}", "shortcut": "a", "isDefault": true },
+                            { "name": "", "urlTemplate": "https://c.example/?q=" },
+                            { "name": "D", "urlTemplate": "ftp://d.example/{query}", "shortcut": "no spaces" }
+                          ]
+                        }
+                        """;
+
+    Assert.False (DashboardBackupService.TryRead (json: Json,
+                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
+    Assert.Equal (expected:
+                  [
+                    "Search engine 2 (\"B\"): another engine already uses !a.",
+                    "Search engine 3: a name is required.",
+                    "Search engine 3: the search URL must contain {query} where the search terms go.",
+                    "Search engine 4 (\"D\"): the search URL must start with http:// or https://.",
+                    "Search engine 4 (\"D\"): the shortcut may only use letters, numbers and hyphens, at most 20 of them.",
+                    "Only one search engine can be the default.",
+                  ],
+                  actual: errors);
+  }
+
+  [Fact]
   public void TryRead_RequiresPanelsFromVersion2 ()
   {
     const string Json = """
@@ -256,8 +362,8 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 3 }""",
-               "The file is from a newer version of h2s (format version 3); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 4 }""",
+               "The file is from a newer version of h2s (format version 4); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
@@ -360,7 +466,8 @@ public class DashboardBackupServiceTests
                                                AdminCategories: 1,
                                                Links: 3,
                                                InfrastructureGroups: 1,
-                                               Panels: 2),
+                                               Panels: 2,
+                                               SearchEngines: 3),
                   actual: DashboardBackupService.Summarize (backup));
   }
 
@@ -372,6 +479,19 @@ public class DashboardBackupServiceTests
   private static DashboardBackupService CreateService (DashboardContext context)
     => new (context: context,
             settingsService: new DashboardSettingsService (context: context, cache: new MemoryCache (new MemoryCacheOptions ())));
+
+  /// <summary>
+  ///   Describes a database's search engines, in order.
+  /// </summary>
+  /// <param name="context">The database context.</param>
+  /// <returns>Each engine's name, shortcut, default flag and position.</returns>
+  private static async Task<List<(string Name, string Shortcut, bool IsDefault, int SortOrder)>> DescribeEnginesAsync (
+    DashboardContext context)
+    => (await context.SearchEngines.AsNoTracking ()
+                     .OrderBy (e => e.SortOrder)
+                     .ToListAsync (TestContext.Current.CancellationToken))
+      .Select (e => (e.Name, e.Shortcut, e.IsDefault, e.SortOrder))
+      .ToList ();
 
   /// <summary>
   ///   Describes a database's panels, in dashboard order.

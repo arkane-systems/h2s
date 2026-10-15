@@ -53,6 +53,12 @@ public class DashboardBackupService
                                                  .ThenBy (g => g.Name)
                                                  .ToListAsync (cancellationToken);
 
+    List<SearchEngine> engines = await this.context.SearchEngines
+                                           .AsNoTracking ()
+                                           .OrderBy (e => e.SortOrder)
+                                           .ThenBy (e => e.Id)
+                                           .ToListAsync (cancellationToken);
+
     List<Panel> panels = await this.context.Panels
                                    .AsNoTracking ()
                                    .OrderBy (p => p.Zone)
@@ -100,6 +106,13 @@ public class DashboardBackupService
                                                                           Zone: p.Zone,
                                                                           Options: DashboardBackupService
                                                                            .ReadOptions (p.OptionsJson))),
+                                ],
+                                SearchEngines:
+                                [
+                                  .. engines.Select (e => new BackupSearchEngine (Name: e.Name,
+                                                                                  UrlTemplate: e.UrlTemplate,
+                                                                                  Shortcut: e.Shortcut,
+                                                                                  IsDefault: e.IsDefault)),
                                 ]);
   }
 
@@ -151,6 +164,9 @@ public class DashboardBackupService
     if (read.Version < DashboardBackup.PanelsVersion)
       read = read with { Panels = null };
 
+    if (read.Version < DashboardBackup.SearchEnginesVersion)
+      read = read with { SearchEngines = null };
+
     DashboardBackupService.Validate (backup: read, kinds: kinds, errors: errors);
 
     if (errors.Count > 0)
@@ -173,7 +189,8 @@ public class DashboardBackupService
             AdminCategories: backup.Categories?.Count (c => c.IsAdminCategory) ?? 0,
             Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0)           ?? 0,
             InfrastructureGroups: backup.InfrastructureGroups?.Count           ?? 0,
-            Panels: backup.Panels?.Count                                       ?? DefaultPanels.Create ().Count);
+            Panels: backup.Panels?.Count                                       ?? DefaultPanels.Create ().Count,
+            SearchEngines: backup.SearchEngines?.Count                         ?? DefaultSearchEngines.Create ().Count);
 
   /// <summary>
   ///   Replaces the whole configuration with a valid dashboard file's, in one transaction.
@@ -188,6 +205,7 @@ public class DashboardBackupService
     _ = await this.context.Categories.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.InfrastructureGroups.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Panels.ExecuteDeleteAsync (cancellationToken);
+    _ = await this.context.SearchEngines.ExecuteDeleteAsync (cancellationToken);
 
     // Positions count within each section, as on the dashboard.
     int regular = 0, admin = 0;
@@ -222,6 +240,26 @@ public class DashboardBackupService
                                                                                                         MonitorId = g.MonitorId,
                                                                                                         SortOrder = i,
                                                                                                       }));
+
+    // A file from before search engines gets the default ones. One engine is always the default.
+    if (backup.SearchEngines == null)
+      this.context.SearchEngines.AddRange (DefaultSearchEngines.Create ());
+    else
+    {
+      bool hasDefault = backup.SearchEngines.Any (e => e.IsDefault);
+
+      this.context.SearchEngines.AddRange (backup.SearchEngines.Select ((e, i) => new SearchEngine
+                                                                                  {
+                                                                                    Name        = e.Name!.Trim (),
+                                                                                    UrlTemplate = e.UrlTemplate!.Trim (),
+                                                                                    Shortcut =
+                                                                                      DashboardBackupService
+                                                                                       .NormalizeShortcut (e.Shortcut),
+                                                                                    IsDefault =
+                                                                                      e.IsDefault || (!hasDefault && (i == 0)),
+                                                                                    SortOrder = i,
+                                                                                  }));
+    }
 
     // A file from before panels gets the default ones. Positions count within each zone.
     if (backup.Panels == null)
@@ -347,6 +385,33 @@ public class DashboardBackupService
     if ((backup.Version >= DashboardBackup.PanelsVersion) && (backup.Panels == null))
       Add ("The file has no panels list.");
 
+    if ((backup.Version >= DashboardBackup.SearchEnginesVersion) && (backup.SearchEngines == null))
+      Add ("The file has no search engines list.");
+
+    var seenShortcuts = new HashSet<string> (StringComparer.Ordinal);
+
+    for (var e = 0; e < (backup.SearchEngines?.Count ?? 0); e++)
+    {
+      BackupSearchEngine engine = backup.SearchEngines![e];
+      var                where  = $"Search engine {e + 1}";
+
+      if (SearchEngineRules.CheckName ((engine.Name ?? "").Trim ()) is { } nameError)
+        Add ($"{where}: {DashboardBackupService.Lower (nameError)}");
+      else
+        where += $" (\"{engine.Name!.Trim ()}\")";
+
+      if (SearchEngineRules.CheckUrlTemplate ((engine.UrlTemplate ?? "").Trim ()) is { } templateError)
+        Add ($"{where}: {DashboardBackupService.Lower (templateError)}");
+
+      if (!SearchEngineRules.TryNormalizeShortcut (value: engine.Shortcut, shortcut: out string shortcut))
+        Add ($"{where}: {DashboardBackupService.Lower (SearchEngineRules.InvalidShortcut)}");
+      else if ((shortcut.Length > 0) && !seenShortcuts.Add (shortcut))
+        Add ($"{where}: another engine already uses !{shortcut}.");
+    }
+
+    if ((backup.SearchEngines?.Count (e => e.IsDefault) ?? 0) > 1)
+      Add ("Only one search engine can be the default.");
+
     var seenKinds = new HashSet<string> (StringComparer.Ordinal);
 
     for (var p = 0; p < (backup.Panels?.Count ?? 0); p++)
@@ -368,6 +433,25 @@ public class DashboardBackupService
         Add ($"{where}: the options must be a JSON object.");
     }
   }
+
+  /// <summary>
+  ///   Normalizes an imported shortcut, already checked by <see cref="TryRead" />.
+  /// </summary>
+  /// <param name="shortcut">The shortcut in the file.</param>
+  /// <returns>The shortcut as stored: lowercase, without its <c>!</c>.</returns>
+  private static string NormalizeShortcut (string? shortcut)
+  {
+    _ = SearchEngineRules.TryNormalizeShortcut (value: shortcut, shortcut: out string normalized);
+
+    return normalized;
+  }
+
+  /// <summary>
+  ///   Lowercases a message's first letter, to follow a "Search engine 1:" prefix.
+  /// </summary>
+  /// <param name="message">The message.</param>
+  /// <returns>The message, starting lowercase.</returns>
+  private static string Lower (string message) => message.Length == 0 ? message : char.ToLowerInvariant (message[0]) + message[1..];
 
   /// <summary>
   ///   Reads a panel's stored options for export.

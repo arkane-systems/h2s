@@ -169,7 +169,7 @@ This needs no root access and no rebuilt image.
 When you open the app, the home page shows link categories and their links. You can:
 
 - Browse categories and open links directly from each card.
-- Use the search box for quick web searches.
+- Use the search box for quick web searches. It uses the default engine from **Settings → Search**; start or end a search with an engine's shortcut, such as `!g`, to use another.
 
 The search box and the Uptime Kuma status bar are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as the status bar before Uptime Kuma is set up, is hidden outside edit mode.
 - Toggle color mode from the navbar (Auto, Light, Dark).
@@ -180,8 +180,15 @@ Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its
 
 - **General**: the **title** and **motto** shown in the navbar, and the **local domains**. Type each domain and press Enter, comma or space to add it as a chip; × removes one. Links to hosts outside these domains get an "External" badge.
 - **Appearance**: the **color mode** (Auto follows the device's light or dark setting). The ◑ button in the navbar cycles through the same modes.
+- **Search**: the search engines, below.
 - **Integrations**: one card per integration; Uptime Kuma, below, is the only one so far.
 - **Backup**: export and import the whole configuration, below.
+
+#### Search engines
+
+The search box sends searches to the **default** engine. h2s starts with Bing (the default, `!b`), DuckDuckGo (`!d`) and Google (`!g`). Start or end a search with an engine's shortcut to send it there instead; a shortcut no engine has stays in the search, so DuckDuckGo's own bangs still work when it's the default.
+
+Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is the address of a results page with `{query}` where the search terms go: search for something on the engine, copy the address, and replace your terms with `{query}`. Ticking **Default engine** moves the default to that engine. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder the list. Deleting an engine has **Undo**; deleting the default makes the first engine left the default. With no engines, the search box is hidden.
 
 #### Uptime Kuma integration
 
@@ -224,7 +231,7 @@ Categories are managed in edit mode.
 
 ### Backup
 
-**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, the infrastructure groups and the panels. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels existed still import, and give the dashboard the default panels (the status bar, then search, above the categories).
+**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, the infrastructure groups, the panels and the search engines. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels or search engines existed still import, and give the dashboard the defaults: the status bar, then search, above the categories, and the three engines above.
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).

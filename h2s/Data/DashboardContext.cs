@@ -35,6 +35,11 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
   public DbSet<Panel> Panels => this.Set<Panel> ();
 
   /// <summary>
+  ///   Gets the set of web search engines.
+  /// </summary>
+  public DbSet<SearchEngine> SearchEngines => this.Set<SearchEngine> ();
+
+  /// <summary>
   ///   Configures entity mappings and constraints for the dashboard schema.
   /// </summary>
   /// <param name="modelBuilder">The model builder used to configure EF Core entities.</param>

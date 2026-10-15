@@ -30,8 +30,11 @@ public class PanelServiceTests
     Assert.True (panels[0].Content.IsEmpty);
     Assert.Equal (expected: "Uptime Kuma isn't set up. Add its server in Settings → Integrations.",
                   actual: panels[0].Content.EmptyMessage);
-    Assert.Equal (expected: "_SearchPanel",                            actual: panels[1].Content.PartialName);
-    Assert.Equal (expected: new SearchPanelModel ("Search with Bing"), actual: panels[1].Content.Model);
+    Assert.Equal (expected: "_SearchPanel", actual: panels[1].Content.PartialName);
+    var search = (SearchPanelModel)panels[1].Content.Model!;
+    Assert.Equal (expected: "Search with Bing",                        actual: search.Placeholder);
+    Assert.Equal (expected: "Bing",                                    actual: search.EngineName);
+    Assert.Equal (expected: ["!b Bing", "!d DuckDuckGo", "!g Google"], actual: search.Shortcuts);
   }
 
   [Fact]
@@ -88,6 +91,39 @@ public class PanelServiceTests
                   actual: panels[2].Content.EmptyMessage);
     Assert.Equal (expected: "This panel couldn't be shown; the server log has the details.",
                   actual: panels[3].Content.EmptyMessage);
+  }
+
+  [Fact]
+  public async Task Search_IsEmptyWithoutEngines ()
+  {
+    await using var              database = await TestDatabase.CreateAsync ();
+    await using DashboardContext context  = database.CreateContext ();
+    await context.SearchEngines.ExecuteDeleteAsync (TestContext.Current.CancellationToken);
+
+    PanelView search = (await PanelServiceTests.GetPanelsAsync (context))[1];
+
+    Assert.Equal (expected: "There are no search engines. Add one in Settings → Search.", actual: search.Content.EmptyMessage);
+  }
+
+  [Fact]
+  public async Task Search_NamesTheDefaultEngineUnlessGivenAPlaceholder ()
+  {
+    await using var              database = await TestDatabase.CreateAsync ();
+    await using DashboardContext context  = database.CreateContext ();
+    await context.SearchEngines.ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression: e => e.IsDefault,
+                                                                                          valueExpression: e => e.Name == "Google"),
+                                                    cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: "Search with Google",
+                  actual: ((SearchPanelModel)(await PanelServiceTests.GetPanelsAsync (context))[1].Content.Model!).Placeholder);
+
+    await context.Panels.Where (p => p.Kind == SearchPanelKind.KindKey)
+                 .ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression: p => p.OptionsJson,
+                                                                            valueExpression: """{"placeholder":"Ask the web"}"""),
+                                      cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: "Ask the web",
+                  actual: ((SearchPanelModel)(await PanelServiceTests.GetPanelsAsync (context))[1].Content.Model!).Placeholder);
   }
 
   [Fact]
