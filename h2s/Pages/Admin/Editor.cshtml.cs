@@ -205,6 +205,7 @@ public partial class EditorModel : PageModel
   /// <param name="iconUrl">Optional absolute image URL used as the icon when there is no icon name.</param>
   /// <param name="monitorId">Optional Uptime Kuma monitor ID; blank for none.</param>
   /// <param name="url">The destination URL for the link.</param>
+  /// <param name="openInNewTab">Whether the link opens in a new browser tab.</param>
   /// <returns>A JSON payload describing the created link, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateLinkAsync (int     categoryId,
                                                           string? label,
@@ -212,7 +213,8 @@ public partial class EditorModel : PageModel
                                                           string? iconName,
                                                           string? iconUrl,
                                                           string? monitorId,
-                                                          string? url)
+                                                          string? url,
+                                                          bool    openInNewTab)
   {
     string normalizedLabel   = (label   ?? string.Empty).Trim ();
     string normalizedUrl     = (url     ?? string.Empty).Trim ();
@@ -229,14 +231,15 @@ public partial class EditorModel : PageModel
 
     var link = new Link
                {
-                 CategoryId  = categoryId,
-                 Label       = normalizedLabel,
-                 Description = (description ?? string.Empty).Trim (),
-                 IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
-                 IconUrl     = normalizedIconUrl,
-                 MonitorId   = parsedMonitorId,
-                 Url         = normalizedUrl,
-                 SortOrder   = await this.GetNextLinkSortOrderAsync (categoryId),
+                 CategoryId   = categoryId,
+                 Label        = normalizedLabel,
+                 Description  = (description ?? string.Empty).Trim (),
+                 IconName     = Link.NormalizeIconName (iconName ?? string.Empty),
+                 IconUrl      = normalizedIconUrl,
+                 MonitorId    = parsedMonitorId,
+                 Url          = normalizedUrl,
+                 OpenInNewTab = openInNewTab,
+                 SortOrder    = await this.GetNextLinkSortOrderAsync (categoryId),
                };
 
     this.context.Links.Add (link);
@@ -258,6 +261,7 @@ public partial class EditorModel : PageModel
                              link.IconUrl,
                              link.MonitorId,
                              link.Url,
+                             link.OpenInNewTab,
                            });
   }
 
@@ -277,6 +281,9 @@ public partial class EditorModel : PageModel
   ///   is kept.
   /// </param>
   /// <param name="url">The updated destination URL.</param>
+  /// <param name="openInNewTab">
+  ///   Whether the link opens in a new browser tab. When the field is not posted at all, the stored setting is kept.
+  /// </param>
   /// <returns>A JSON payload describing the updated link, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateLinkAsync (int     id,
                                                           int     categoryId,
@@ -285,7 +292,8 @@ public partial class EditorModel : PageModel
                                                           string? iconName,
                                                           string? iconUrl,
                                                           string? monitorId,
-                                                          string? url)
+                                                          string? url,
+                                                          bool    openInNewTab)
   {
     string normalizedLabel   = (label   ?? string.Empty).Trim ();
     string normalizedUrl     = (url     ?? string.Empty).Trim ();
@@ -325,6 +333,9 @@ public partial class EditorModel : PageModel
     if (this.Request.Form.ContainsKey (nameof (iconUrl)))
       link.IconUrl = normalizedIconUrl;
 
+    if (this.Request.Form.ContainsKey (nameof (openInNewTab)))
+      link.OpenInNewTab = openInNewTab;
+
     await this.context.SaveChangesAsync ();
 
     string categoryName = await this.context.Categories
@@ -343,6 +354,7 @@ public partial class EditorModel : PageModel
                              link.IconUrl,
                              link.MonitorId,
                              link.Url,
+                             link.OpenInNewTab,
                            });
   }
 
@@ -415,6 +427,7 @@ public partial class EditorModel : PageModel
                              link.IconUrl,
                              link.MonitorId,
                              link.Url,
+                             link.OpenInNewTab,
                              link.SortOrder,
                            });
   }
@@ -484,6 +497,7 @@ public partial class EditorModel : PageModel
                                          l.IconUrl,
                                          l.MonitorId,
                                          l.Url,
+                                         l.OpenInNewTab,
                                        })
                          .FirstOrDefaultAsync ();
 
@@ -757,6 +771,7 @@ public partial class EditorModel : PageModel
                                  IconSrc: l.GetIconUrl (),
                                  MonitorId: l.MonitorId,
                                  Url: l.Url,
+                                 OpenInNewTab: l.OpenInNewTab,
                                  SortOrder: l.SortOrder))
       .ToList ();
 
@@ -906,13 +921,14 @@ public partial class EditorModel : PageModel
   private static Link CreateLink (LinkSnapshot snapshot, int sortOrder)
     => new ()
        {
-         Label       = (snapshot.Label       ?? string.Empty).Trim (),
-         Description = (snapshot.Description ?? string.Empty).Trim (),
-         IconName    = Link.NormalizeIconName (snapshot.IconName ?? string.Empty),
-         IconUrl     = (snapshot.IconUrl ?? string.Empty).Trim (),
-         MonitorId   = snapshot.MonitorId,
-         Url         = (snapshot.Url ?? string.Empty).Trim (),
-         SortOrder   = sortOrder,
+         Label        = (snapshot.Label       ?? string.Empty).Trim (),
+         Description  = (snapshot.Description ?? string.Empty).Trim (),
+         IconName     = Link.NormalizeIconName (snapshot.IconName ?? string.Empty),
+         IconUrl      = (snapshot.IconUrl ?? string.Empty).Trim (),
+         MonitorId    = snapshot.MonitorId,
+         Url          = (snapshot.Url ?? string.Empty).Trim (),
+         OpenInNewTab = snapshot.OpenInNewTab,
+         SortOrder    = sortOrder,
        };
 
   /// <summary>

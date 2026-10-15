@@ -14,6 +14,7 @@ namespace h2s.Pages.Admin;
 /// <param name="IconSrc">The icon the dashboard shows: the selfh.st icon, else the icon URL, else empty.</param>
 /// <param name="MonitorId">The Uptime Kuma monitor ID, if any.</param>
 /// <param name="Url">The link URL.</param>
+/// <param name="OpenInNewTab">Whether the link opens in a new browser tab.</param>
 /// <param name="SortOrder">The link's position within its category.</param>
 public sealed record LinkRow (
   int    Id,
@@ -27,4 +28,5 @@ public sealed record LinkRow (
   string IconSrc,
   int?   MonitorId,
   string Url,
+  bool   OpenInNewTab,
   int    SortOrder);

@@ -54,6 +54,11 @@ public class Link
   public int? MonitorId { get; set; }
 
   /// <summary>
+  ///   Gets or sets a value indicating whether the link opens in a new browser tab rather than the dashboard's.
+  /// </summary>
+  public bool OpenInNewTab { get; set; }
+
+  /// <summary>
   ///   Gets or sets the position of the link within its category. Links are ordered by this value in ascending order.
   /// </summary>
   public int SortOrder { get; set; }

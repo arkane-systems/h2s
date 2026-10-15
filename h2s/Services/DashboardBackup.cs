@@ -44,7 +44,7 @@ public sealed record DashboardBackup (
   /// <summary>
   ///   The format version this build of h2s writes. It also reads every earlier version.
   /// </summary>
-  public const int CurrentVersion = 3;
+  public const int CurrentVersion = 4;
 
   /// <summary>
   ///   The first format version with panels.
@@ -55,6 +55,11 @@ public sealed record DashboardBackup (
   ///   The first format version with search engines.
   /// </summary>
   public const int SearchEnginesVersion = 3;
+
+  /// <summary>
+  ///   The first format version with each link's open-in-new-tab setting. Earlier files' links open in the same tab.
+  /// </summary>
+  public const int OpenInNewTabVersion = 4;
 
   /// <summary>
   ///   The JSON options for dashboard files: camel-case names, enums as names, and indented so the file reads (and
