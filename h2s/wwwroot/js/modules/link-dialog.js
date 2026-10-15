@@ -43,7 +43,8 @@ export class LinkDialog {
             iconName: this.form.elements.iconName,
             iconUrl: this.form.elements.iconUrl,
             monitorId: this.form.elements.monitorId ?? null,
-            categoryId: this.form.elements.categoryId
+            categoryId: this.form.elements.categoryId,
+            openInNewTab: this.form.elements.openInNewTab
         };
         this.title = element.querySelector('.modal-title');
         this.error = element.querySelector('[data-role="error"]');
@@ -130,6 +131,7 @@ export class LinkDialog {
             this.fields.monitorId.value = link.monitorId ?? '';
         }
         this.fields.categoryId.value = String(link.categoryId);
+        this.fields.openInNewTab.checked = link.openInNewTab;
         this.refreshPreview();
         this.modal.show();
     }
@@ -213,7 +215,8 @@ export class LinkDialog {
             description: this.fields.description.value.trim(),
             iconName: this.fields.iconName.value.trim(),
             iconUrl: this.fields.iconUrl.value.trim(),
-            categoryId: this.fields.categoryId.value
+            categoryId: this.fields.categoryId.value,
+            openInNewTab: this.fields.openInNewTab.checked ? 'true' : 'false'
         };
         if (this.fields.monitorId) {
             values.monitorId = this.fields.monitorId.value.trim();

@@ -226,6 +226,7 @@ Click **Edit** at the right of the navbar to edit the dashboard in place; **Done
   - **Browse…** searches the selfh.st icons with thumbnails.
   - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
   - With Uptime Kuma configured and a status page slug set, the **monitor** list shows the monitors on that status page by group. Pick **Another monitor ID…** to type one that isn't on it.
+  - **Open in a new tab** makes the tile open its link in a new browser tab. The list view marks such links with ↗.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
 - Use a panel's ✎ to change its options or delete it, and **+ Add panel** to add one above or below the categories. The status bar's options choose whether it shows uptime badges and over what period; the search box's, its placeholder text. Each kind of panel can appear only once for now, so **+ Add panel** offers only kinds that aren't on the dashboard.
 - Deletes take effect immediately, and the toast that confirms them has an **Undo** button.

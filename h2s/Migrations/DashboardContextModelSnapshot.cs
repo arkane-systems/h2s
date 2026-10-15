@@ -124,6 +124,9 @@ namespace h2s.Migrations
                     b.Property<int?>("MonitorId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("OpenInNewTab")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("INTEGER");
 

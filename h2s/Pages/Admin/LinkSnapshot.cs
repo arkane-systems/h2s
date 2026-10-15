@@ -13,6 +13,7 @@ namespace h2s.Pages.Admin;
 /// <param name="MonitorId">The Uptime Kuma monitor ID, if any.</param>
 /// <param name="Url">The link URL.</param>
 /// <param name="SortOrder">The link's position within its category.</param>
+/// <param name="OpenInNewTab">Whether the link opens in a new browser tab.</param>
 public sealed record LinkSnapshot (
   int     CategoryId,
   string? Label,
@@ -21,7 +22,8 @@ public sealed record LinkSnapshot (
   string? IconUrl,
   int?    MonitorId,
   string? Url,
-  int     SortOrder)
+  int     SortOrder,
+  bool    OpenInNewTab = false)
 {
   /// <summary>
   ///   Takes a snapshot of a link.
@@ -36,5 +38,6 @@ public sealed record LinkSnapshot (
             IconUrl: link.IconUrl,
             MonitorId: link.MonitorId,
             Url: link.Url,
-            SortOrder: link.SortOrder);
+            SortOrder: link.SortOrder,
+            OpenInNewTab: link.OpenInNewTab);
 }

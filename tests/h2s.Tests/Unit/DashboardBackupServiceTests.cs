@@ -224,6 +224,55 @@ public class DashboardBackupServiceTests
   }
 
   [Fact]
+  public async Task ExportThenImport_KeepsWhichLinksOpenInANewTab ()
+  {
+    await using var source = await TestDatabase.CreateAsync (seed: true);
+    await using var target = await TestDatabase.CreateAsync ();
+    string          json;
+
+    await using (DashboardContext context = source.CreateContext ())
+    {
+      json = JsonSerializer.Serialize (value: await DashboardBackupServiceTests.CreateService (context)
+                                                                               .ExportAsync (TestContext.Current.CancellationToken),
+                                       options: DashboardBackup.JsonOptions);
+    }
+
+    Assert.True (DashboardBackupService.TryRead (json: json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+
+    await using DashboardContext targetContext = target.CreateContext ();
+    await DashboardBackupServiceTests.CreateService (targetContext)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    // The seeder opens only GitHub in a new tab.
+    Assert.Equal (expected: ["GitHub"],
+                  actual: await targetContext.Links.Where (l => l.OpenInNewTab)
+                                             .Select (l => l.Label)
+                                             .ToListAsync (TestContext.Current.CancellationToken));
+  }
+
+  [Fact]
+  public void TryRead_LinksFromBeforeVersion4OpenInTheSameTab ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 3,
+                          "settings": { "title": "Home", "colorMode": "Auto", "uptimeKumaDefaultDuration": 24 },
+                          "categories": [ { "name": "A", "links": [ { "label": "One", "url": "https://one.home.arpa/" } ] } ],
+                          "panels": [], "searchEngines": []
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    Assert.False (backup!.Categories![0].Links![0].OpenInNewTab);
+  }
+
+  [Fact]
   public void TryRead_ChecksSearchEngines ()
   {
     const string Json = """
@@ -362,8 +411,8 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 4 }""",
-               "The file is from a newer version of h2s (format version 4); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 5 }""",
+               "The file is from a newer version of h2s (format version 5); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)

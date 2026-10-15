@@ -93,7 +93,9 @@ public class DashboardBackupService
                                                                                                                      IconUrl: l
                                                                                                                       .IconUrl,
                                                                                                                      MonitorId: l
-                                                                                                                      .MonitorId)),
+                                                                                                                      .MonitorId,
+                                                                                                                     OpenInNewTab: l
+                                                                                                                      .OpenInNewTab)),
                                                                                  ])),
                                 ],
                                 InfrastructureGroups:
@@ -226,9 +228,10 @@ public class DashboardBackupService
                                                                                      Description = (l.Description ?? "").Trim (),
                                                                                      IconName =
                                                                                        Link.NormalizeIconName (l.IconName ?? ""),
-                                                                                     IconUrl   = (l.IconUrl ?? "").Trim (),
-                                                                                     MonitorId = l.MonitorId,
-                                                                                     SortOrder = i,
+                                                                                     IconUrl      = (l.IconUrl ?? "").Trim (),
+                                                                                     MonitorId    = l.MonitorId,
+                                                                                     OpenInNewTab = l.OpenInNewTab,
+                                                                                     SortOrder    = i,
                                                                                    }),
                                      ],
                                    });

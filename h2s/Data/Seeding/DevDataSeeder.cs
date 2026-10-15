@@ -127,8 +127,9 @@ public static class DevDataSeeder
                                                                            iconName: "selfh-st"),
                                                DevDataSeeder.ExternalLink (label: "GitHub",
                                                                            url: "https://github.com/arkane-systems/h2s",
-                                                                           description: "h2s source",
-                                                                           iconName: "github"),
+                                                                           description: "h2s source, in a new tab",
+                                                                           iconName: "github",
+                                                                           openInNewTab: true),
                                                DevDataSeeder.ExternalLink (label: "Docker Hub",
                                                                            url: "https://hub.docker.com/",
                                                                            description: "Icon from the site's favicon",
@@ -224,20 +225,23 @@ public static class DevDataSeeder
   /// <param name="iconName">The selfh.st icon name, or an empty string for none.</param>
   /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
   /// <param name="iconUrl">The icon image URL used when there is no icon name, or an empty string for none.</param>
+  /// <param name="openInNewTab">Whether the link opens in a new browser tab.</param>
   /// <returns>The link.</returns>
   private static Link ExternalLink (string label,
                                     string url,
                                     string description,
                                     string iconName,
-                                    int?   monitorId = null,
-                                    string iconUrl   = "")
+                                    int?   monitorId    = null,
+                                    string iconUrl      = "",
+                                    bool   openInNewTab = false)
     => new ()
        {
-         Label       = label,
-         Url         = url,
-         Description = description,
-         IconName    = iconName,
-         IconUrl     = iconUrl,
-         MonitorId   = monitorId,
+         Label        = label,
+         Url          = url,
+         Description  = description,
+         IconName     = iconName,
+         IconUrl      = iconUrl,
+         MonitorId    = monitorId,
+         OpenInNewTab = openInNewTab,
        };
 }

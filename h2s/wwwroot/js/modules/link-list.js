@@ -78,6 +78,14 @@ const renderRow = link => {
     edit.dataset.role = 'edit';
     edit.textContent = link.label;
     const labelCell = cell(edit);
+    if (link.openInNewTab) {
+        const newTab = document.createElement('span');
+        newTab.className = 'text-muted ms-1';
+        newTab.title = 'Opens in a new tab';
+        newTab.setAttribute('aria-label', 'Opens in a new tab');
+        newTab.textContent = '↗';
+        labelCell.append(newTab);
+    }
     if (link.description) {
         const description = document.createElement('div');
         description.className = 'small text-muted';
