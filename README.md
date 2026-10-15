@@ -210,6 +210,9 @@ Click **Edit** in the navbar to edit the dashboard in place; **Done** returns to
 
 - Drag the ⠿ handles to reorder categories (within the regular or admin section) and links (within or between categories). A focused handle also responds to the arrow keys. Each move saves straight away.
 - Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
+  - **Browse…** searches the selfh.st icons with thumbnails.
+  - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
+  - With Uptime Kuma configured and a status page slug set, the **monitor** list shows the monitors on that status page by group. Pick **Another monitor ID…** to type one that isn't on it.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
 - Deletes take effect immediately, and the toast that confirms them has an **Undo** button.
 

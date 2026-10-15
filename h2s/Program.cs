@@ -39,10 +39,13 @@ builder.Services.AddScoped<DashboardSettingsService> ();
 builder.Services.AddScoped<IconCatalog> ();
 builder.Services.AddScoped<UrlProbe> ();
 builder.Services.AddScoped<PageMetadataReader> ();
+builder.Services.AddScoped<UptimeKumaClient> ();
 
 // Named clients for outbound HTTP. The accept-any-certificate client exists only so UrlProbe can tell an untrusted
 // certificate from an unreachable server; never use it to fetch content.
 builder.Services.AddHttpClient (name: IconCatalog.ClientName, configureClient: client => client.Timeout = IconCatalog.Timeout);
+builder.Services.AddHttpClient (name: UptimeKumaClient.ClientName,
+                                configureClient: client => client.Timeout = UptimeKumaClient.Timeout);
 
 // Fetches the pages people add links to, for suggestions. It names itself, since some sites refuse anonymous clients,
 // and follows only a few redirects.

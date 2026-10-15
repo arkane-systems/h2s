@@ -37,8 +37,9 @@ public class PageMetadataReaderTests
                                                          .ReadAsync (url: "https://sonarr.home.arpa/",
                                                                      cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Equal (expected: "Sonarr",                              actual: metadata.Title);
-    Assert.Equal (expected: new Uri ("https://sonarr.home.arpa/"), actual: Assert.Single (handler.Requests).RequestUri);
+    Assert.Equal (expected: "Sonarr", actual: metadata.Title);
+    Assert.Equal (expected: new Uri ("https://sonarr.home.arpa/"),
+                  actual: Assert.Single (PageMetadataReaderTests.PageRequests (handler)).RequestUri);
   }
 
   [Fact]
@@ -70,7 +71,7 @@ public class PageMetadataReaderTests
     _ = await reader.ReadAsync (url: "https://radarr.home.arpa/", cancellationToken: TestContext.Current.CancellationToken);
     _ = await reader.ReadAsync (url: "https://radarr.home.arpa/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Single (handler.Requests);
+    Assert.Single (PageMetadataReaderTests.PageRequests (handler));
   }
 
   [Fact]
@@ -268,6 +269,83 @@ public class PageMetadataReaderTests
   }
 
   [Fact]
+  public async Task ReadAsync_ChoosesTheLargestDeclaredIcon ()
+  {
+    var handler = new StubHttpMessageHandler (request => request.RequestUri!.AbsolutePath switch
+                                                         {
+                                                           "/app.webmanifest" => new HttpResponseMessage (HttpStatusCode.OK)
+                                                                                 {
+                                                                                   Content = new StringContent (content: """
+                                                                                                                         { "icons": [
+                                                                                                                           { "src": "/icons/maskable-512.png", "sizes": "512x512", "purpose": "maskable" },
+                                                                                                                           { "src": "/icons/icon-192.png", "sizes": "192x192" }
+                                                                                                                         ] }
+                                                                                                                         """,
+                                                                                                                encoding: Encoding
+                                                                                                                 .UTF8,
+                                                                                                                mediaType:
+                                                                                                                "application/manifest+json"),
+                                                                                 },
+                                                           _ => PageMetadataReaderTests.Html ("""
+                                                                                              <head>
+                                                                                                <title>Sonarr</title>
+                                                                                                <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+                                                                                                <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+                                                                                                <link rel="mask-icon" href="/safari.svg" color="#000">
+                                                                                                <link rel="manifest" href="/app.webmanifest">
+                                                                                              </head>
+                                                                                              """),
+                                                         });
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://sonarr.home.arpa/",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    // The maskable icon is padded for masking and the mask icon is a silhouette, so the 192px manifest icon wins.
+    Assert.Equal (expected: "https://sonarr.home.arpa/icons/icon-192.png", actual: metadata.IconUrl);
+  }
+
+  [Fact]
+  public async Task ReadAsync_PrefersScalableIcons ()
+  {
+    StubHttpMessageHandler handler = PageMetadataReaderTests.ServeHtml ("""
+                                                                        <link rel="shortcut icon" href="favicon.ico">
+                                                                        <link rel="icon" type="image/svg+xml" href="logo.svg">
+                                                                        """);
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://grafana.home.arpa/login",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: "https://grafana.home.arpa/logo.svg", actual: metadata.IconUrl);
+  }
+
+  [Theory]
+  [InlineData ("image/x-icon", "https://router.home.arpa/favicon.ico")]
+  [InlineData ("text/html",    null)]
+  public async Task ReadAsync_FallsBackToTheConventionalFavicon (string faviconType, string? expected)
+  {
+    var handler = new StubHttpMessageHandler (request => request.RequestUri!.AbsolutePath == "/favicon.ico"
+                                                           ? new HttpResponseMessage (HttpStatusCode.OK)
+                                                             {
+                                                               Content = new ByteArrayContent ([0, 0, 1, 0])
+                                                                         {
+                                                                           Headers =
+                                                                           {
+                                                                             ContentType = new MediaTypeHeaderValue (faviconType),
+                                                                           },
+                                                                         },
+                                                             }
+                                                           : PageMetadataReaderTests.Html ("<title>Router</title>"));
+
+    PageMetadata metadata = await PageMetadataReaderTests.CreateReader (handler)
+                                                         .ReadAsync (url: "https://router.home.arpa/admin/",
+                                                                     cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: expected, actual: metadata.IconUrl);
+  }
+
+  [Fact]
   public async Task ReadAsync_FollowsAtMostTwoClientRedirects ()
   {
     // Each page refreshes to the next, forever.
@@ -284,8 +362,9 @@ public class PageMetadataReaderTests
                                                          .ReadAsync (url: "https://loop.home.arpa/1",
                                                                      cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Equal (expected: 1 + PageMetadataReader.MaxClientRedirects, actual: handler.Requests.Count);
-    Assert.Equal (expected: "Page 3",                                  actual: metadata.Title);
+    Assert.Equal (expected: 1 + PageMetadataReader.MaxClientRedirects,
+                  actual: PageMetadataReaderTests.PageRequests (handler).Count ());
+    Assert.Equal (expected: "Page 3", actual: metadata.Title);
   }
 
   /// <summary>
@@ -298,6 +377,14 @@ public class PageMetadataReaderTests
                  {
                    Content = new StringContent (content: html, encoding: Encoding.UTF8, mediaType: "text/html"),
                  });
+
+  /// <summary>
+  ///   Gets the requests for pages, leaving out the reader's check for a conventional <c>/favicon.ico</c>.
+  /// </summary>
+  /// <param name="handler">The handler that answered the requests.</param>
+  /// <returns>The page requests.</returns>
+  private static IEnumerable<HttpRequestMessage> PageRequests (StubHttpMessageHandler handler)
+    => handler.Requests.Where (r => r.RequestUri!.AbsolutePath != "/favicon.ico");
 
   /// <summary>
   ///   Creates an HTML response.

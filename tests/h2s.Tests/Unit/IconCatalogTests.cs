@@ -100,6 +100,31 @@ public class IconCatalogTests
   public void GetHostCandidates_UsesTheFirstLabelAndTheOneBeforeTheTld (string url, string[] expected)
     => Assert.Equal (expected: expected, actual: IconCatalog.GetHostCandidates (url));
 
+  [Theory]
+  [InlineData ("jellyfin",  new[] { "jellyfin" })]
+  [InlineData ("home",      new[] { "home-assistant" })]
+  [InlineData ("assistant", new[] { "home-assistant" })]
+  [InlineData ("music",     new[] { "navidrome" })]
+  [InlineData ("i",         new[] { "github", "home-assistant", "jellyfin", "navidrome" })]
+  [InlineData ("zzz",       new string[0])]
+  [InlineData ("  ",        new string[0])]
+  public async Task SearchAsync_RanksExactThenPrefixThenContainsThenTags (string query, string[] expected)
+  {
+    IReadOnlyList<IconInfo> icons = await IconCatalogTests.CreateCatalog (IconCatalogTests.ServeIndex ())
+                                                          .SearchAsync (query: query,
+                                                                        limit: 10,
+                                                                        cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: expected, actual: icons.Select (i => i.Reference));
+  }
+
+  [Fact]
+  public async Task SearchAsync_HonorsTheLimit ()
+    => Assert.Single (await IconCatalogTests.CreateCatalog (IconCatalogTests.ServeIndex ())
+                                            .SearchAsync (query: "i",
+                                                          limit: 1,
+                                                          cancellationToken: TestContext.Current.CancellationToken));
+
   [Fact]
   public void GetFirstWords_TakesTheFirstWordOfMultiWordNames ()
     => Assert.Equal (expected: ["QNAP", "Tailscale"],

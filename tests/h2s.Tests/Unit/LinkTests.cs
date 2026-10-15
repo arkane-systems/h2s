@@ -37,6 +37,22 @@ public class LinkTests
     Assert.Equal (expected: $"{LinkTests.IconsBaseUrl}/svg/pi-hole.svg", actual: link.GetIconUrl ("svg"));
   }
 
+  [Fact]
+  public void GetIconUrl_FallsBackToIconUrl ()
+  {
+    var link = new Link { IconUrl = "https://hub.docker.com/favicon.ico" };
+
+    Assert.Equal (expected: "https://hub.docker.com/favicon.ico", actual: link.GetIconUrl ());
+  }
+
+  [Fact]
+  public void GetIconUrl_PrefersIconNameToIconUrl ()
+  {
+    var link = new Link { IconName = "docker", IconUrl = "https://hub.docker.com/favicon.ico" };
+
+    Assert.Equal (expected: $"{LinkTests.IconsBaseUrl}/png/docker.png", actual: link.GetIconUrl ());
+  }
+
   [Theory]
   [InlineData ("Home Assistant",      "home-assistant")]
   [InlineData ("  Pi-hole  ",         "pi-hole")]

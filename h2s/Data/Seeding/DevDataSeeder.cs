@@ -131,8 +131,9 @@ public static class DevDataSeeder
                                                                            iconName: "github"),
                                                DevDataSeeder.ExternalLink (label: "Docker Hub",
                                                                            url: "https://hub.docker.com/",
-                                                                           description: "",
-                                                                           iconName: "docker"));
+                                                                           description: "Icon from the site's favicon",
+                                                                           iconName: "",
+                                                                           iconUrl: "https://hub.docker.com/favicon.ico"));
 
     yield return DevDataSeeder.CreateCategory (name: "Infrastructure",
                                                isAdminCategory: true,
@@ -222,14 +223,21 @@ public static class DevDataSeeder
   /// <param name="description">The link description.</param>
   /// <param name="iconName">The selfh.st icon name, or an empty string for none.</param>
   /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
+  /// <param name="iconUrl">The icon image URL used when there is no icon name, or an empty string for none.</param>
   /// <returns>The link.</returns>
-  private static Link ExternalLink (string label, string url, string description, string iconName, int? monitorId = null)
+  private static Link ExternalLink (string label,
+                                    string url,
+                                    string description,
+                                    string iconName,
+                                    int?   monitorId = null,
+                                    string iconUrl   = "")
     => new ()
        {
          Label       = label,
          Url         = url,
          Description = description,
          IconName    = iconName,
+         IconUrl     = iconUrl,
          MonitorId   = monitorId,
        };
 }
