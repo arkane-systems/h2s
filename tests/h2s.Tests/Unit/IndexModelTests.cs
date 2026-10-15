@@ -2,16 +2,19 @@ using System.Security.Claims;
 using h2s.Data;
 using h2s.Models;
 using h2s.Pages;
+using h2s.Panels;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace h2s.Tests.Unit;
 
 /// <summary>
-///   Tests for the URL helpers on <see cref="IndexModel" />.
+///   Tests for the link helpers on <see cref="IndexModel" />.
 /// </summary>
 public class IndexModelTests
 {
@@ -64,43 +67,13 @@ public class IndexModelTests
     Assert.False (model.IsExternalLink ("https://github.com/"));
   }
 
-  [Fact]
-  public async Task BuildBadgeUrl_BuildsKumaUrls ()
-  {
-    IndexModel model = await IndexModelTests.LoadAsync (localDomains: "", kumaServerUrl: "https://status.home.arpa/");
-
-    Assert.Equal (expected: "https://status.home.arpa/api/badge/7/status?style=flat",
-                  actual: model.BuildBadgeUrl (monitorId: 7, type: "status"));
-    Assert.Equal (expected: "https://status.home.arpa/api/badge/7/uptime/24?style=flat",
-                  actual: model.BuildBadgeUrl (monitorId: 7, type: "uptime", duration: 24));
-    Assert.Equal (expected: "https://status.home.arpa/api/badge/7/status?style=flat&label=",
-                  actual: model.BuildBadgeUrl (monitorId: 7, type: "status", label: ""));
-  }
-
-  [Fact]
-  public async Task BuildBadgeUrl_IsEmptyWithoutKumaServer ()
-    => Assert.Equal (expected: "",
-                     actual: (await IndexModelTests.LoadAsync (localDomains: "")).BuildBadgeUrl (monitorId: 7, type: "status"));
-
-  [Fact]
-  public async Task BuildStatusPageUrl_RequiresSlug ()
-  {
-    IndexModel withoutSlug = await IndexModelTests.LoadAsync (localDomains: "", kumaServerUrl: "https://status.home.arpa");
-    IndexModel withSlug =
-      await IndexModelTests.LoadAsync (localDomains: "", kumaServerUrl: "https://status.home.arpa/", kumaSlug: "main");
-
-    Assert.Equal (expected: "",                                     actual: withoutSlug.BuildStatusPageUrl ());
-    Assert.Equal (expected: "https://status.home.arpa/status/main", actual: withSlug.BuildStatusPageUrl ());
-  }
-
   /// <summary>
   ///   Creates an <see cref="IndexModel" /> over a fresh database with the given settings and runs its GET handler.
   /// </summary>
   /// <param name="localDomains">The local domains setting.</param>
   /// <param name="kumaServerUrl">The Uptime Kuma server URL setting.</param>
-  /// <param name="kumaSlug">The Uptime Kuma status page slug setting.</param>
   /// <returns>The loaded page model.</returns>
-  private static async Task<IndexModel> LoadAsync (string localDomains, string? kumaServerUrl = null, string? kumaSlug = null)
+  private static async Task<IndexModel> LoadAsync (string localDomains, string? kumaServerUrl = null)
   {
     await using var              database = await TestDatabase.CreateAsync ();
     await using DashboardContext context  = database.CreateContext ();
@@ -110,17 +83,27 @@ public class IndexModelTests
                                                                                             valueExpression: localDomains)
                                                                               .SetProperty (propertyExpression:
                                                                                             x => x.UptimeKumaServerUrl,
-                                                                                            valueExpression: kumaServerUrl)
-                                                                              .SetProperty (propertyExpression:
-                                                                                            x => x.UptimeKumaStatusPageSlug,
-                                                                                            valueExpression: kumaSlug),
+                                                                                            valueExpression: kumaServerUrl),
                                                         cancellationToken: TestContext.Current.CancellationToken);
 
-    using var cache = new MemoryCache (new MemoryCacheOptions ());
+    using var cache           = new MemoryCache (new MemoryCacheOptions ());
+    var       settingsService = new DashboardSettingsService (context: context, cache: cache);
+
+    await using ServiceProvider services = new ServiceCollection ().AddSingleton (context)
+                                                                   .AddSingleton (settingsService)
+                                                                   .BuildServiceProvider ();
+
     var model = new IndexModel (context: context,
-                                settingsService: new DashboardSettingsService (context: context, cache: cache),
+                                settingsService: settingsService,
+                                panelService: new PanelService (context: context,
+                                                                catalog: new PanelCatalog ([
+                                                                                             new StatusBarPanelKind (),
+                                                                                             new SearchPanelKind (),
+                                                                                           ]),
+                                                                services: services,
+                                                                logger: NullLogger<PanelService>.Instance),
                                 authorizationService: new AllowAllAuthorizationService ());
-    await model.OnGetAsync ();
+    await model.OnGetAsync (cancellationToken: TestContext.Current.CancellationToken);
 
     return model;
   }

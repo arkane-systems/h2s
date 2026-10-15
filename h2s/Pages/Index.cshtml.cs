@@ -1,6 +1,7 @@
 using h2s.Authorization;
 using h2s.Data;
 using h2s.Models;
+using h2s.Panels;
 using h2s.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -15,6 +16,7 @@ public class IndexModel : PageModel
 {
   private readonly IAuthorizationService    authorizationService;
   private readonly DashboardContext         context;
+  private readonly PanelService             panelService;
   private readonly DashboardSettingsService settingsService;
 
   private LinkTileFactory tiles = new (new DashboardSettings ());
@@ -24,11 +26,14 @@ public class IndexModel : PageModel
   /// </summary>
   /// <param name="context">The database context used to load categories and links.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
+  /// <param name="panelService">The service used to load the panels above and below the categories.</param>
   /// <param name="authorizationService">The service used to check whether the user may enter edit mode.</param>
   public IndexModel (DashboardContext         context,
                      DashboardSettingsService settingsService,
+                     PanelService             panelService,
                      IAuthorizationService    authorizationService)
   {
+    this.panelService         = panelService;
     this.context              = context;
     this.settingsService      = settingsService;
     this.authorizationService = authorizationService;
@@ -45,35 +50,26 @@ public class IndexModel : PageModel
   public bool IsEditMode { get; private set; }
 
   /// <summary>
-  ///   Gets the infrastructure groups for displaying Uptime Kuma monitoring badges.
+  ///   Gets the panels above the categories, in order. Outside edit mode, panels with nothing to show are left out.
   /// </summary>
-  public List<InfrastructureGroup> InfrastructureGroups { get; set; } = new ();
+  public List<PanelView> TopPanels { get; private set; } = new ();
 
   /// <summary>
-  ///   Gets the Uptime Kuma server URL if configured.
+  ///   Gets the panels below the categories, in order. Outside edit mode, panels with nothing to show are left out.
   /// </summary>
-  public string? UptimeKumaServerUrl { get; set; }
-
-  /// <summary>
-  ///   Gets the Uptime Kuma status page slug if configured.
-  /// </summary>
-  public string? UptimeKumaStatusPageSlug { get; set; }
-
-  /// <summary>
-  ///   Gets the default duration in hours for uptime badges.
-  /// </summary>
-  public int UptimeKumaDefaultDuration { get; set; }
+  public List<PanelView> BottomPanels { get; private set; } = new ();
 
   /// <summary>
   ///   Gets a value indicating whether Uptime Kuma integration is configured.
   /// </summary>
-  public bool IsUptimeKumaConfigured => !string.IsNullOrWhiteSpace (this.UptimeKumaServerUrl);
+  public bool IsUptimeKumaConfigured => this.tiles.IsUptimeKumaConfigured;
 
   /// <summary>
-  ///   Loads the dashboard categories and local-domain settings required by the page.
+  ///   Loads the dashboard's categories, settings and panels.
   /// </summary>
   /// <param name="edit">Whether edit mode is requested. It is granted only to users who satisfy the Admin policy.</param>
-  public async Task OnGetAsync (bool edit = false)
+  /// <param name="cancellationToken">A token that is cancelled when the request is aborted.</param>
+  public async Task OnGetAsync (bool edit = false, CancellationToken cancellationToken = default)
   {
     this.IsEditMode = edit &&
                       (await this.authorizationService.AuthorizeAsync (user: this.User, policyName: AdminRequirement.PolicyName))
@@ -89,43 +85,13 @@ public class IndexModel : PageModel
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
     this.tiles = new LinkTileFactory (settings);
 
-    // Load Uptime Kuma configuration
-    this.UptimeKumaServerUrl       = settings.UptimeKumaServerUrl;
-    this.UptimeKumaStatusPageSlug  = settings.UptimeKumaStatusPageSlug;
-    this.UptimeKumaDefaultDuration = settings.UptimeKumaDefaultDuration;
+    List<PanelView> panels = (await this.panelService.GetPanelsAsync (cancellationToken))
+                            .Where (p => this.IsEditMode || !p.Content.IsEmpty)
+                            .ToList ();
 
-    // Load infrastructure groups if Uptime Kuma is configured
-    if (this.IsUptimeKumaConfigured)
-    {
-      this.InfrastructureGroups = await this.context.InfrastructureGroups
-                                            .OrderBy (g => g.SortOrder)
-                                            .ThenBy (g => g.Name)
-                                            .ToListAsync ();
-    }
+    this.TopPanels    = panels.Where (p => p.Zone == PanelZone.Top).ToList ();
+    this.BottomPanels = panels.Where (p => p.Zone == PanelZone.Bottom).ToList ();
   }
-
-  /// <summary>
-  ///   Builds the URL to the Uptime Kuma status page.
-  /// </summary>
-  /// <returns>The status page URL, or an empty string if not configured.</returns>
-  public string BuildStatusPageUrl ()
-  {
-    if (string.IsNullOrWhiteSpace (this.UptimeKumaServerUrl) || string.IsNullOrWhiteSpace (this.UptimeKumaStatusPageSlug))
-      return "";
-
-    return $"{this.UptimeKumaServerUrl.TrimEnd ('/')}/status/{this.UptimeKumaStatusPageSlug}";
-  }
-
-  /// <summary>
-  ///   Builds the URL for an Uptime Kuma badge.
-  /// </summary>
-  /// <param name="monitorId">The monitor ID.</param>
-  /// <param name="type">The badge type (status, uptime, ping, etc.).</param>
-  /// <param name="duration">Optional duration in hours for time-based badges.</param>
-  /// <param name="label">Optional override for badge label text. Use an empty string to hide the label.</param>
-  /// <returns>The badge URL, or an empty string if server URL is not configured.</returns>
-  public string BuildBadgeUrl (int monitorId, string type, int? duration = null, string? label = null)
-    => this.tiles.BuildBadgeUrl (monitorId: monitorId, type: type, duration: duration, label: label);
 
   /// <summary>
   ///   Builds the view model for a link's tile.

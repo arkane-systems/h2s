@@ -30,6 +30,11 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
   public DbSet<InfrastructureGroup> InfrastructureGroups => this.Set<InfrastructureGroup> ();
 
   /// <summary>
+  ///   Gets the set of full-width panels shown above and below the categories.
+  /// </summary>
+  public DbSet<Panel> Panels => this.Set<Panel> ();
+
+  /// <summary>
   ///   Configures entity mappings and constraints for the dashboard schema.
   /// </summary>
   /// <param name="modelBuilder">The model builder used to configure EF Core entities.</param>

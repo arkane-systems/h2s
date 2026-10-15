@@ -48,9 +48,11 @@ if (section) {
 
             fileName.textContent = file.name;
             summary.textContent = `“${incoming.title}”${exported}: ${plural(incoming.categories, 'category', 'categories')}${admin}, `
-                + `${plural(incoming.links, 'link')} and ${plural(incoming.infrastructureGroups, 'infrastructure group')}, with its settings.`;
+                + `${plural(incoming.links, 'link')}, ${plural(incoming.infrastructureGroups, 'infrastructure group')} and `
+                + `${plural(incoming.panels, 'panel')}, with its settings.`;
             warning.textContent = `Importing replaces everything here now: ${plural(current.categories, 'category', 'categories')}, `
-                + `${plural(current.links, 'link')}, ${plural(current.infrastructureGroups, 'infrastructure group')} and the settings. `
+                + `${plural(current.links, 'link')}, ${plural(current.infrastructureGroups, 'infrastructure group')}, `
+                + `${plural(current.panels, 'panel')} and the settings. `
                 + 'Export first if you might want them back.';
             preview.classList.remove('d-none');
             confirm.focus();

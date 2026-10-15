@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
+using h2s.Panels;
 using h2s.Services;
 using h2s.Validation;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +27,7 @@ public class SettingsModel : PageModel
 
   private readonly DashboardBackupService   backupService;
   private readonly DashboardContext         context;
+  private readonly PanelCatalog             panelKinds;
   private readonly DashboardSettingsService settingsService;
   private readonly UptimeKumaClient         uptimeKumaClient;
   private readonly UrlProbe                 urlProbe;
@@ -38,12 +40,15 @@ public class SettingsModel : PageModel
   /// <param name="urlProbe">The probe used to check that the Uptime Kuma server is reachable.</param>
   /// <param name="backupService">The service used to export and import the whole configuration.</param>
   /// <param name="uptimeKumaClient">The client used to check the Uptime Kuma status page.</param>
+  /// <param name="panelKinds">The panel kinds an imported file's panels may use.</param>
   public SettingsModel (DashboardSettingsService settingsService,
                         DashboardContext         context,
                         UrlProbe                 urlProbe,
                         DashboardBackupService   backupService,
-                        UptimeKumaClient         uptimeKumaClient)
+                        UptimeKumaClient         uptimeKumaClient,
+                        PanelCatalog             panelKinds)
   {
+    this.panelKinds       = panelKinds;
     this.settingsService  = settingsService;
     this.context          = context;
     this.urlProbe         = urlProbe;
@@ -103,12 +108,13 @@ public class SettingsModel : PageModel
                                          Categories           = await this.context.Categories.CountAsync (),
                                          Links                = await this.context.Links.CountAsync (),
                                          InfrastructureGroups = await this.context.InfrastructureGroups.CountAsync (),
+                                         Panels               = await this.context.Panels.CountAsync (),
                                        },
                            });
   }
 
   /// <summary>
-  ///   Replaces the whole configuration (settings, categories, links and infrastructure groups) with an uploaded
+  ///   Replaces the whole configuration (settings, categories, links, infrastructure groups and panels) with an uploaded
   ///   dashboard file's.
   /// </summary>
   /// <param name="file">The dashboard file.</param>
@@ -454,7 +460,10 @@ public class SettingsModel : PageModel
     using var reader = new StreamReader (stream: file.OpenReadStream (), encoding: Encoding.UTF8);
     string    json   = await reader.ReadToEndAsync (this.HttpContext.RequestAborted);
 
-    return DashboardBackupService.TryRead (json: json, backup: out DashboardBackup? backup, errors: out List<string> errors)
+    return DashboardBackupService.TryRead (json: json,
+                                           kinds: this.panelKinds,
+                                           backup: out DashboardBackup? backup,
+                                           errors: out List<string> errors)
              ? (backup, null)
              : (null, this.BadRequestProblem (string.Join (separator: '\n', values: errors)));
   }

@@ -106,7 +106,8 @@ public partial class IndexPageTests
     Assert.Equal (expected: 17, actual: IndexPageTests.LinkDragHandlePattern ().Count (html));
     Assert.Contains (expectedSubstring: """data-reorder-categories-url="/Admin/Editor?handler=ReorderCategories""",
                      actualString: html);
-    Assert.Contains (expectedSubstring: """data-reorder-links-url="/Admin/Editor?handler=ReorderLinks""", actualString: html);
+    Assert.Contains (expectedSubstring: """data-reorder-links-url="/Admin/Editor?handler=ReorderLinks""",   actualString: html);
+    Assert.Contains (expectedSubstring: """data-reorder-panels-url="/Admin/Editor?handler=ReorderPanels""", actualString: html);
     Assert.Matches (expectedRegexPattern: """<script type="module" src="/js/modules/edit-mode\.[^"]*js""", actualString: html);
     Assert.Contains (expectedSubstring: ">Done</a>", actualString: html);
   }

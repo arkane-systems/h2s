@@ -1,4 +1,6 @@
 ﻿@page
+@using h2s.Models
+@using h2s.Panels
 @model IndexModel
 @{
     ViewData["Title"] = "";
@@ -7,40 +9,25 @@
     var hasRenderedRegularCategory = false;
 }
 
-@if (Model.IsUptimeKumaConfigured && Model.InfrastructureGroups.Any())
-{
-    <partial name="_UptimeStatusBar" model="Model" />
-}
-
-<section class="home-search-box category-box border">
-    <div class="category-box-body">
-        <form class="home-search-form" action="https://www.bing.com/search" method="get" role="search">
-            <span class="home-search-icon" aria-hidden="true">⌕</span>
-            <input type="search"
-                   name="q"
-                   class="form-control home-search-input"
-                   placeholder="Search with Bing"
-                   aria-label="Search with Bing"
-                   required />
-        </form>
-    </div>
-</section>
-
 @if (Model.IsEditMode)
 {
     <div id="edit-mode" class="edit-mode-banner category-box border"
          data-reorder-categories-url="@Url.Page("/Admin/Editor", "ReorderCategories")"
-         data-reorder-links-url="@Url.Page("/Admin/Editor", "ReorderLinks")">
+         data-reorder-links-url="@Url.Page("/Admin/Editor", "ReorderLinks")"
+         data-reorder-panels-url="@Url.Page("/Admin/Editor", "ReorderPanels")">
         <div class="category-box-body d-flex flex-wrap align-items-center gap-2">
             <span class="me-auto">
                 <strong>Edit mode.</strong> Click a tile or a category's <span aria-hidden="true">✎</span> to change it. Drag the
-                <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to rearrange. Changes save as you go.
+                <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to rearrange categories, links and the
+                panels above and below them. Changes save as you go.
             </span>
             <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-category">+ Add category</button>
             <a class="btn btn-sm btn-outline-secondary" asp-page="/Admin/Editor" title="All links in a filterable table">List view</a>
         </div>
     </div>
 }
+
+<partial name="_PanelZone" model="new PanelZoneModel(PanelZone.Top, Model.TopPanels, Model.IsEditMode)" />
 
 <div class="category-grid @(Model.IsEditMode ? "is-editing" : "")">
 @foreach (var category in Model.Categories)
@@ -86,6 +73,8 @@
     }
 }
 </div>
+
+<partial name="_PanelZone" model="new PanelZoneModel(PanelZone.Bottom, Model.BottomPanels, Model.IsEditMode)" />
 
 @section Dialogs {
     @if (Model.IsEditMode)

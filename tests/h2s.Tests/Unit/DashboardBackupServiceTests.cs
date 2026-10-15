@@ -1,6 +1,7 @@
 using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
+using h2s.Panels;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,11 @@ namespace h2s.Tests.Unit;
 /// </summary>
 public class DashboardBackupServiceTests
 {
+  /// <summary>
+  ///   The panel kinds h2s registers.
+  /// </summary>
+  private static readonly PanelCatalog Kinds = new ([new StatusBarPanelKind (), new SearchPanelKind ()]);
+
   [Fact]
   public async Task ExportAsync_WritesTheConfigurationInDashboardOrder ()
   {
@@ -30,6 +36,136 @@ public class DashboardBackupServiceTests
     Assert.Equal (expected: ["Jellyfin", "Sonarr", "Radarr", "Audiobookshelf"],
                   actual: backup.Categories![0].Links!.Select (l => l.Label));
     Assert.Equal (expected: ["Compute", "Storage", "Network"], actual: backup.InfrastructureGroups!.Select (g => g.Name));
+    Assert.Equal (expected: [(StatusBarPanelKind.KindKey, PanelZone.Top), (SearchPanelKind.KindKey, PanelZone.Top)],
+                  actual: backup.Panels!.Select (p => (p.Kind, p.Zone)));
+    Assert.Equal (expected: "{}", actual: backup.Panels![0].Options!.Value.GetRawText ());
+  }
+
+  [Fact]
+  public async Task ExportThenImport_ReproducesThePanels ()
+  {
+    await using var source = await TestDatabase.CreateAsync (seed: true);
+    await using var target = await TestDatabase.CreateAsync ();
+    string          json;
+
+    await using (DashboardContext context = source.CreateContext ())
+    {
+      Panel search = await context.Panels.SingleAsync (predicate: p => p.Kind == SearchPanelKind.KindKey,
+                                                       cancellationToken: TestContext.Current.CancellationToken);
+      search.Zone        = PanelZone.Bottom;
+      search.SortOrder   = 0;
+      search.OptionsJson = """{"placeholder":"Find it"}""";
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+
+      json = JsonSerializer.Serialize (value: await DashboardBackupServiceTests.CreateService (context)
+                                                                               .ExportAsync (TestContext.Current.CancellationToken),
+                                       options: DashboardBackup.JsonOptions);
+    }
+
+    Assert.True (DashboardBackupService.TryRead (json: json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+
+    await using DashboardContext targetContext = target.CreateContext ();
+    await DashboardBackupServiceTests.CreateService (targetContext)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected:
+                  [
+                    (StatusBarPanelKind.KindKey, PanelZone.Top, 0, "{}"),
+                    (SearchPanelKind.KindKey, PanelZone.Bottom, 0, """{"placeholder":"Find it"}"""),
+                  ],
+                  actual: await DashboardBackupServiceTests.DescribePanelsAsync (targetContext));
+  }
+
+  [Fact]
+  public async Task ImportAsync_GivesAFileFromBeforePanelsTheDefaultPanels ()
+  {
+    await using var              database = await TestDatabase.CreateAsync (seed: true);
+    await using DashboardContext context  = database.CreateContext ();
+
+    // Rearranged first, so the import visibly puts the defaults back.
+    await context.Panels.ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression: p => p.Zone,
+                                                                                   valueExpression: PanelZone.Bottom)
+                                                                     .SetProperty (propertyExpression: p => p.OptionsJson,
+                                                                                   valueExpression: """{"showUptime":false}"""),
+                                             cancellationToken: TestContext.Current.CancellationToken);
+
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 1,
+                          "settings": { "title": "Old", "colorMode": "Auto", "uptimeKumaDefaultDuration": 24 },
+                          "categories": [],
+                          "panels": [ { "kind": "nonsense", "zone": "Bottom" } ]
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    Assert.Null (backup!.Panels);
+    Assert.Equal (expected: 2, actual: DashboardBackupService.Summarize (backup).Panels);
+
+    await DashboardBackupServiceTests.CreateService (context)
+                                     .ImportAsync (backup: backup, cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected:
+                  [
+                    (StatusBarPanelKind.KindKey, PanelZone.Top, 0, "{}"), (SearchPanelKind.KindKey, PanelZone.Top, 1, "{}"),
+                  ],
+                  actual: await DashboardBackupServiceTests.DescribePanelsAsync (context));
+  }
+
+  [Fact]
+  public void TryRead_ChecksPanels ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 2,
+                          "settings": { "title": "Home", "colorMode": "Auto", "uptimeKumaDefaultDuration": 24 },
+                          "categories": [],
+                          "panels": [
+                            { "kind": "search", "zone": "Top" },
+                            { "kind": "search", "zone": "Bottom" },
+                            { "kind": "weather", "zone": "Top" },
+                            { "kind": " ", "zone": "Top" },
+                            { "kind": "status-bar", "zone": "Top", "options": [1, 2] }
+                          ]
+                        }
+                        """;
+
+    Assert.False (DashboardBackupService.TryRead (json: Json,
+                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
+    Assert.Equal (expected:
+                  [
+                    "Panel 2: the dashboard can only have one search panel.",
+                    "Panel 3: h2s has no “weather” panel kind.",
+                    "Panel 4: the kind is required.",
+                    "Panel 5: the options must be a JSON object.",
+                  ],
+                  actual: errors);
+  }
+
+  [Fact]
+  public void TryRead_RequiresPanelsFromVersion2 ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 2,
+                          "settings": { "title": "Home", "colorMode": "Auto", "uptimeKumaDefaultDuration": 24 },
+                          "categories": []
+                        }
+                        """;
+
+    Assert.False (DashboardBackupService.TryRead (json: Json,
+                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
+    Assert.Equal (expected: ["The file has no panels list."], actual: errors);
   }
 
   [Fact]
@@ -46,7 +182,8 @@ public class DashboardBackupServiceTests
                                        options: DashboardBackup.JsonOptions);
     }
 
-    Assert.True (condition: DashboardBackupService.TryRead (json: json,
+    Assert.True (condition: DashboardBackupService.TryRead (kinds: DashboardBackupServiceTests.Kinds,
+                                                            json: json,
                                                             backup: out DashboardBackup? backup,
                                                             errors: out List<string> errors),
                  userMessage: string.Join (separator: '\n', values: errors));
@@ -119,12 +256,14 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 2 }""",
-               "The file is from a newer version of h2s (format version 2); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 3 }""",
+               "The file is from a newer version of h2s (format version 3); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
   {
-    Assert.False (DashboardBackupService.TryRead (json: json,
+    Assert.False (DashboardBackupService.TryRead (kinds: DashboardBackupServiceTests.Kinds,
+                                                  json: json,
                                                   backup: out DashboardBackup? backup,
                                                   errors: out List<string> errors));
     Assert.Null (backup);
@@ -149,7 +288,10 @@ public class DashboardBackupServiceTests
                         }
                         """;
 
-    Assert.False (DashboardBackupService.TryRead (json: Json, backup: out _, errors: out List<string> errors));
+    Assert.False (DashboardBackupService.TryRead (kinds: DashboardBackupServiceTests.Kinds,
+                                                  json: Json,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
     Assert.Equal (expected:
                   [
                     "Settings: the title is required.",
@@ -217,7 +359,8 @@ public class DashboardBackupServiceTests
                                                Categories: 2,
                                                AdminCategories: 1,
                                                Links: 3,
-                                               InfrastructureGroups: 1),
+                                               InfrastructureGroups: 1,
+                                               Panels: 2),
                   actual: DashboardBackupService.Summarize (backup));
   }
 
@@ -229,6 +372,20 @@ public class DashboardBackupServiceTests
   private static DashboardBackupService CreateService (DashboardContext context)
     => new (context: context,
             settingsService: new DashboardSettingsService (context: context, cache: new MemoryCache (new MemoryCacheOptions ())));
+
+  /// <summary>
+  ///   Describes a database's panels, in dashboard order.
+  /// </summary>
+  /// <param name="context">The database context.</param>
+  /// <returns>Each panel's kind, zone, position and options.</returns>
+  private static async Task<List<(string Kind, PanelZone Zone, int SortOrder, string OptionsJson)>> DescribePanelsAsync (
+    DashboardContext context)
+    => (await context.Panels.AsNoTracking ()
+                     .OrderBy (p => p.Zone)
+                     .ThenBy (p => p.SortOrder)
+                     .ToListAsync (TestContext.Current.CancellationToken))
+      .Select (p => (p.Kind, p.Zone, p.SortOrder, p.OptionsJson))
+      .ToList ();
 
   /// <summary>
   ///   Describes a database's categories and links, in dashboard order, ignoring identifiers.

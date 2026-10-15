@@ -285,6 +285,52 @@ footer,
   gap: 0.5rem;
 }
 
+/* Panel zones (Pages/Shared/_PanelZone.cshtml). In edit mode they're always there, as outlined drop targets that say
+   so when empty, and each panel sits under a small bar with its handle and kind. */
+.panel-zone-bottom {
+  margin-top: 1rem;
+}
+
+.panel-zone.is-editing {
+  min-height: 3rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  outline: 1px dashed var(--bs-border-color);
+  outline-offset: 0.25rem;
+}
+
+.panel-zone.is-editing:not(:has(> .panel-slot))::before {
+  content: attr(data-empty-label);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.9rem;
+}
+
+.panel-zone.is-editing > .panel-slot:last-child > .category-box {
+  margin-bottom: 0;
+}
+
+.panel-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  margin-bottom: 0.25rem;
+  padding: 0.1rem 0.6rem 0.1rem 0.1rem;
+  border-radius: 0.5rem;
+  background-color: rgba(var(--bs-body-bg-rgb), 0.72);
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+}
+
+.panel-placeholder {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
 /* An outlined drop zone, tall enough to drop into even when the category is empty. */
 .is-editing .link-block-list {
   min-height: 3rem;

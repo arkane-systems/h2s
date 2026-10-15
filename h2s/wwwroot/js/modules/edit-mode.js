@@ -1,5 +1,5 @@
-/* Dashboard edit mode (/?edit=true): rearranges categories and links by drag and drop or the keyboard, saving each move,
-   and adds, edits and deletes them through the link and category dialogs, with Undo for deletes. */
+/* Dashboard edit mode (/?edit=true): rearranges categories, links and panels by drag and drop or the keyboard, saving
+   each move, and adds, edits and deletes links and categories through their dialogs, with Undo for deletes. */
 import Sortable from '../../lib/sortablejs/modular/sortable.esm.js';
 import { CategoryDialog } from './category-dialog.js';
 import { LinkDialog } from './link-dialog.js';
@@ -15,6 +15,8 @@ if (config && grid) {
 function initEditMode(config, grid) {
     const categoriesUrl = config.dataset.reorderCategoriesUrl;
     const linksUrl = config.dataset.reorderLinksUrl;
+    const panelsUrl = config.dataset.reorderPanelsUrl;
+    const panelZones = [...document.querySelectorAll('.panel-zone.is-editing')];
     const linkDialogElement = document.getElementById('link-dialog');
     const sortables = [];
     let busy = false;
@@ -33,6 +35,8 @@ function initEditMode(config, grid) {
     const sectionBoxes = section => categoryBoxes().filter(box => sectionOf(box) === section);
     const listFor = categoryId => grid.querySelector(`.link-block-list[data-category-id="${CSS.escape(String(categoryId))}"]`);
     const labelOf = slot => slot.querySelector('.link-block-title')?.textContent ?? 'link';
+    const panelSlots = zone => [...zone.querySelectorAll(':scope > .panel-slot')];
+    const panelNameOf = slot => slot.querySelector('.panel-edit-name')?.textContent ?? 'panel';
 
     // Tiles keep their markup, but in edit mode they open the link dialog rather than the link.
     const prepareSlot = slot => {
@@ -44,7 +48,7 @@ function initEditMode(config, grid) {
     grid.querySelectorAll('.link-slot').forEach(prepareSlot);
 
     // Records every container's children, so a failed save can put the page back exactly as it was.
-    const takeSnapshot = () => [grid, ...linkLists()].map(container => [container, [...container.children]]);
+    const takeSnapshot = () => [grid, ...linkLists(), ...panelZones].map(container => [container, [...container.children]]);
     const restoreSnapshot = saved => {
         for (const [container, children] of saved ?? []) {
             container.append(...children);
@@ -79,6 +83,78 @@ function initEditMode(config, grid) {
         ['categoryId', list.dataset.categoryId],
         ...linkSlots(list).map(slot => ['orderedIds', slot.dataset.linkId])
     ]);
+
+    // Panels: within a zone or into the other one. The server closes the gap a moved panel leaves behind.
+    const savePanelOrder = zone => window.h2sApi.postForm(panelsUrl, [
+        ['zone', zone.dataset.zone],
+        ...panelSlots(zone).map(slot => ['orderedIds', slot.dataset.panelId])
+    ]);
+
+    for (const zone of panelZones) {
+        sortables.push(Sortable.create(zone, {
+            group: 'panels',
+            handle: '.panel-drag-handle',
+            draggable: '.panel-slot',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onStart: () => { snapshot = takeSnapshot(); },
+            onEnd: event => {
+                if (event.from !== event.to || event.oldDraggableIndex !== event.newDraggableIndex) {
+                    save(() => savePanelOrder(event.to), snapshot);
+                }
+            }
+        }));
+
+        // A panel's own links (the status bar's, say) would leave edit mode.
+        zone.addEventListener('click', event => {
+            if (event.target.closest('a[href]')) {
+                event.preventDefault();
+            }
+        });
+
+        zone.addEventListener('keydown', event => movePanelByKey(event));
+    }
+
+    // Keyboard: arrow keys move a panel one place; past the end of its zone, it moves into the other one.
+    const movePanelByKey = event => {
+        const handle = event.target.closest('.panel-drag-handle');
+        const step = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[event.key];
+
+        if (!handle || !step) {
+            return;
+        }
+
+        event.preventDefault();
+        if (busy) {
+            return;
+        }
+
+        const slot = handle.closest('.panel-slot');
+        const zone = slot.parentElement;
+        const neighbour = panelSlots(zone)[panelSlots(zone).indexOf(slot) + step];
+        const otherZone = panelZones[panelZones.indexOf(zone) + step];
+
+        if (!neighbour && !otherZone) {
+            return;
+        }
+
+        const saved = takeSnapshot();
+        if (neighbour) {
+            neighbour.insertAdjacentElement(step < 0 ? 'beforebegin' : 'afterend', slot);
+        } else if (step > 0) {
+            otherZone.prepend(slot);
+        } else {
+            otherZone.append(slot);
+        }
+        handle.focus();
+
+        const target = slot.parentElement;
+        const siblings = panelSlots(target);
+        status.textContent = `Moved ${panelNameOf(slot)} to position ${siblings.indexOf(slot) + 1} of ${siblings.length} ` +
+            `in the ${target.dataset.zoneLabel.toLowerCase()}.`;
+
+        save(() => savePanelOrder(target), saved);
+    };
 
     // Categories: only within their own section, so the regular/admin break stays where it is.
     sortables.push(Sortable.create(grid, {
