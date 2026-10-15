@@ -1,6 +1,9 @@
+using System.Text;
+using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
+using h2s.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -8,352 +11,475 @@ using Microsoft.EntityFrameworkCore;
 namespace h2s.Pages.Admin;
 
 /// <summary>
-/// Page model for editing the singleton dashboard settings record.
+///   Page model for editing the singleton dashboard settings record.
 /// </summary>
 public class SettingsModel : PageModel
 {
-  private readonly DashboardSettingsService _settingsService;
-  private readonly DashboardContext _context;
-  private readonly IHttpClientFactory _httpClientFactory;
+  // A dashboard file is a few kilobytes per hundred links, so this is generous.
+  private const long MaxBackupBytes = 2 * 1024 * 1024;
 
   /// <summary>
-  /// Initializes a new instance of the <see cref="SettingsModel"/> class.
+  ///   The message for an Uptime Kuma server URL that isn't a base URL.
+  /// </summary>
+  private const string InvalidKumaUrl =
+    "Uptime Kuma server URL must be a valid HTTP or HTTPS base URL with no path, query, or fragment.";
+
+  private readonly DashboardBackupService   backupService;
+  private readonly DashboardContext         context;
+  private readonly DashboardSettingsService settingsService;
+  private readonly UptimeKumaClient         uptimeKumaClient;
+  private readonly UrlProbe                 urlProbe;
+
+  /// <summary>
+  ///   Initializes a new instance of the <see cref="SettingsModel" /> class.
   /// </summary>
   /// <param name="settingsService">The service used to load and save dashboard settings.</param>
   /// <param name="context">The database context used to manage infrastructure groups.</param>
-  /// <param name="httpClientFactory">The HTTP client factory used for URL reachability checks.</param>
-  public SettingsModel (DashboardSettingsService settingsService, DashboardContext context, IHttpClientFactory httpClientFactory)
+  /// <param name="urlProbe">The probe used to check that the Uptime Kuma server is reachable.</param>
+  /// <param name="backupService">The service used to export and import the whole configuration.</param>
+  /// <param name="uptimeKumaClient">The client used to check the Uptime Kuma status page.</param>
+  public SettingsModel (DashboardSettingsService settingsService,
+                        DashboardContext         context,
+                        UrlProbe                 urlProbe,
+                        DashboardBackupService   backupService,
+                        UptimeKumaClient         uptimeKumaClient)
   {
-    _settingsService = settingsService;
-    _context = context;
-    _httpClientFactory = httpClientFactory;
+    this.settingsService  = settingsService;
+    this.context          = context;
+    this.urlProbe         = urlProbe;
+    this.backupService    = backupService;
+    this.uptimeKumaClient = uptimeKumaClient;
   }
 
   /// <summary>
-  /// Gets or sets the settings values bound to the edit form.
+  ///   Gets the settings the page shows.
   /// </summary>
-  [BindProperty]
-  public DashboardSettings Settings { get; set; } = default!;
+  public DashboardSettings Settings { get; private set; } = new ();
 
   /// <summary>
-  /// Gets the infrastructure groups configured for the status bar.
+  ///   Gets the infrastructure groups configured for the status bar.
   /// </summary>
   public List<InfrastructureGroup> InfrastructureGroups { get; private set; } = new ();
 
   /// <summary>
-  /// Gets or sets a warning shown when the configured Uptime Kuma URL is not reachable.
+  ///   Gets a value indicating whether Uptime Kuma is configured, which shows the infrastructure groups.
   /// </summary>
-  [TempData]
-  public string? UptimeKumaWarning { get; set; }
+  public bool IsUptimeKumaConfigured => !string.IsNullOrWhiteSpace (this.Settings.UptimeKumaServerUrl);
 
   /// <summary>
-  /// Loads the current dashboard settings for display.
+  ///   Downloads the whole configuration as a dashboard file.
+  /// </summary>
+  /// <returns>The file, named for the time of export.</returns>
+  public async Task<IActionResult> OnGetExportAsync ()
+  {
+    DashboardBackup backup = await this.backupService.ExportAsync (this.HttpContext.RequestAborted);
+    byte[]          json   = JsonSerializer.SerializeToUtf8Bytes (value: backup, options: DashboardBackup.JsonOptions);
+
+    return this.File (fileContents: json,
+                      contentType: "application/json",
+                      fileDownloadName: $"h2s-dashboard-{backup.ExportedAt:yyyyMMdd-HHmmss}.json");
+  }
+
+  /// <summary>
+  ///   Checks an uploaded dashboard file and summarizes what importing it would bring in, without changing anything.
+  /// </summary>
+  /// <param name="file">The dashboard file.</param>
+  /// <returns>
+  ///   A JSON payload with what the file holds and what the dashboard holds now, or a 400 problem response listing what
+  ///   is wrong with the file.
+  /// </returns>
+  public async Task<IActionResult> OnPostPreviewImportAsync (IFormFile? file)
+  {
+    (DashboardBackup? backup, IActionResult? problem) = await this.ReadBackupAsync (file);
+
+    if (backup == null)
+      return problem!;
+
+    return new JsonResult (new
+                           {
+                             Incoming = DashboardBackupService.Summarize (backup),
+                             Current = new
+                                       {
+                                         Categories           = await this.context.Categories.CountAsync (),
+                                         Links                = await this.context.Links.CountAsync (),
+                                         InfrastructureGroups = await this.context.InfrastructureGroups.CountAsync (),
+                                       },
+                           });
+  }
+
+  /// <summary>
+  ///   Replaces the whole configuration (settings, categories, links and infrastructure groups) with an uploaded
+  ///   dashboard file's.
+  /// </summary>
+  /// <param name="file">The dashboard file.</param>
+  /// <returns>A JSON payload summarizing what was imported, or a 400 problem response listing what is wrong with the file.</returns>
+  public async Task<IActionResult> OnPostImportAsync (IFormFile? file)
+  {
+    (DashboardBackup? backup, IActionResult? problem) = await this.ReadBackupAsync (file);
+
+    if (backup == null)
+      return problem!;
+
+    await this.backupService.ImportAsync (backup: backup, cancellationToken: this.HttpContext.RequestAborted);
+
+    return new JsonResult (DashboardBackupService.Summarize (backup));
+  }
+
+  /// <summary>
+  ///   Loads the current dashboard settings for display.
   /// </summary>
   public async Task OnGetAsync ()
   {
-    Settings = await _settingsService.GetSettingsAsync ();
-    InfrastructureGroups = await GetOrderedInfrastructureGroupsQuery ()
-      .AsNoTracking ()
-      .ToListAsync ();
+    this.Settings = await this.settingsService.GetSettingsAsync ();
+    this.InfrastructureGroups = await this.GetOrderedInfrastructureGroupsQuery ()
+                                          .AsNoTracking ()
+                                          .ToListAsync ();
   }
 
   /// <summary>
-  /// Saves the posted dashboard settings and reloads the page.
+  ///   Saves the General section: the title, motto and local domains.
   /// </summary>
-  /// <returns>The current page when validation fails; otherwise a redirect back to the page.</returns>
-  public async Task<IActionResult> OnPostAsync ()
+  /// <param name="title">The dashboard title; required.</param>
+  /// <param name="motto">The motto under the title; blank for none.</param>
+  /// <param name="localDomains">The local domains, separated by commas, semicolons, spaces or newlines.</param>
+  /// <returns>A JSON payload with the saved values, or a 400 problem response when validation fails.</returns>
+  public async Task<IActionResult> OnPostSaveGeneralAsync (string? title, string? motto, string? localDomains)
   {
-    if (!ModelState.IsValid)
-    {
-      InfrastructureGroups = await GetOrderedInfrastructureGroupsQuery ()
-        .AsNoTracking ()
-        .ToListAsync ();
-      return Page ();
-    }
+    string normalizedTitle = (title ?? string.Empty).Trim ();
 
-    if (!string.IsNullOrWhiteSpace (Settings.UptimeKumaServerUrl))
-    {
-      var reachability = await CheckUrlReachabilityAsync (Settings.UptimeKumaServerUrl);
-      UptimeKumaWarning = reachability switch
-      {
-        UrlReachability.Unreachable => $"The Uptime Kuma server at {Settings.UptimeKumaServerUrl} could not be reached. Please verify the URL is correct and the server is accessible.",
-        UrlReachability.UntrustedCertificate => $"The Uptime Kuma server at {Settings.UptimeKumaServerUrl} is reachable, but it is using a certificate signed by an internal or private CA that this container does not trust. Uptime Kuma badges and the status bar will not work until and unless the internal root certificate is installed on the clients.",
-        _ => null
-      };
-    }
+    if (normalizedTitle.Length == 0)
+      return this.BadRequestProblem ("Title is required.");
 
-    await _settingsService.SaveSettingsAsync (Settings);
-    return RedirectToPage ();
+    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
+    settings.Title        = normalizedTitle;
+    settings.Motto        = (motto        ?? string.Empty).Trim ();
+    settings.LocalDomains = (localDomains ?? string.Empty).Trim ();
+    await this.settingsService.SaveSettingsAsync (settings);
+
+    return new JsonResult (new { settings.Title, settings.Motto, settings.LocalDomains });
   }
 
   /// <summary>
-  /// Returns the ordered infrastructure group list used by the settings client script.
+  ///   Saves the Appearance section: the color mode.
+  /// </summary>
+  /// <param name="colorMode">The color mode's name (<c>Auto</c>, <c>Light</c> or <c>Dark</c>) or number.</param>
+  /// <returns>A JSON payload with the saved color mode's name, or a 400 problem response when it isn't one.</returns>
+  public async Task<IActionResult> OnPostSaveAppearanceAsync (string? colorMode)
+  {
+    if (!Enum.TryParse (value: colorMode?.Trim (), ignoreCase: true, result: out ColorMode mode) || !Enum.IsDefined (mode))
+      return this.BadRequestProblem ("Color mode must be Auto, Light or Dark.");
+
+    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
+    settings.ColorMode = mode;
+    await this.settingsService.SaveSettingsAsync (settings);
+
+    return new JsonResult (new { ColorMode = mode.ToString () });
+  }
+
+  /// <summary>
+  ///   Saves the Uptime Kuma part of the Integrations section.
+  /// </summary>
+  /// <param name="serverUrl">The server's base URL; blank turns the integration off.</param>
+  /// <param name="statusPageSlug">The status page slug; blank for none.</param>
+  /// <param name="defaultDuration">The default uptime badge duration, in whole hours of at least 1.</param>
+  /// <returns>A JSON payload with the saved values, or a 400 problem response when validation fails.</returns>
+  public async Task<IActionResult> OnPostSaveUptimeKumaAsync (string? serverUrl, string? statusPageSlug, string? defaultDuration)
+  {
+    string? url = SettingsModel.Blank (serverUrl) ? null : serverUrl!.Trim ();
+
+    if (!new HttpBaseUrlAttribute ().IsValid (url))
+      return this.BadRequestProblem (SettingsModel.InvalidKumaUrl);
+
+    if (!StatusPageSlug.IsValid (statusPageSlug))
+      return this.BadRequestProblem (StatusPageSlug.InvalidMessage);
+
+    if (!int.TryParse (s: defaultDuration?.Trim (), result: out int duration) || (duration < 1))
+      return this.BadRequestProblem ("Default uptime duration must be a whole number of hours, at least 1.");
+
+    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
+    settings.UptimeKumaServerUrl       = url;
+    settings.UptimeKumaStatusPageSlug  = SettingsModel.Blank (statusPageSlug) ? null : statusPageSlug!.Trim ();
+    settings.UptimeKumaDefaultDuration = duration;
+    await this.settingsService.SaveSettingsAsync (settings);
+
+    return new JsonResult (new
+                           {
+                             ServerUrl       = settings.UptimeKumaServerUrl,
+                             StatusPageSlug  = settings.UptimeKumaStatusPageSlug,
+                             DefaultDuration = settings.UptimeKumaDefaultDuration,
+                             IsConfigured    = settings.UptimeKumaServerUrl != null,
+                           });
+  }
+
+  /// <summary>
+  ///   Tests Uptime Kuma settings without saving them: whether the server answers, whether the h2s server trusts its
+  ///   certificate, and whether the status page exists and lists monitors.
+  /// </summary>
+  /// <param name="serverUrl">The server's base URL, as entered.</param>
+  /// <param name="statusPageSlug">The status page slug, as entered; blank to test only the server.</param>
+  /// <returns>
+  ///   A JSON payload with a level (<c>success</c>, <c>warning</c> or <c>danger</c>) and a message, or a 400 problem
+  ///   response when the URL is missing or malformed.
+  /// </returns>
+  public async Task<IActionResult> OnPostTestUptimeKumaAsync (string? serverUrl, string? statusPageSlug)
+  {
+    if (SettingsModel.Blank (serverUrl))
+      return this.BadRequestProblem ("Enter the Uptime Kuma server URL to test.");
+
+    string url = serverUrl!.Trim ();
+
+    if (!new HttpBaseUrlAttribute ().IsValid (url))
+      return this.BadRequestProblem (SettingsModel.InvalidKumaUrl);
+
+    if (!StatusPageSlug.IsValid (statusPageSlug))
+      return this.BadRequestProblem (StatusPageSlug.InvalidMessage);
+
+    CancellationToken cancellationToken = this.HttpContext.RequestAborted;
+
+    switch (await this.urlProbe.CheckAsync (url: url, cancellationToken: cancellationToken))
+    {
+      case UrlReachability.Unreachable:
+        return SettingsModel.TestResult (level: "danger", message: $"Couldn't reach Uptime Kuma at {url}.");
+
+      case UrlReachability.UntrustedCertificate:
+        return SettingsModel.TestResult (level: "warning",
+                                         message:
+                                         "Uptime Kuma answers, but the h2s server doesn't trust its certificate. Badges still load in " +
+                                         "browsers that trust it, but the monitor picker can't list monitors until the CA is mounted " +
+                                         "(see the README's section on trusting a homelab certificate authority).");
+    }
+
+    if (SettingsModel.Blank (statusPageSlug))
+    {
+      return SettingsModel.TestResult (level: "warning",
+                                       message:
+                                       "Connected to Uptime Kuma. Add a status page slug to link the status bar and pick " +
+                                       "monitors from the page.");
+    }
+
+    KumaMonitorList monitors = await this.uptimeKumaClient.GetStatusPageMonitorsAsync (serverUrl: url,
+                                                                                       slug: statusPageSlug!,
+                                                                                       cancellationToken: cancellationToken);
+
+    if (monitors.Message != null)
+      return SettingsModel.TestResult (level: "danger", message: $"Connected to Uptime Kuma, but: {monitors.Message}");
+
+    int count = monitors.Groups.Sum (g => g.Monitors.Count);
+
+    return SettingsModel.TestResult (level: count > 0 ? "success" : "warning",
+                                     message: count > 0
+                                                ? $"Connected. The status page lists {count} monitor{(count == 1 ? "" : "s")} in " +
+                                                  $"{monitors.Groups.Count} group{(monitors.Groups.Count    == 1 ? "" : "s")}."
+                                                : "Connected, but the status page lists no monitors, so badges will show N/A.");
+  }
+
+  /// <summary>
+  ///   Returns the ordered infrastructure group list used by the settings client script.
   /// </summary>
   /// <returns>A JSON payload describing all infrastructure groups.</returns>
   public async Task<IActionResult> OnGetInfrastructureGroupsAsync ()
   {
-    var groups = await GetOrderedInfrastructureGroupsQuery ()
-      .AsNoTracking ()
-      .Select (g => new
-      {
-        g.Id,
-        g.Name,
-        g.MonitorId,
-        g.SortOrder
-      })
-      .ToListAsync ();
+    var groups = await this.GetOrderedInfrastructureGroupsQuery ()
+                           .AsNoTracking ()
+                           .Select (g => new
+                                         {
+                                           g.Id, g.Name, g.MonitorId, g.SortOrder,
+                                         })
+                           .ToListAsync ();
 
     return new JsonResult (groups);
   }
 
   /// <summary>
-  /// Creates a new infrastructure group from posted values.
+  ///   Creates a new infrastructure group from posted values.
   /// </summary>
   /// <param name="name">The group display name.</param>
-  /// <param name="monitorId">The monitor ID as a positive integer string.</param>
-  /// <returns>A JSON payload describing the created group, or an error response when validation fails.</returns>
+  /// <param name="monitorId">The monitor ID, which must be a positive integer.</param>
+  /// <returns>A JSON payload describing the created group, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostCreateInfrastructureGroupAsync (string? name, string? monitorId)
   {
-    var normalizedName = (name ?? string.Empty).Trim ();
-    var normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+    string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
-    {
-      return BadRequest ("Group name is required.");
-    }
+      return this.BadRequestProblem ("Group name is required.");
 
-    if (!IsPositiveIntegerString (normalizedMonitorId))
-    {
-      return BadRequest ("Monitor ID must be a positive integer.");
-    }
+    if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
 
-    var nextSortOrder = await _context.InfrastructureGroups
-      .Select (g => (int?)g.SortOrder)
-      .MaxAsync () ?? -1;
+    int nextSortOrder = await this.context.InfrastructureGroups
+                                  .Select (g => (int?)g.SortOrder)
+                                  .MaxAsync () ??
+                        -1;
 
-    var group = new InfrastructureGroup
-    {
-      Name = normalizedName,
-      MonitorId = normalizedMonitorId,
-      SortOrder = nextSortOrder + 1
-    };
+    var group = new InfrastructureGroup { Name = normalizedName, MonitorId = parsedMonitorId, SortOrder = nextSortOrder + 1 };
 
-    _context.InfrastructureGroups.Add (group);
-    await _context.SaveChangesAsync ();
+    this.context.InfrastructureGroups.Add (group);
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
-    {
-      group.Id,
-      group.Name,
-      group.MonitorId,
-      group.SortOrder
-    });
+                           {
+                             group.Id, group.Name, group.MonitorId, group.SortOrder,
+                           });
   }
 
   /// <summary>
-  /// Updates an existing infrastructure group.
+  ///   Updates an existing infrastructure group.
   /// </summary>
   /// <param name="id">The group identifier.</param>
   /// <param name="name">The updated display name.</param>
   /// <param name="monitorId">The updated monitor ID.</param>
-  /// <returns>A JSON payload describing the updated group, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload describing the updated group, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostUpdateInfrastructureGroupAsync (int id, string? name, string? monitorId)
   {
-    var normalizedName = (name ?? string.Empty).Trim ();
-    var normalizedMonitorId = (monitorId ?? string.Empty).Trim ();
+    string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
-    {
-      return BadRequest ("Group name is required.");
-    }
+      return this.BadRequestProblem ("Group name is required.");
 
-    if (!IsPositiveIntegerString (normalizedMonitorId))
-    {
-      return BadRequest ("Monitor ID must be a positive integer.");
-    }
+    if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
 
-    var group = await _context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
+    InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
+
     if (group == null)
-    {
-      return NotFound ();
-    }
+      return this.NotFoundProblem ("Infrastructure group not found.");
 
-    group.Name = normalizedName;
-    group.MonitorId = normalizedMonitorId;
-    await _context.SaveChangesAsync ();
+    group.Name      = normalizedName;
+    group.MonitorId = parsedMonitorId;
+    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new
-    {
-      group.Id,
-      group.Name,
-      group.MonitorId,
-      group.SortOrder
-    });
+                           {
+                             group.Id, group.Name, group.MonitorId, group.SortOrder,
+                           });
   }
 
   /// <summary>
-  /// Deletes an infrastructure group.
+  ///   Deletes an infrastructure group.
   /// </summary>
   /// <param name="id">The identifier of the group to remove.</param>
-  /// <returns>A JSON payload describing the deleted group, or <see cref="NotFoundResult"/> when it does not exist.</returns>
+  /// <returns>
+  ///   A JSON payload with the deleted group's ID and what <see cref="OnPostRestoreInfrastructureGroupAsync" /> needs to put
+  ///   it back, or a 404 problem response when it does not exist.
+  /// </returns>
   public async Task<IActionResult> OnPostDeleteInfrastructureGroupAsync (int id)
   {
-    var group = await _context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
+    InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
+
     if (group == null)
-    {
-      return NotFound ();
-    }
+      return this.NotFoundProblem ("Infrastructure group not found.");
 
-    _context.InfrastructureGroups.Remove (group);
-    await _context.SaveChangesAsync ();
+    this.context.InfrastructureGroups.Remove (group);
+    await this.context.SaveChangesAsync ();
 
-    return new JsonResult (new { DeletedId = id });
+    return new JsonResult (new { DeletedId = id, Restore = new { group.Name, group.MonitorId, group.SortOrder } });
   }
 
   /// <summary>
-  /// Reorders infrastructure groups according to the provided ID sequence.
+  ///   Recreates a deleted infrastructure group at its old position, for Undo.
+  /// </summary>
+  /// <param name="name">The group name.</param>
+  /// <param name="monitorId">The monitor ID.</param>
+  /// <param name="sortOrder">The group's old position.</param>
+  /// <returns>A JSON payload describing the recreated group, or a 400 problem response when validation fails.</returns>
+  public async Task<IActionResult> OnPostRestoreInfrastructureGroupAsync (string? name, string? monitorId, int sortOrder)
+  {
+    string normalizedName = (name ?? string.Empty).Trim ();
+
+    if (string.IsNullOrWhiteSpace (normalizedName))
+      return this.BadRequestProblem ("Group name is required.");
+
+    if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
+      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
+
+    int position = Math.Clamp (value: sortOrder, min: 0, max: await this.context.InfrastructureGroups.CountAsync ());
+
+    _ = await this.context.InfrastructureGroups
+                  .Where (g => g.SortOrder >= position)
+                  .ExecuteUpdateAsync (s => s.SetProperty (propertyExpression: g => g.SortOrder,
+                                                           valueExpression: g => g.SortOrder + 1));
+
+    var group = new InfrastructureGroup { Name = normalizedName, MonitorId = parsedMonitorId, SortOrder = position };
+
+    this.context.InfrastructureGroups.Add (group);
+    await this.context.SaveChangesAsync ();
+
+    return new JsonResult (new
+                           {
+                             group.Id, group.Name, group.MonitorId, group.SortOrder,
+                           });
+  }
+
+  /// <summary>
+  ///   Reorders infrastructure groups according to the provided ID sequence.
   /// </summary>
   /// <param name="orderedIds">The desired ordered set of group IDs.</param>
-  /// <returns>A JSON payload confirming success, or an error response when validation fails.</returns>
+  /// <returns>A JSON payload confirming success, or a 400 problem response when validation fails.</returns>
   public async Task<IActionResult> OnPostReorderInfrastructureGroupsAsync (string[]? orderedIds)
   {
-    if (orderedIds == null || orderedIds.Length == 0)
-    {
-      return BadRequest ("Ordered IDs are required.");
-    }
+    if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+      return this.BadRequestProblem (error);
 
-    var ids = new List<int> (orderedIds.Length);
-    foreach (var idValue in orderedIds)
-    {
-      if (!int.TryParse (idValue, out var parsedId) || parsedId <= 0)
-      {
-        return BadRequest ("Ordered IDs must contain valid positive integers.");
-      }
-      ids.Add (parsedId);
-    }
-
-    var groups = await _context.InfrastructureGroups
-      .Where (g => ids.Contains (g.Id))
-      .ToListAsync ();
+    List<InfrastructureGroup> groups = await this.context.InfrastructureGroups
+                                                 .Where (g => ids.Contains (g.Id))
+                                                 .ToListAsync ();
 
     if (groups.Count != ids.Count)
-    {
-      return BadRequest ("One or more infrastructure groups do not exist.");
-    }
+      return this.BadRequestProblem ("One or more infrastructure groups do not exist.");
 
     for (var i = 0; i < ids.Count; i++)
     {
-      var group = groups.First (g => g.Id == ids[i]);
+      InfrastructureGroup group = groups.First (g => g.Id == ids[i]);
       group.SortOrder = i;
     }
 
-    await _context.SaveChangesAsync ();
+    await this.context.SaveChangesAsync ();
+
     return new JsonResult (new { Success = true });
   }
 
   /// <summary>
-  /// Builds the ordered infrastructure group query used by the settings UI.
+  ///   Reads and checks an uploaded dashboard file.
   /// </summary>
-  /// <returns>An <see cref="IQueryable{T}"/> that orders groups by sort order and name.</returns>
-  private IQueryable<InfrastructureGroup> GetOrderedInfrastructureGroupsQuery () => _context.InfrastructureGroups
-    .OrderBy (g => g.SortOrder)
-    .ThenBy (g => g.Name);
-
-  /// <summary>
-  /// Determines whether the supplied string value is a positive integer.
-  /// </summary>
-  /// <param name="value">The value to validate.</param>
-  /// <returns><c>true</c> when the value is a positive integer string; otherwise, <c>false</c>.</returns>
-  private static bool IsPositiveIntegerString (string value)
+  /// <param name="file">The upload.</param>
+  /// <returns>The configuration, or a 400 problem response listing what's wrong with the file (one problem per line).</returns>
+  private async Task<(DashboardBackup? Backup, IActionResult? Problem)> ReadBackupAsync (IFormFile? file)
   {
-    return int.TryParse (value, out var parsedValue) && parsedValue > 0;
+    if ((file == null) || (file.Length == 0))
+      return (null, this.BadRequestProblem ("Choose a dashboard file to import."));
+
+    if (file.Length > SettingsModel.MaxBackupBytes)
+      return (null, this.BadRequestProblem ("The file is too large to be a dashboard export."));
+
+    using var reader = new StreamReader (stream: file.OpenReadStream (), encoding: Encoding.UTF8);
+    string    json   = await reader.ReadToEndAsync (this.HttpContext.RequestAborted);
+
+    return DashboardBackupService.TryRead (json: json, backup: out DashboardBackup? backup, errors: out List<string> errors)
+             ? (backup, null)
+             : (null, this.BadRequestProblem (string.Join (separator: '\n', values: errors)));
   }
 
   /// <summary>
-  /// Checks whether a URL is reachable using an HTTP HEAD request, falling back to GET if HEAD is not supported.
-  /// Distinguishes between a genuine network failure and a certificate chain error caused by an untrusted internal CA.
+  ///   Determines whether a posted value is missing or blank.
   /// </summary>
-  /// <param name="url">The URL to check.</param>
-  /// <returns>A <see cref="UrlReachability"/> value describing the outcome.</returns>
-  private async Task<UrlReachability> CheckUrlReachabilityAsync (string url)
-  {
-    ArgumentNullException.ThrowIfNull (url);
-
-    var client = _httpClientFactory.CreateClient ();
-    client.Timeout = TimeSpan.FromSeconds (5);
-
-    try
-    {
-      using var headRequest = new HttpRequestMessage (HttpMethod.Head, url);
-      using var headResponse = await client.SendAsync (headRequest, HttpCompletionOption.ResponseHeadersRead);
-
-      if (headResponse.IsSuccessStatusCode)
-      {
-        return UrlReachability.Reachable;
-      }
-
-      // Fall back to GET when HEAD is not allowed
-      if (headResponse.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed)
-      {
-        using var getRequest = new HttpRequestMessage (HttpMethod.Get, url);
-        using var getResponse = await client.SendAsync (getRequest, HttpCompletionOption.ResponseHeadersRead);
-        return getResponse.IsSuccessStatusCode ? UrlReachability.Reachable : UrlReachability.Unreachable;
-      }
-
-      return UrlReachability.Unreachable;
-    }
-    catch (HttpRequestException ex) when (ex.InnerException is System.Security.Authentication.AuthenticationException)
-    {
-      // SSL/TLS handshake failed; probe again without certificate validation to distinguish
-      // an untrusted internal CA from a genuine network failure.
-      return await ProbeWithoutCertificateValidationAsync (url);
-    }
-    catch
-    {
-      return UrlReachability.Unreachable;
-    }
-  }
+  /// <param name="value">The value.</param>
+  /// <returns><c>true</c> when it is.</returns>
+  private static bool Blank (string? value) => string.IsNullOrWhiteSpace (value);
 
   /// <summary>
-  /// Repeats the reachability probe using a handler that accepts any certificate, used to confirm the server
-  /// is actually up when the normal probe fails due to an untrusted certificate chain.
+  ///   Builds a Test connection result.
   /// </summary>
-  /// <param name="url">The URL to check.</param>
-  /// <returns>
-  /// <see cref="UrlReachability.UntrustedCertificate"/> when the server responds successfully despite the
-  /// certificate error; <see cref="UrlReachability.Unreachable"/> otherwise.
-  /// </returns>
-  private static async Task<UrlReachability> ProbeWithoutCertificateValidationAsync (string url)
-  {
-    try
-    {
-      using var handler = new HttpClientHandler
-      {
-        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-      };
-      using var client = new HttpClient (handler) { Timeout = TimeSpan.FromSeconds (5) };
+  /// <param name="level">The Bootstrap alert level: <c>success</c>, <c>warning</c> or <c>danger</c>.</param>
+  /// <param name="message">What the test found.</param>
+  /// <returns>The JSON result.</returns>
+  private static JsonResult TestResult (string level, string message) => new (new { Level = level, Message = message });
 
-      using var request = new HttpRequestMessage (HttpMethod.Head, url);
-      using var response = await client.SendAsync (request, HttpCompletionOption.ResponseHeadersRead);
-
-      return response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed
-        ? UrlReachability.UntrustedCertificate
-        : UrlReachability.Unreachable;
-    }
-    catch
-    {
-      return UrlReachability.Unreachable;
-    }
-  }
-
-  /// <summary>Describes the outcome of a URL reachability probe.</summary>
-  private enum UrlReachability
-  {
-    /// <summary>The server responded with a success status code.</summary>
-    Reachable,
-    /// <summary>The server could not be contacted or returned an error.</summary>
-    Unreachable,
-    /// <summary>The server was reachable but its certificate chain could not be verified due to an untrusted internal CA.</summary>
-    UntrustedCertificate
-  }
+  /// <summary>
+  ///   Builds the ordered infrastructure group query used by the settings UI.
+  /// </summary>
+  /// <returns>An <see cref="IQueryable{T}" /> that orders groups by sort order and name.</returns>
+  private IQueryable<InfrastructureGroup> GetOrderedInfrastructureGroupsQuery ()
+    => this.context.InfrastructureGroups
+           .OrderBy (g => g.SortOrder)
+           .ThenBy (g => g.Name);
 }

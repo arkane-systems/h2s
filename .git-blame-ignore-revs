@@ -1,0 +1,7 @@
+# Purely mechanical formatting commits, ignored by `git blame`.
+# Enable locally with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub applies this file automatically.)
+
+# Phase 1d: ReSharper Full Cleanup with the house style
+cd532743a4a8aec6884efa18334a096a3c6de17e
+b57f175f9bd52e995d717d353290964641c845c4

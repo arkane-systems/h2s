@@ -11,7 +11,13 @@ permissions:
   packages: write
 
 jobs:
+  # Only publish an image from a commit that builds cleanly, passes its tests and is in house style.
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: ci
     runs-on: ubuntu-latest
 
     steps:
@@ -35,26 +41,38 @@ jobs:
 
           echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve image name and version tag
+      - name: Resolve image name and tags
         id: meta
         if: steps.branch_check.outputs.should_publish == 'true'
         shell: bash
         run: |
           IMAGE_NAME="$(echo "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
 
-          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-            VERSION_TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${GITHUB_REF}" != "refs/heads/master" ]; then
+            # Pre-release build from a working branch (e.g. dev) for soak testing. Never touch the release or
+            # latest tags: publish <branch> and <branch>-<short sha> instead.
+            BRANCH_TAG="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+            TAGS="$(printf '%s\n%s' "${IMAGE_NAME}:${BRANCH_TAG}" "${IMAGE_NAME}:${BRANCH_TAG}-${GITHUB_SHA::7}")"
           else
-            VERSION_TAG="$(git tag --sort=-v:refname | head -n1)"
+            if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+              VERSION_TAG="${GITHUB_REF_NAME}"
+            else
+              VERSION_TAG="$(git tag --sort=-v:refname | head -n1)"
+            fi
+
+            if [ -z "${VERSION_TAG}" ]; then
+              echo "No git tags were found. Create a tag before running this workflow."
+              exit 1
+            fi
+
+            TAGS="$(printf '%s\n%s' "${IMAGE_NAME}:${VERSION_TAG}" "${IMAGE_NAME}:latest")"
           fi
 
-          if [ -z "${VERSION_TAG}" ]; then
-            echo "No git tags were found. Create a tag before running this workflow."
-            exit 1
-          fi
-
-          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "version_tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${TAGS}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         if: steps.branch_check.outputs.should_publish == 'true'
@@ -72,12 +90,25 @@ jobs:
         if: steps.branch_check.outputs.should_publish == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: ./h2s
+          context: .
           file: ./h2s/Dockerfile
           push: true
-          tags: |
-            ${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.version_tag }}
-            ${{ steps.meta.outputs.image_name }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Report published tags
+        if: steps.branch_check.outputs.should_publish == 'true'
+        shell: bash
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          {
+            echo "### Published image tags"
+            echo
+            while IFS= read -r tag; do echo "- \`${tag}\`"; done <<< "${TAGS}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report skipped publish
         if: steps.branch_check.outputs.should_publish != 'true'

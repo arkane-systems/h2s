@@ -1,0 +1,6 @@
+@model LinkTile
+@* A tile in dashboard edit mode: a drag handle beside the tile, which opens the link dialog instead of the link. *@
+<div class="link-slot" data-link-id="@Model.Link.Id">
+    <button type="button" class="drag-handle link-drag-handle" title="Drag to move" aria-label="Move @Model.Link.Label">⠿</button>
+    <partial name="_LinkTile" model="Model" />
+</div>

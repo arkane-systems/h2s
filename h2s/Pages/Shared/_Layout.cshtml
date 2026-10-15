@@ -9,6 +9,9 @@
         ? appTitle
         : $"{appTitle} - {pageTitle}";
     var colorModeInt = (int)settings.ColorMode;
+    var isEditMode = ViewData["IsEditMode"] is true;
+    // The list view is editing too, so it offers Done (back to the dashboard) rather than Edit.
+    var isListView = ViewData["IsListView"] is true;
     var (colorModeIcon, colorModeTitle) = settings.ColorMode switch
     {
         ColorMode.Light => ("☀", "Light mode (click to switch to dark)"),
@@ -35,6 +38,8 @@
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @* h2s.styles.css is the scoped-CSS bundle generated at build time, so it never exists on disk under wwwroot. *@
+    @* ReSharper disable once Html.PathError *@
     <link rel="stylesheet" href="~/h2s.styles.css" asp-append-version="true" />
 </head>
 <body>
@@ -44,11 +49,10 @@
                 <a class="navbar-brand d-flex align-items-center gap-2 mw-100 overflow-hidden" asp-area="" asp-page="/Index">
                     <img src="~/favicon.png" alt="" class="navbar-favicon flex-shrink-0" />
                     <span class="d-flex flex-column overflow-hidden">
-                        <span class="text-truncate"><strong>h2s</strong> - @settings.Title</span>
-                        @if (!string.IsNullOrWhiteSpace(settings.Motto))
-                        {
-                            <small class="text-muted text-wrap">@settings.Motto</small>
-                        }
+                        <span class="text-truncate"><strong>h2s</strong> - <span data-role="site-title">@settings.Title</span></span>
+                        @* Always rendered, so Settings can show a motto without a reload. *@
+                        <small class="text-muted text-wrap @(string.IsNullOrWhiteSpace(settings.Motto) ? "d-none" : "")"
+                               data-role="site-motto">@settings.Motto</small>
                     </span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
@@ -58,6 +62,7 @@
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav me-auto">
                     </ul>
+                    @* Edit/Done is the primary action, so it sits at the far right. The list view is reached from edit mode. *@
                     <ul class="navbar-nav align-items-center">
                         <li class="nav-item">
                             <button id="color-mode-toggle"
@@ -68,10 +73,19 @@
                                     aria-label="@colorModeTitle">@colorModeIcon</button>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link icon-nav-link" asp-area="" asp-page="/Admin/Editor" title="Editor" aria-label="Editor">✎</a>
-                        </li>
-                        <li class="nav-item">
                             <a class="nav-link icon-nav-link" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
+                        </li>
+                        <li class="nav-item ms-sm-2">
+                            @if (isEditMode || isListView)
+                            {
+                                <a class="btn btn-sm btn-primary" asp-area="" asp-page="/Index"
+                                   title="@(isListView ? "Close the list view" : "Leave edit mode")">Done</a>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-outline-secondary" asp-area="" asp-page="/Index" asp-route-edit="true"
+                                   title="Edit the dashboard">Edit</a>
+                            }
                         </li>
                     </ul>
                 </div>
@@ -79,7 +93,8 @@
         </nav>
     </header>
 
-    <form id="toggle-color-mode-form" asp-page="/Admin/ToggleColorMode" method="post" style="display:none">
+    @* Every page carries an antiforgery token here; wwwroot/js/api.js sends it with each JSON handler request. *@
+    <form id="antiforgery-token" class="d-none">
         @Html.AntiForgeryToken()
     </form>
 
@@ -91,20 +106,27 @@
         </main>
     </div>
 
+    @* wwwroot/js/modules/toast.js shows its toasts here. *@
+    <div id="toast-host" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+    @* Modal dialogs render here, outside .app-content: its z-index makes a stacking context that would trap a modal
+       beneath Bootstrap's backdrop. *@
+    @await RenderSectionAsync("Dialogs", required: false)
+
     <footer class="border-top footer text-muted py-3">
         <div class="container">
             &copy; 2026 Arkane Systems & Alistair J. R. Young - <strong>h2s</strong> - vibe-coded with <span class="text-danger">♥</span> and GitHub Copilot
         </div>
     </footer>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
-    <script src="https://cdn.jsdelivr.net/npm/trianglify@4.1.1/dist/trianglify.bundle.js"></script>
+    <script src="~/js/api.js" asp-append-version="true"></script>
+    <script src="~/js/lowpoly.js" asp-append-version="true"></script>
     <script>
         (function () {
-            // Trianglify color palettes per theme
-            const trianglifyColors = {
+            // Low-poly background palettes per theme
+            const backgroundColors = {
                 light: ['#1e1b4b', '#fbbf24'],
                 dark:  ['#1f1b5f', '#6d28d9', '#d8b4fe']
             };
@@ -112,11 +134,18 @@
             const backgroundHost = document.querySelector('.app-background');
             const header = document.querySelector('header');
             const footer = document.querySelector('footer');
-            const trianglifyFactory = window.Trianglify || window.trianglify;
 
-            const renderPattern = () => {
-                if (!backgroundHost || typeof trianglifyFactory !== 'function') return;
+            // One seed per page load: redrawing for a new size keeps the triangles already drawn where they were.
+            const seed = Math.floor(Math.random() * 2 ** 32);
+            let drawn = { width: 0, height: 0 };
 
+            // Sizes the background to the page and draws it, unless it is already drawn at that size. A theme change forces a
+            // redraw, since the colours change.
+            const renderPattern = ({ force = false } = {}) => {
+                if (!backgroundHost || !window.h2sLowPoly) return;
+
+                // Measure with the background collapsed, so its old height doesn't hold the page open when content shrinks.
+                backgroundHost.style.height = '0px';
                 const top = Math.max(header?.offsetHeight ?? 0, 0);
                 const footerHeight = Math.max(footer?.offsetHeight ?? 0, 0);
                 const pageHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -126,27 +155,36 @@
                 backgroundHost.style.top = `${top}px`;
                 backgroundHost.style.height = `${height}px`;
 
-                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-                const colors = isDark ? trianglifyColors.dark : trianglifyColors.light;
+                if (!force && width === drawn.width && height === drawn.height) return;
+                drawn = { width, height };
 
-                const pattern = trianglifyFactory({
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const colors = isDark ? backgroundColors.dark : backgroundColors.light;
+
+                backgroundHost.innerHTML = '';
+                const svg = window.h2sLowPoly.createSvg({
                     width,
                     height,
                     cellSize: 170,
                     variance: 0.75,
-                    xColors: colors
+                    colors,
+                    seed
                 });
-
-                backgroundHost.innerHTML = '';
-                const svg = pattern.toSVG();
                 svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
                 svg.classList.add('app-background-svg');
                 backgroundHost.appendChild(svg);
             };
 
-            renderPattern();
-            window.addEventListener('resize', renderPattern);
-            window.addEventListener('app-background-refresh', renderPattern);
+            renderPattern({ force: true });
+            window.addEventListener('resize', () => renderPattern());
+            window.addEventListener('app-background-refresh', () => renderPattern({ force: true }));
+
+            // Pages that build their content in script (the list view, edit mode adding links) change height after load.
+            let resizeTimer = 0;
+            new ResizeObserver(() => {
+                window.clearTimeout(resizeTimer);
+                resizeTimer = window.setTimeout(() => renderPattern(), 100);
+            }).observe(document.body);
 
             // Watch for system theme changes in Auto mode
             const toggleBtn = document.getElementById('color-mode-toggle');
@@ -156,7 +194,7 @@
                 if (currentMode === 0) { // Auto
                     const theme = systemDarkQuery.matches ? 'dark' : 'light';
                     document.documentElement.setAttribute('data-bs-theme', theme);
-                    renderPattern();
+                    renderPattern({ force: true });
                 }
             });
 
@@ -168,39 +206,33 @@
                 'Dark mode (click to switch to auto)'
             ];
 
+            // Shows a saved color mode ('Auto', 'Light' or 'Dark'): the toggle's icon and title, and the theme. Settings
+            // calls it too, through window.h2sColorMode, after saving the Appearance section.
+            const applyColorMode = name => {
+                const newMode = { Auto: 0, Light: 1, Dark: 2 }[name] ?? 0;
+
+                if (toggleBtn) {
+                    toggleBtn.dataset.colorMode = newMode;
+                    toggleBtn.textContent = colorModeIcons[newMode];
+                    toggleBtn.title = colorModeTitles[newMode];
+                    toggleBtn.setAttribute('aria-label', colorModeTitles[newMode]);
+                }
+
+                // Determine the effective theme
+                let newTheme;
+                if (newMode === 1) newTheme = 'light';
+                else if (newMode === 2) newTheme = 'dark';
+                else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
+
+                document.documentElement.setAttribute('data-bs-theme', newTheme);
+                renderPattern({ force: true });
+            };
+            window.h2sColorMode = { apply: applyColorMode };
+
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', () => {
-                    const form  = document.getElementById('toggle-color-mode-form');
-                    const token = form?.querySelector('input[name="__RequestVerificationToken"]')?.value;
-
-                    fetch(toggleBtn.dataset.url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'RequestVerificationToken': token ?? ''
-                        },
-                        body: token ? `__RequestVerificationToken=${encodeURIComponent(token)}` : ''
-                    })
-                    .then(r => r.json())
-                    .then(data => {
-                        // data.colorMode is 'Auto', 'Light', or 'Dark'
-                        const modeMap = { Auto: 0, Light: 1, Dark: 2 };
-                        const newMode = modeMap[data.colorMode] ?? 0;
-
-                        toggleBtn.dataset.colorMode = newMode;
-                        toggleBtn.textContent = colorModeIcons[newMode];
-                        toggleBtn.title = colorModeTitles[newMode];
-                        toggleBtn.setAttribute('aria-label', colorModeTitles[newMode]);
-
-                        // Determine the effective theme
-                        let newTheme;
-                        if (newMode === 1) newTheme = 'light';
-                        else if (newMode === 2) newTheme = 'dark';
-                        else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
-
-                        document.documentElement.setAttribute('data-bs-theme', newTheme);
-                        renderPattern();
-                    })
+                    window.h2sApi.postForm(toggleBtn.dataset.url)
+                    .then(data => applyColorMode(data.colorMode))
                     .catch(() => {
                         // On failure fall back to a full page reload so the server-side state is shown
                         window.location.reload();

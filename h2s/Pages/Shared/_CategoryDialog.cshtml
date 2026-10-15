@@ -1,0 +1,35 @@
+@* The add/edit category dialog for dashboard edit mode, driven by wwwroot/js/modules/category-dialog.js. *@
+<div class="modal fade" id="category-dialog" tabindex="-1" aria-labelledby="category-dialog-title" aria-hidden="true"
+     data-create-url="@Url.Page("/Admin/Editor", "CreateCategory")"
+     data-update-url="@Url.Page("/Admin/Editor", "UpdateCategory")"
+     data-delete-url="@Url.Page("/Admin/Editor", "DeleteCategory")"
+     data-restore-url="@Url.Page("/Admin/Editor", "RestoreCategory")">
+    <div class="modal-dialog">
+        <form class="modal-content" novalidate>
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="category-dialog-title">Add category</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-none" role="alert" data-role="error"></div>
+
+                <div class="mb-3">
+                    <label for="category-dialog-name" class="form-label">Name</label>
+                    <input type="text" class="form-control" id="category-dialog-name" name="name" required maxlength="100" autocomplete="off" />
+                    <div class="invalid-feedback">A name is required.</div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="category-dialog-admin" name="isAdminCategory" value="true" />
+                    <label class="form-check-label" for="category-dialog-admin">Admin category</label>
+                    <div class="form-text">Admin categories appear after the others, tinted red.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto d-none" data-role="delete">Delete</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>

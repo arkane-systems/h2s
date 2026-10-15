@@ -2,53 +2,14 @@
 @model IndexModel
 @{
     ViewData["Title"] = "";
+    ViewData["IsEditMode"] = Model.IsEditMode;
     var adminSectionStarted = false;
     var hasRenderedRegularCategory = false;
 }
 
 @if (Model.IsUptimeKumaConfigured && Model.InfrastructureGroups.Any())
 {
-    var statusPageUrl = Model.BuildStatusPageUrl();
-    var hasStatusPageUrl = !string.IsNullOrWhiteSpace(statusPageUrl);
-
-    if (hasStatusPageUrl)
-    {
-        <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@statusPageUrl" target="_blank" rel="noopener noreferrer">
-            <div class="category-box-body">
-                <div class="uptime-badge-list">
-                    @foreach (var group in Model.InfrastructureGroups)
-                    {
-                        <div class="uptime-badge-group">
-                            <div class="uptime-badge-label">@group.Name</div>
-                            <div class="uptime-badge-pair">
-                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "status")" alt="@($"{group.Name} status")" loading="lazy" />
-                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "uptime", Model.UptimeKumaDefaultDuration)" alt="@($"{group.Name} uptime")" loading="lazy" />
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
-        </a>
-    }
-    else
-    {
-        <section class="uptime-status-bar uptime-status-bar-static category-box border">
-            <div class="category-box-body">
-                <div class="uptime-badge-list">
-                    @foreach (var group in Model.InfrastructureGroups)
-                    {
-                        <div class="uptime-badge-group">
-                            <div class="uptime-badge-label">@group.Name</div>
-                            <div class="uptime-badge-pair">
-                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "status")" alt="@($"{group.Name} status")" loading="lazy" />
-                                <img src="@Model.BuildBadgeUrl(group.MonitorId, "uptime", Model.UptimeKumaDefaultDuration)" alt="@($"{group.Name} uptime")" loading="lazy" />
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
-        </section>
-    }
+    <partial name="_UptimeStatusBar" model="Model" />
 }
 
 <section class="home-search-box category-box border">
@@ -65,7 +26,23 @@
     </div>
 </section>
 
-<div class="category-grid">
+@if (Model.IsEditMode)
+{
+    <div id="edit-mode" class="edit-mode-banner category-box border"
+         data-reorder-categories-url="@Url.Page("/Admin/Editor", "ReorderCategories")"
+         data-reorder-links-url="@Url.Page("/Admin/Editor", "ReorderLinks")">
+        <div class="category-box-body d-flex flex-wrap align-items-center gap-2">
+            <span class="me-auto">
+                <strong>Edit mode.</strong> Click a tile or a category's <span aria-hidden="true">✎</span> to change it. Drag the
+                <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to rearrange. Changes save as you go.
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-category">+ Add category</button>
+            <a class="btn btn-sm btn-outline-secondary" asp-page="/Admin/Editor" title="All links in a filterable table">List view</a>
+        </div>
+    </div>
+}
+
+<div class="category-grid @(Model.IsEditMode ? "is-editing" : "")">
 @foreach (var category in Model.Categories)
 {
     @if (category.IsAdminCategory && hasRenderedRegularCategory && !adminSectionStarted)
@@ -74,45 +51,32 @@
         adminSectionStarted = true;
     }
 
-    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "")">
+    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "")"
+             data-category-id="@category.Id"
+             data-admin-category="@(category.IsAdminCategory ? "true" : "false")">
         <header class="category-box-header">
+            @if (Model.IsEditMode)
+            {
+                <button type="button" class="drag-handle category-drag-handle" title="Drag to move" aria-label="Move category @category.Name">⠿</button>
+            }
             <h2 class="h5 mb-0">@category.Name</h2>
+            @if (Model.IsEditMode)
+            {
+                <button type="button" class="category-edit-button ms-auto" title="Edit category" aria-label="Edit category @category.Name"
+                        data-role="edit-category">✎</button>
+            }
         </header>
         <div class="category-box-body">
-            <div class="link-block-list">
-                @foreach (var link in category.Links.OrderBy(l => l.Label))
+            <div class="link-block-list" data-category-id="@category.Id">
+                @foreach (var link in category.Links)
                 {
-                    var isExternal = Model.IsExternalLink(link.Url);
-
-                    <a class="link-block text-decoration-none text-body @(Model.IsUptimeKumaConfigured && !string.IsNullOrWhiteSpace(link.MonitorId) ? "has-link-status-badge" : "")" href="@link.Url">
-                        @if (isExternal)
-                        {
-                            <span class="link-external-flag" title="External site" aria-label="External site">External</span>
-                        }
-                        @if (Model.IsUptimeKumaConfigured && !string.IsNullOrWhiteSpace(link.MonitorId))
-                        {
-                            <img class="link-status-badge" src="@Model.BuildBadgeUrl(link.MonitorId, "status", label: "")" alt="@($"{link.Label} status")" loading="lazy" />
-                        }
-                        <div class="link-block-icon-wrap">
-                            @if (!string.IsNullOrWhiteSpace(link.IconName))
-                            {
-                                <img class="link-block-icon" src="@link.GetIconUrl()" alt="@($"{link.Label} icon")" loading="lazy" />
-                            }
-                            else
-                            {
-                                <span class="link-block-icon-fallback" aria-hidden="true">•</span>
-                            }
-                        </div>
-                        <div class="link-block-content">
-                            <span class="link-block-title">@link.Label</span>
-                            @if (!string.IsNullOrWhiteSpace(link.Description))
-                            {
-                                <span class="link-block-description">@link.Description</span>
-                            }
-                        </div>
-                    </a>
+                    <partial name="@(Model.IsEditMode ? "_EditableLinkSlot" : "_LinkTile")" model="Model.CreateLinkTile(link)" />
                 }
             </div>
+            @if (Model.IsEditMode)
+            {
+                <button type="button" class="btn btn-sm btn-link link-add-button" data-role="add-link">+ Add link</button>
+            }
         </div>
     </section>
 
@@ -122,3 +86,18 @@
     }
 }
 </div>
+
+@section Dialogs {
+    @if (Model.IsEditMode)
+    {
+        <partial name="_LinkDialog" model="new LinkDialogModel(Model.Categories, Model.IsUptimeKumaConfigured)" />
+        <partial name="_CategoryDialog" />
+    }
+}
+
+@section Scripts {
+    @if (Model.IsEditMode)
+    {
+        <script type="module" src="~/js/modules/edit-mode.js" asp-append-version="true"></script>
+    }
+}

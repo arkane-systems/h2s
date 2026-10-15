@@ -16,7 +16,7 @@ The app is designed to be run in a Linux container (I do so using my Kubernetes 
 From the repository root:
 
 ```bash
-docker build -t h2s:local -f h2s/Dockerfile h2s
+docker build -t h2s:local -f h2s/Dockerfile .
 ```
 
 If you just want to run the current official build, however, it's available on GitHub Container Registry at `ghcr.io/arkane-systems/h2s:latest` (or with the specific version tag).
@@ -31,10 +31,12 @@ A GitHub Actions workflow (`.github/workflows/publish-container.yml`) publishes 
 Create a local folder for persistent data, then run:
 
 ```bash
-docker run --rm -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 -v "$(pwd)/data:/app/data" h2s:local
+docker run --rm -p 8080:8080 --user "$(id -u):$(id -g)" -v "$(pwd)/data:/app/data" h2s:local
 ```
 
-The app expects the SQLite database at `/app/data/h2s.db` inside the container.
+The app keeps its SQLite database (`h2s.db`) and its Data Protection keys (`keys/`) in `/app/data` inside the container. The image runs as the non-root `app` user (UID 1654) by default; any UID works as long as it can write to `/app/data`, which is why the example runs as your own user.
+
+The app serves `/healthz`, which returns `Healthy` when the database is reachable.
 
 
 ## Running on Kubernetes
@@ -81,6 +83,14 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
           volumeMounts:
             - mountPath: "/app/data"
               name: "h2s-config"
@@ -124,9 +134,34 @@ spec:
 *Notes:*
 
 - The *Deployment* uses a Recreate strategy since the app doesn't support multiple instances running concurrently against the same database.
-- The *Deployment*'s *securityContext* runs the container as a non-root user for better security. The non-root user in particular is chosen to match the permissions of the mounted volume, which is owned by that user on my NFS server. If you use a different storage solution, you may need to adjust the UID/GID accordingly, and will definitely need to adjust the volume definition.
+- The image runs as a non-root user (UID 1654) by default. The *Deployment*'s *securityContext* overrides that UID to match the permissions of the mounted volume, which is owned by that user on my NFS server. If you use a different storage solution, you may need to adjust the UID/GID accordingly (or drop them to use the default), and will definitely need to adjust the volume definition.
+- The liveness and readiness probes use `/healthz`, which checks that the database is reachable.
 - My cluster and network is dual-stacked IPv4/IPv6, hence the *ipFamilyPolicy* setting in the *Service* definition. You will need to remove or change this if yours is not.
-- The *Ingress* is configured for Traefik with TLS enabled, but you can adjust the annotations and TLS settings as needed for your ingress controller and environment. It also (as does h2s itself) assumes that HTTPS will be handled entirely by the ingress controller and the app itself need only concern itself with HTTP.
+- The *Ingress* is configured for Traefik with TLS enabled, but you can adjust the annotations and TLS settings as needed for your ingress controller and environment. It also (as does h2s itself) assumes that HTTPS will be handled entirely by the ingress controller and the app itself need only concern itself with HTTP. h2s honors the `X-Forwarded-For` and `X-Forwarded-Proto` headers from any proxy, so it sees the original client address and scheme; don't expose it directly to untrusted networks.
+
+#### Trusting a homelab certificate authority
+
+When you add a link, h2s fetches the page from the server, following redirects from the base URL, to suggest a label and an icon from its title and the app name it declares. Later versions use the same kind of fetch for favicons and the Uptime Kuma monitor list. These requests validate certificates normally, so internal sites whose certificates come from your own CA quietly produce no suggestions until the container trusts that CA. Nothing else is affected.
+
+To trust it, mount the CA certificate (PEM format) into the container, and add its directory to `SSL_CERT_DIR`, keeping the system directory so public sites still work. For example, with the CA in a ConfigMap named `homelab-ca`:
+
+```yaml
+      volumes:
+        - name: homelab-ca
+          configMap:
+            name: homelab-ca          # contains homelab-ca.crt
+      containers:
+        - name: h2s
+          env:
+            - name: SSL_CERT_DIR
+              value: /etc/ssl/certs:/app/ca
+          volumeMounts:
+            - mountPath: /app/ca
+              name: homelab-ca
+              readOnly: true
+```
+
+This needs no root access and no rebuilt image.
 
 
 ## Using the dashboard
@@ -139,47 +174,54 @@ When you open the app, the home page shows link categories and their links. You 
 
 ### Settings page
 
-Open **Settings** from the navbar to configure global dashboard options:
+Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its own with its **Save** button; the links at the top jump to each.
 
-- **Title**: The dashboard title shown in the UI.
-- **Motto**: A short subtitle/tagline.
-- **Local domains**: Comma- or CRLF- separated domains treated as local/intranet hosts (used to determine which links will be badged as external).
-- **Color mode**: Default theme behavior (Auto, Light, Dark).
+- **General**: the **title** and **motto** shown in the navbar, and the **local domains**. Type each domain and press Enter, comma or space to add it as a chip; × removes one. Links to hosts outside these domains get an "External" badge.
+- **Appearance**: the **color mode** (Auto follows the device's light or dark setting). The ◑ button in the navbar cycles through the same modes.
+- **Integrations**: one card per integration; Uptime Kuma, below, is the only one so far.
+- **Backup**: export and import the whole configuration, below.
 
 #### Uptime Kuma integration
 
 You can optionally enable service-health badges powered by Uptime Kuma:
 
-- **Uptime Kuma server URL**: Base URL for your Kuma instance (for example `https://status.example.com`).
-- **Status page slug**: Slug for the public status page to open when clicking the top status bar.
-- **Default uptime duration (hours)**: Duration used for uptime badges in the top status bar.
+- **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`). Leave it blank to turn the integration off.
+- **Status page slug**: the slug of the public status page that the top status bar links to, and that the monitor pickers list monitors from.
+- **Uptime period (hours)**: the period for the uptime badges in the top status bar.
 
-When **Uptime Kuma server URL** is blank, Kuma features are hidden/disabled.
+**Test connection** checks the values in the form before you save them. It tells you whether the server answers, whether h2s trusts its certificate, and whether the status page exists and how many monitors it lists.
 
 ##### Infrastructure groups (top status bar)
 
-In **Settings**, add one or more infrastructure groups:
-
-- **Display name**: Friendly label shown in the status bar.
-- **Monitor ID**: Positive integer monitor ID from Uptime Kuma.
-
-Each group renders as a status + uptime badge pair in the top status bar.
+With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor from the status page, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
 
 > Important: For badges to work in h2s, the monitor must be included on a Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
 
-Save changes to apply them across the app.
+### Edit mode
 
-### Editor page
+Click **Edit** at the right of the navbar to edit the dashboard in place; **Done** returns to the normal view.
 
-Open **Editor** from the navbar to manage dashboard content:
+- Drag the ⠿ handles to reorder categories (within the regular or admin section) and links (within or between categories). A focused handle also responds to the arrow keys. Each move saves straight away.
+- Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
+  - **Browse…** searches the selfh.st icons with thumbnails.
+  - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
+  - With Uptime Kuma configured and a status page slug set, the **monitor** list shows the monitors on that status page by group. Pick **Another monitor ID…** to type one that isn't on it.
+- Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
+- Deletes take effect immediately, and the toast that confirms them has an **Undo** button.
 
-- Create, rename, and delete categories.
-- Mark categories as admin categories (shown beneath regular categories and tinted red).
-- Add, edit, and delete links in each category.
-- Set link label, description, URL, and optional icon name. Icons aren't stored locally; they're brought in from the [selfh.st/icons](https://selfh.st/icons/) content delivery network.
-- When Uptime Kuma is enabled in Settings, links also support an optional **Monitor ID** (positive integer) for a compact per-link status badge.
+### List view
 
-Changes in the editor are saved to the database and are reflected on the dashboard immediately.
+**List view** in the edit-mode banner opens every link in one table:
+
+- Filter by text (label, URL, description or icon) and by category. Click a column heading to sort by it.
+- Click a row to edit the link in the same dialog as edit mode, or use **+ Add link**.
+- Tick links (or the heading's box, for everything shown) to move them to another category, or to delete them. Deletes have **Undo**.
+
+Categories are managed in edit mode.
+
+### Backup
+
+**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, and the infrastructure groups. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control.
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).
