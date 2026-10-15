@@ -174,35 +174,28 @@ When you open the app, the home page shows link categories and their links. You 
 
 ### Settings page
 
-Open **Settings** from the navbar to configure global dashboard options:
+Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its own with its **Save** button; the links at the top jump to each.
 
-- **Title**: The dashboard title shown in the UI.
-- **Motto**: A short subtitle/tagline.
-- **Local domains**: Comma- or CRLF- separated domains treated as local/intranet hosts (used to determine which links will be badged as external).
-- **Color mode**: Default theme behavior (Auto, Light, Dark).
+- **General**: the **title** and **motto** shown in the navbar, and the **local domains**. Type each domain and press Enter, comma or space to add it as a chip; × removes one. Links to hosts outside these domains get an "External" badge.
+- **Appearance**: the **color mode** (Auto follows the device's light or dark setting). The ◑ button in the navbar cycles through the same modes.
+- **Integrations**: one card per integration; Uptime Kuma, below, is the only one so far.
+- **Backup**: export and import the whole configuration, below.
 
 #### Uptime Kuma integration
 
 You can optionally enable service-health badges powered by Uptime Kuma:
 
-- **Uptime Kuma server URL**: Base URL for your Kuma instance (for example `https://status.example.com`).
-- **Status page slug**: Slug for the public status page to open when clicking the top status bar.
-- **Default uptime duration (hours)**: Duration used for uptime badges in the top status bar.
+- **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`). Leave it blank to turn the integration off.
+- **Status page slug**: the slug of the public status page that the top status bar links to, and that the monitor pickers list monitors from.
+- **Uptime period (hours)**: the period for the uptime badges in the top status bar.
 
-When **Uptime Kuma server URL** is blank, Kuma features are hidden/disabled.
+**Test connection** checks the values in the form before you save them. It tells you whether the server answers, whether h2s trusts its certificate, and whether the status page exists and how many monitors it lists.
 
 ##### Infrastructure groups (top status bar)
 
-In **Settings**, add one or more infrastructure groups:
-
-- **Display name**: Friendly label shown in the status bar.
-- **Monitor ID**: Positive integer monitor ID from Uptime Kuma.
-
-Each group renders as a status + uptime badge pair in the top status bar.
+With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor from the status page, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
 
 > Important: For badges to work in h2s, the monitor must be included on a Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
-
-Save changes to apply them across the app.
 
 ### Edit mode
 

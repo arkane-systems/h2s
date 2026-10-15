@@ -1,6 +1,7 @@
 using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
+using h2s.Validation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -244,6 +245,9 @@ public class DashboardBackupService
       if (!string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl) &&
           !DashboardBackupService.IsWebUrl (settings.UptimeKumaServerUrl))
         Add ("Settings: the Uptime Kuma server URL must be an HTTP or HTTPS URL.");
+
+      if (!StatusPageSlug.IsValid (settings.UptimeKumaStatusPageSlug))
+        Add ("Settings: the status page slug may only contain letters, numbers, and hyphens.");
 
       if (settings.UptimeKumaDefaultDuration <= 0)
         Add ("Settings: the default uptime duration must be a positive number of hours.");

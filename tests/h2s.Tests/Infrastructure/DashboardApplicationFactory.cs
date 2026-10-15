@@ -43,7 +43,8 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
   public DashboardApplicationFactory () => this.connection.Open ();
 
   /// <summary>
-  ///   Gets or sets how the stubbed network answers the icon catalog, the page metadata reader and the Uptime Kuma client. By default it
+  ///   Gets or sets how the stubbed network answers the icon catalog, the page metadata reader, the Uptime Kuma client and
+  ///   the URL probe. By default it
   ///   serves
   ///   <see cref="IconIndexJson" /> as the icon index and 404 for everything else. Set it before the first request.
   /// </summary>
@@ -94,12 +95,14 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                      services.RemoveAll<IDbContextOptionsConfiguration<DashboardContext>> ();
                                      services.AddDbContext<DashboardContext> (options => options.UseSqlite (this.connection));
 
-                                     // Keep the icon catalog, the page metadata reader and the Uptime Kuma client off the network.
+                                     // Keep every outbound client off the network.
                                      foreach (string name in new[]
                                                              {
                                                                IconCatalog.ClientName,
                                                                PageMetadataReader.ClientName,
                                                                UptimeKumaClient.ClientName,
+                                                               UrlProbe.ClientName,
+                                                               UrlProbe.AcceptAnyCertificateClientName,
                                                              })
                                      {
                                        services.AddHttpClient (name)

@@ -49,11 +49,10 @@
                 <a class="navbar-brand d-flex align-items-center gap-2 mw-100 overflow-hidden" asp-area="" asp-page="/Index">
                     <img src="~/favicon.png" alt="" class="navbar-favicon flex-shrink-0" />
                     <span class="d-flex flex-column overflow-hidden">
-                        <span class="text-truncate"><strong>h2s</strong> - @settings.Title</span>
-                        @if (!string.IsNullOrWhiteSpace(settings.Motto))
-                        {
-                            <small class="text-muted text-wrap">@settings.Motto</small>
-                        }
+                        <span class="text-truncate"><strong>h2s</strong> - <span data-role="site-title">@settings.Title</span></span>
+                        @* Always rendered, so Settings can show a motto without a reload. *@
+                        <small class="text-muted text-wrap @(string.IsNullOrWhiteSpace(settings.Motto) ? "d-none" : "")"
+                               data-role="site-motto">@settings.Motto</small>
                     </span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
@@ -120,7 +119,6 @@
         </div>
     </footer>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/api.js" asp-append-version="true"></script>
@@ -208,28 +206,33 @@
                 'Dark mode (click to switch to auto)'
             ];
 
+            // Shows a saved color mode ('Auto', 'Light' or 'Dark'): the toggle's icon and title, and the theme. Settings
+            // calls it too, through window.h2sColorMode, after saving the Appearance section.
+            const applyColorMode = name => {
+                const newMode = { Auto: 0, Light: 1, Dark: 2 }[name] ?? 0;
+
+                if (toggleBtn) {
+                    toggleBtn.dataset.colorMode = newMode;
+                    toggleBtn.textContent = colorModeIcons[newMode];
+                    toggleBtn.title = colorModeTitles[newMode];
+                    toggleBtn.setAttribute('aria-label', colorModeTitles[newMode]);
+                }
+
+                // Determine the effective theme
+                let newTheme;
+                if (newMode === 1) newTheme = 'light';
+                else if (newMode === 2) newTheme = 'dark';
+                else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
+
+                document.documentElement.setAttribute('data-bs-theme', newTheme);
+                renderPattern({ force: true });
+            };
+            window.h2sColorMode = { apply: applyColorMode };
+
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', () => {
                     window.h2sApi.postForm(toggleBtn.dataset.url)
-                    .then(data => {
-                        // data.colorMode is 'Auto', 'Light', or 'Dark'
-                        const modeMap = { Auto: 0, Light: 1, Dark: 2 };
-                        const newMode = modeMap[data.colorMode] ?? 0;
-
-                        toggleBtn.dataset.colorMode = newMode;
-                        toggleBtn.textContent = colorModeIcons[newMode];
-                        toggleBtn.title = colorModeTitles[newMode];
-                        toggleBtn.setAttribute('aria-label', colorModeTitles[newMode]);
-
-                        // Determine the effective theme
-                        let newTheme;
-                        if (newMode === 1) newTheme = 'light';
-                        else if (newMode === 2) newTheme = 'dark';
-                        else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
-
-                        document.documentElement.setAttribute('data-bs-theme', newTheme);
-                        renderPattern({ force: true });
-                    })
+                    .then(data => applyColorMode(data.colorMode))
                     .catch(() => {
                         // On failure fall back to a full page reload so the server-side state is shown
                         window.location.reload();

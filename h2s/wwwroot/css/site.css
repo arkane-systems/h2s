@@ -312,6 +312,92 @@ footer,
   text-decoration: none;
 }
 
+/* The Settings page: section cards, an index of them, and the local-domain chips. */
+.settings-card {
+  margin-bottom: 1.25rem;
+  scroll-margin-top: 1rem;
+}
+
+/* A heading over a group of cards, such as Integrations' one card per integration. It sits on the page background, so
+   it gets the same translucent backing as the cards' headers. */
+.settings-group-title {
+  display: inline-block;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
+  background-color: rgba(var(--bs-body-bg-rgb), 0.62);
+  font-weight: 600;
+}
+
+/* Sets off a part of a card that works on its own, such as the infrastructure groups under Uptime Kuma's settings. */
+.settings-divider {
+  margin: 1.5rem 0 1.25rem;
+  border-top: 2px solid var(--bs-border-color);
+  opacity: 1;
+}
+
+.settings-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.chip-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: text;
+}
+
+.chip-input:focus-within {
+  border-color: var(--bs-primary-border-subtle);
+  box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+
+.chip-input-entry {
+  flex: 1 1 10rem;
+  min-width: 8rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.25rem 0.1rem 0.6rem;
+  border-radius: 1rem;
+  background-color: var(--bs-secondary-bg);
+  font-size: 0.9rem;
+}
+
+.chip-remove {
+  padding: 0 0.35rem;
+  border: 0;
+  border-radius: 1rem;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  line-height: 1.2;
+}
+
+.chip-remove:hover,
+.chip-remove:focus-visible {
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-emphasis-color);
+}
+
+/* As specific as the cards' ".category-box-body ul", which would otherwise indent it. */
+.category-box-body .group-list {
+  padding-left: 0;
+}
+
+.group-list .list-group-item {
+  background-color: transparent;
+}
+
 /* Settings → Backup: the server lists a file's problems one per line. */
 .backup-errors {
   white-space: pre-line;
