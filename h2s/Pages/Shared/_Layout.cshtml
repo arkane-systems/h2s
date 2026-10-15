@@ -10,6 +10,8 @@
         : $"{appTitle} - {pageTitle}";
     var colorModeInt = (int)settings.ColorMode;
     var isEditMode = ViewData["IsEditMode"] is true;
+    // The list view is editing too, so it offers Done (back to the dashboard) rather than Edit.
+    var isListView = ViewData["IsListView"] is true;
     var (colorModeIcon, colorModeTitle) = settings.ColorMode switch
     {
         ColorMode.Light => ("☀", "Light mode (click to switch to dark)"),
@@ -75,9 +77,10 @@
                             <a class="nav-link icon-nav-link" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
                         </li>
                         <li class="nav-item ms-sm-2">
-                            @if (isEditMode)
+                            @if (isEditMode || isListView)
                             {
-                                <a class="btn btn-sm btn-primary" asp-area="" asp-page="/Index" title="Leave edit mode">Done</a>
+                                <a class="btn btn-sm btn-primary" asp-area="" asp-page="/Index"
+                                   title="@(isListView ? "Close the list view" : "Leave edit mode")">Done</a>
                             }
                             else
                             {
@@ -134,9 +137,17 @@
             const header = document.querySelector('header');
             const footer = document.querySelector('footer');
 
-            const renderPattern = () => {
+            // One seed per page load: redrawing for a new size keeps the triangles already drawn where they were.
+            const seed = Math.floor(Math.random() * 2 ** 32);
+            let drawn = { width: 0, height: 0 };
+
+            // Sizes the background to the page and draws it, unless it is already drawn at that size. A theme change forces a
+            // redraw, since the colours change.
+            const renderPattern = ({ force = false } = {}) => {
                 if (!backgroundHost || !window.h2sLowPoly) return;
 
+                // Measure with the background collapsed, so its old height doesn't hold the page open when content shrinks.
+                backgroundHost.style.height = '0px';
                 const top = Math.max(header?.offsetHeight ?? 0, 0);
                 const footerHeight = Math.max(footer?.offsetHeight ?? 0, 0);
                 const pageHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -145,6 +156,9 @@
 
                 backgroundHost.style.top = `${top}px`;
                 backgroundHost.style.height = `${height}px`;
+
+                if (!force && width === drawn.width && height === drawn.height) return;
+                drawn = { width, height };
 
                 const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
                 const colors = isDark ? backgroundColors.dark : backgroundColors.light;
@@ -155,16 +169,24 @@
                     height,
                     cellSize: 170,
                     variance: 0.75,
-                    colors
+                    colors,
+                    seed
                 });
                 svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
                 svg.classList.add('app-background-svg');
                 backgroundHost.appendChild(svg);
             };
 
-            renderPattern();
-            window.addEventListener('resize', renderPattern);
-            window.addEventListener('app-background-refresh', renderPattern);
+            renderPattern({ force: true });
+            window.addEventListener('resize', () => renderPattern());
+            window.addEventListener('app-background-refresh', () => renderPattern({ force: true }));
+
+            // Pages that build their content in script (the list view, edit mode adding links) change height after load.
+            let resizeTimer = 0;
+            new ResizeObserver(() => {
+                window.clearTimeout(resizeTimer);
+                resizeTimer = window.setTimeout(() => renderPattern(), 100);
+            }).observe(document.body);
 
             // Watch for system theme changes in Auto mode
             const toggleBtn = document.getElementById('color-mode-toggle');
@@ -174,7 +196,7 @@
                 if (currentMode === 0) { // Auto
                     const theme = systemDarkQuery.matches ? 'dark' : 'light';
                     document.documentElement.setAttribute('data-bs-theme', theme);
-                    renderPattern();
+                    renderPattern({ force: true });
                 }
             });
 
@@ -206,7 +228,7 @@
                         else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
 
                         document.documentElement.setAttribute('data-bs-theme', newTheme);
-                        renderPattern();
+                        renderPattern({ force: true });
                     })
                     .catch(() => {
                         // On failure fall back to a full page reload so the server-side state is shown

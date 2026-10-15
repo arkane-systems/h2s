@@ -44,6 +44,11 @@ public class ListViewAndBackupTests
     Assert.Contains (expectedSubstring: """id="link-dialog""",                               actualString: html);
     Assert.Matches (expectedRegexPattern: """<script type="module" src="/js/modules/link-list\.[^"]*js""", actualString: html);
     Assert.DoesNotContain (expectedSubstring: "editor.js", actualString: html);
+
+    // The navbar offers Done, back to the dashboard, rather than Edit.
+    Assert.Contains (expectedSubstring: """title="Close the list view""", actualString: html);
+    Assert.Contains (expectedSubstring: ">Done</a>",                      actualString: html);
+    Assert.DoesNotContain (expectedSubstring: ">Edit</a>", actualString: html);
   }
 
   [Fact]

@@ -3,6 +3,7 @@
 @using System.Text.Json
 @{
     ViewData["Title"] = "Links";
+    ViewData["IsListView"] = true;
 }
 @* The list view: every link in one filterable, sortable table, with bulk move and delete. Rows open the shared link dialog.
    wwwroot/js/modules/link-list.js renders the table from the JSON below and refreshes it from OnGetLinksAsync. *@
