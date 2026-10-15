@@ -1,15 +1,47 @@
 ﻿@using h2s.Panels
 @model SearchPanelModel
-@* The search panel: a web search form. *@
+@* The search panel: a web search form. /Search picks the engine, so a !shortcut works without script. The ⌕ button opens
+   a menu of the engines, in Settings order, that picks one for the next search only (wwwroot/js/modules/search-panel.js);
+   a !shortcut in the query still wins. *@
 <section class="home-search-box category-box border">
     <div class="category-box-body">
-        <form class="home-search-form" action="https://www.bing.com/search" method="get" role="search">
-            <span class="home-search-icon" aria-hidden="true">⌕</span>
+        <form class="home-search-form" asp-page="/Search" method="get" role="search" data-role="search-panel"
+              data-default-placeholder="@Model.Placeholder">
+            <div class="dropdown">
+                <button type="button" class="home-search-icon home-search-engine-button" data-bs-toggle="dropdown"
+                        aria-expanded="false" aria-label="Choose a search engine for this search" title="Choose a search engine">⌕</button>
+                <ul class="dropdown-menu home-search-engine-menu" data-role="engine-menu">
+                    <li><h3 class="dropdown-header">Search this time with</h3></li>
+                    @foreach (var engine in Model.Engines)
+                    {
+                        <li>
+                            <button type="button" class="dropdown-item home-search-engine-item" data-engine-id="@engine.Id"
+                                    data-engine-name="@engine.Name" data-default="@(engine.IsDefault ? "true" : "false")"
+                                    aria-current="@(engine.IsDefault ? "true" : "false")">
+                                <span class="me-auto">
+                                    @engine.Name
+                                    @if (engine.IsDefault)
+                                    {
+                                        <span class="text-body-secondary small">(default)</span>
+                                    }
+                                </span>
+                                @if (engine.Shortcut.Length > 0)
+                                {
+                                    <kbd class="home-search-shortcut">!@engine.Shortcut</kbd>
+                                }
+                            </button>
+                        </li>
+                    }
+                    <li><hr class="dropdown-divider" /></li>
+                    <li><p class="dropdown-item-text small text-body-secondary mb-0">Start or end a search with a shortcut to pick an engine as you type.</p></li>
+                </ul>
+            </div>
+            <input type="hidden" name="engine" value="" disabled data-role="engine-choice" />
             <input type="search"
                    name="q"
                    class="form-control home-search-input"
                    placeholder="@Model.Placeholder"
-                   aria-label="Search with Bing"
+                   aria-label="@($"Search with {Model.EngineName}")"
                    required />
         </form>
     </div>

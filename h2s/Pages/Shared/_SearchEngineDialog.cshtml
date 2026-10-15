@@ -1,0 +1,54 @@
+@* The add/edit search engine dialog on the Settings page, driven by wwwroot/js/modules/search-engines.js. *@
+<div class="modal fade" id="search-engine-dialog" tabindex="-1" aria-labelledby="search-engine-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" novalidate>
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="search-engine-dialog-title">Add search engine</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-none" role="alert" data-role="error"></div>
+
+                <div class="mb-3">
+                    <label for="search-engine-name" class="form-label">Name</label>
+                    <input type="text" class="form-control" id="search-engine-name" name="name" required maxlength="100" autocomplete="off" />
+                    <div class="invalid-feedback">A name is required.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="search-engine-url" class="form-label">Search URL</label>
+                    <input type="text" class="form-control" id="search-engine-url" name="urlTemplate" required autocomplete="off"
+                           pattern="\s*https?://.*\{query\}.*" placeholder="https://www.example.com/search?q={query}"
+                           aria-describedby="search-engine-url-help" />
+                    <div class="invalid-feedback">Enter an address starting with http:// or https://, with {query} where the search terms go.</div>
+                    <div class="form-text" id="search-engine-url-help">
+                        Search for something on the engine, copy the address, and replace your search terms with <code>{query}</code>.
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="search-engine-shortcut" class="form-label">Shortcut <span class="text-muted">(optional)</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text">!</span>
+                        <input type="text" class="form-control" id="search-engine-shortcut" name="shortcut" maxlength="21" autocomplete="off"
+                               pattern="\s*!?[A-Za-z0-9\-]{0,20}\s*" aria-describedby="search-engine-shortcut-help" />
+                    </div>
+                    <div class="invalid-feedback d-block d-none" data-role="shortcut-invalid">Use only letters, numbers and hyphens.</div>
+                    <div class="form-text" id="search-engine-shortcut-help">Start or end a search with it, such as <code>!g</code>, to use this engine.</div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="search-engine-default" name="isDefault" value="true"
+                           aria-describedby="search-engine-default-help" />
+                    <label class="form-check-label" for="search-engine-default">Default engine</label>
+                    <div class="form-text" id="search-engine-default-help">Searches without a shortcut go here.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto d-none" data-role="delete">Delete</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>

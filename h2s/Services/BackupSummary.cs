@@ -10,6 +10,9 @@ namespace h2s.Services;
 /// <param name="Links">The number of links.</param>
 /// <param name="InfrastructureGroups">The number of infrastructure groups.</param>
 /// <param name="Panels">The number of panels; for a file from before panels, the number of default panels.</param>
+/// <param name="SearchEngines">
+///   The number of search engines; for a file from before search engines, the number of default engines.
+/// </param>
 public sealed record BackupSummary (
   string          Title,
   DateTimeOffset? ExportedAt,
@@ -17,4 +20,5 @@ public sealed record BackupSummary (
   int             AdminCategories,
   int             Links,
   int             InfrastructureGroups,
-  int             Panels);
+  int             Panels,
+  int             SearchEngines);

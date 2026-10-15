@@ -127,6 +127,25 @@ public class MigrationTests
                         });
   }
 
+  [Fact]
+  public async Task AddSearchEngines_KeepsBingAsTheDefault ()
+  {
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+
+    await context.Database.MigrateAsync (cancellationToken);
+
+    List<SearchEngine> engines = await context.SearchEngines.OrderBy (e => e.SortOrder).ToListAsync (cancellationToken);
+
+    Assert.Equal (expected: [("Bing", "b", true), ("DuckDuckGo", "d", false), ("Google", "g", false)],
+                  actual: engines.Select (e => (e.Name, e.Shortcut, e.IsDefault)));
+    Assert.Equal (expected: "https://www.bing.com/search?q={query}", actual: engines[0].UrlTemplate);
+  }
+
   /// <summary>
   ///   Reads each row's name with its sort order.
   /// </summary>

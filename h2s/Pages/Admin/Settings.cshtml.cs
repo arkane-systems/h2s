@@ -14,7 +14,7 @@ namespace h2s.Pages.Admin;
 /// <summary>
 ///   Page model for editing the singleton dashboard settings record.
 /// </summary>
-public class SettingsModel : PageModel
+public partial class SettingsModel : PageModel
 {
   // A dashboard file is a few kilobytes per hundred links, so this is generous.
   private const long MaxBackupBytes = 2 * 1024 * 1024;
@@ -109,12 +109,13 @@ public class SettingsModel : PageModel
                                          Links                = await this.context.Links.CountAsync (),
                                          InfrastructureGroups = await this.context.InfrastructureGroups.CountAsync (),
                                          Panels               = await this.context.Panels.CountAsync (),
+                                         SearchEngines        = await this.context.SearchEngines.CountAsync (),
                                        },
                            });
   }
 
   /// <summary>
-  ///   Replaces the whole configuration (settings, categories, links, infrastructure groups and panels) with an uploaded
+  ///   Replaces the whole configuration (settings, categories, links, infrastructure groups, panels and search engines) with an uploaded
   ///   dashboard file's.
   /// </summary>
   /// <param name="file">The dashboard file.</param>
@@ -140,6 +141,7 @@ public class SettingsModel : PageModel
     this.InfrastructureGroups = await this.GetOrderedInfrastructureGroupsQuery ()
                                           .AsNoTracking ()
                                           .ToListAsync ();
+    this.SearchEngines = await this.GetOrderedSearchEnginesAsync ();
   }
 
   /// <summary>

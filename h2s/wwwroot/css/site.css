@@ -669,6 +669,61 @@ th[aria-sort="descending"] .list-view-sort::after {
   margin-right: 0.5rem;
 }
 
+/* The ⌕ button opens the engine menu (wwwroot/js/modules/search-panel.js). Unlike other cards, the search box doesn't
+   clip its content, so the menu can hang below it; and it's lifted while the menu is open, because each translucent card
+   is its own stacking context and later cards would otherwise paint over the menu. */
+.home-search-engine-button {
+  margin-left: -0.35rem;
+  padding: 0.15rem 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.home-search-engine-button:hover,
+.home-search-engine-button:focus-visible,
+.home-search-engine-button[aria-expanded="true"] {
+  color: var(--bs-emphasis-color);
+  background-color: rgba(var(--bs-secondary-rgb), 0.15);
+}
+
+.home-search-engine-button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
+}
+
+.has-engine-choice .home-search-engine-button {
+  color: var(--bs-primary);
+}
+
+.home-search-box {
+  overflow: visible;
+}
+
+.home-search-box:has(.dropdown-menu.show) {
+  position: relative;
+  z-index: 10;
+}
+
+.home-search-engine-menu {
+  min-width: 16rem;
+}
+
+.home-search-engine-item {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.home-search-engine-item[aria-current="true"] {
+  font-weight: 600;
+}
+
+.home-search-shortcut {
+  font-size: 0.75rem;
+}
+
 .home-search-input {
   border: 0;
   background: transparent;
