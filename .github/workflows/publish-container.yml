@@ -65,6 +65,13 @@ jobs:
               exit 1
             fi
 
+            # The footer shows the project's <Version>, so a release tag must match it.
+            PROJECT_VERSION="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' h2s/h2s.csproj | head -n1)"
+            if [ "${VERSION_TAG}" != "${PROJECT_VERSION}" ]; then
+              echo "::error::Tag ${VERSION_TAG} doesn't match <Version>${PROJECT_VERSION}</Version> in h2s/h2s.csproj. Bump the version, then tag that commit."
+              exit 1
+            fi
+
             TAGS="$(printf '%s\n%s' "${IMAGE_NAME}:${VERSION_TAG}" "${IMAGE_NAME}:latest")"
           fi
 

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using h2s.Authorization;
+using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -25,6 +26,19 @@ public partial class IndexPageTests
 
     // The seeded Reference category holds the three links outside home.arpa.
     Assert.Equal (expected: 3, actual: IndexPageTests.ExternalFlagPattern ().Count (html));
+  }
+
+  [Fact]
+  public async Task Index_ShowsVersionInFooter ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+
+    // The layout's CSS isolation adds a scope attribute (b-…) to every tag.
+    Assert.Matches (expectedRegexPattern: $"""<span[^>]*data-role="app-version"[^>]*>{Regex.Escape (AppVersion.Current)}</span>""",
+                    actualString: html);
   }
 
   [Fact]
