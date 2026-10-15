@@ -19,7 +19,6 @@ public class HostingTests
   [Theory]
   [InlineData ("Admin/Editor")]
   [InlineData ("Admin/Settings")]
-  [InlineData ("Admin/ToggleColorMode")]
   public async Task AdminPages_RequireAdminPolicy (string route)
   {
     await using var factory = new DashboardApplicationFactory ();

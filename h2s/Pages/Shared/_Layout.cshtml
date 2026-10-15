@@ -8,16 +8,13 @@
     var fullPageTitle = string.IsNullOrWhiteSpace(pageTitle)
         ? appTitle
         : $"{appTitle} - {pageTitle}";
-    var colorModeInt = (int)settings.ColorMode;
+    // This browser's own color mode, from the toggle's cookie, wins over the site's.
+    var viewerColorMode = ViewerPreferences.ReadColorMode(Context.Request);
+    var colorModeInt = (int)(viewerColorMode ?? settings.ColorMode);
     var isEditMode = ViewData["IsEditMode"] is true;
     // The list view is editing too, so it offers Done (back to the dashboard) rather than Edit.
     var isListView = ViewData["IsListView"] is true;
-    var (colorModeIcon, colorModeTitle) = settings.ColorMode switch
-    {
-        ColorMode.Light => ("☀", "Light mode (click to switch to dark)"),
-        ColorMode.Dark  => ("☾", "Dark mode (click to switch to auto)"),
-        _               => ("◑", "Auto mode (click to switch to light)")
-    };
+    var (colorModeIcon, colorModeTitle) = ViewerPreferences.DescribeToggle(viewerColorMode, settings.ColorMode);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -67,8 +64,8 @@
                         <li class="nav-item">
                             <button id="color-mode-toggle"
                                     class="nav-link icon-nav-link"
-                                    data-color-mode="@colorModeInt"
-                                    data-url="@Url.Page("/Admin/ToggleColorMode")"
+                                    data-viewer-mode="@(viewerColorMode?.ToString() ?? "")"
+                                    data-site-mode="@settings.ColorMode"
                                     title="@colorModeTitle"
                                     aria-label="@colorModeTitle">@colorModeIcon</button>
                         </li>
@@ -186,59 +183,66 @@
                 resizeTimer = window.setTimeout(() => renderPattern(), 100);
             }).observe(document.body);
 
-            // Watch for system theme changes in Auto mode
+            // Color mode: the site's (Settings → Appearance), unless this browser picked its own with the toggle, which keeps it
+            // in a cookie the server reads (ViewerPreferences). The toggle cycles the site default, light, dark and auto, then
+            // back to the site default. The titles match ViewerPreferences.DescribeToggle.
             const toggleBtn = document.getElementById('color-mode-toggle');
             const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            systemDarkQuery.addEventListener('change', () => {
-                const currentMode = parseInt(toggleBtn?.dataset.colorMode ?? '0', 10);
-                if (currentMode === 0) { // Auto
-                    const theme = systemDarkQuery.matches ? 'dark' : 'light';
-                    document.documentElement.setAttribute('data-bs-theme', theme);
-                    renderPattern({ force: true });
-                }
-            });
+            const colorModeIcons = { Auto: '◑', Light: '☀', Dark: '☾' };
+            const nextViewerMode = { '': 'Light', Light: 'Dark', Dark: 'Auto', Auto: '' };
 
-            // Color mode toggle button
-            const colorModeIcons  = ['◑', '☀', '☾'];
-            const colorModeTitles = [
-                'Auto mode (click to switch to light)',
-                'Light mode (click to switch to dark)',
-                'Dark mode (click to switch to auto)'
-            ];
+            const effectiveMode = () => toggleBtn?.dataset.viewerMode || toggleBtn?.dataset.siteMode || 'Auto';
 
-            // Shows a saved color mode ('Auto', 'Light' or 'Dark'): the toggle's icon and title, and the theme. Settings
-            // calls it too, through window.h2sColorMode, after saving the Appearance section.
-            const applyColorMode = name => {
-                const newMode = { Auto: 0, Light: 1, Dark: 2 }[name] ?? 0;
-
-                if (toggleBtn) {
-                    toggleBtn.dataset.colorMode = newMode;
-                    toggleBtn.textContent = colorModeIcons[newMode];
-                    toggleBtn.title = colorModeTitles[newMode];
-                    toggleBtn.setAttribute('aria-label', colorModeTitles[newMode]);
-                }
-
-                // Determine the effective theme
-                let newTheme;
-                if (newMode === 1) newTheme = 'light';
-                else if (newMode === 2) newTheme = 'dark';
-                else newTheme = systemDarkQuery.matches ? 'dark' : 'light';
-
-                document.documentElement.setAttribute('data-bs-theme', newTheme);
+            const applyTheme = () => {
+                const mode = effectiveMode();
+                const theme = mode === 'Light' ? 'light'
+                    : mode === 'Dark' ? 'dark'
+                    : (systemDarkQuery.matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-bs-theme', theme);
                 renderPattern({ force: true });
             };
-            window.h2sColorMode = { apply: applyColorMode };
 
-            if (toggleBtn) {
-                toggleBtn.addEventListener('click', () => {
-                    window.h2sApi.postForm(toggleBtn.dataset.url)
-                    .then(data => applyColorMode(data.colorMode))
-                    .catch(() => {
-                        // On failure fall back to a full page reload so the server-side state is shown
-                        window.location.reload();
-                    });
-                });
-            }
+            const showToggle = () => {
+                if (!toggleBtn) return;
+                const viewer = toggleBtn.dataset.viewerMode;
+                const site = toggleBtn.dataset.siteMode;
+                const [icon, title] = {
+                    '': [colorModeIcons[site] ?? '◑', `Site default (${site}). Click for light in this browser.`],
+                    Light: ['☀', 'Light in this browser. Click for dark.'],
+                    Dark: ['☾', 'Dark in this browser. Click for auto.'],
+                    Auto: ['◑', 'Auto in this browser. Click to follow the site default.']
+                }[viewer] ?? ['◑', ''];
+                toggleBtn.textContent = icon;
+                toggleBtn.title = title;
+                toggleBtn.setAttribute('aria-label', title);
+            };
+
+            // Following the site default clears the cookie; anything else keeps it for a year.
+            const setViewerMode = mode => {
+                toggleBtn.dataset.viewerMode = mode;
+                document.cookie = mode
+                    ? `@(ViewerPreferences.ColorModeCookie)=${mode.toLowerCase()}; path=/; max-age=31536000; samesite=lax`
+                    : `@(ViewerPreferences.ColorModeCookie)=; path=/; max-age=0; samesite=lax`;
+                showToggle();
+                applyTheme();
+            };
+
+            // Auto follows the system's light or dark setting as it changes.
+            systemDarkQuery.addEventListener('change', () => {
+                if (effectiveMode() === 'Auto') applyTheme();
+            });
+
+            // Settings calls this after saving the Appearance section. A browser with its own mode keeps it.
+            window.h2sColorMode = {
+                setSiteDefault: name => {
+                    if (!toggleBtn) return;
+                    toggleBtn.dataset.siteMode = name;
+                    showToggle();
+                    applyTheme();
+                }
+            };
+
+            toggleBtn?.addEventListener('click', () => setViewerMode(nextViewerMode[toggleBtn.dataset.viewerMode] ?? ''));
         })();
     </script>
 

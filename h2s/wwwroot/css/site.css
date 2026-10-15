@@ -87,6 +87,25 @@ footer,
   border: 0;
 }
 
+/* Following the site default, the toggle shows the site's icon with a small ⚙ badge (Settings is where the default
+   lives), so it can't be mistaken for the same mode picked for this browser. */
+#color-mode-toggle {
+  position: relative;
+}
+
+#color-mode-toggle[data-viewer-mode=""]::after {
+  content: "⚙";
+  position: absolute;
+  right: 0;
+  bottom: 0.1rem;
+  padding: 0.05rem;
+  border-radius: 50%;
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
 #color-mode-toggle:focus:not(:focus-visible) {
   outline: 0;
   box-shadow: none;

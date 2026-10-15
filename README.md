@@ -183,14 +183,14 @@ Start typing anywhere on the dashboard (or press `/`) to open **quick launch**, 
 Quick launch is off in edit mode, and while you're typing in a field such as the search box.
 
 The search box and the Uptime Kuma status bar are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as the status bar before Uptime Kuma is set up, is hidden outside edit mode.
-- Toggle color mode from the navbar (Auto, Light, Dark).
+- Pick a color mode for your browser with the navbar's ◑ button. It cycles through the site default, Light, Dark and Auto, and only your browser changes; back at the site default, it follows **Settings → Appearance** again.
 
 ### Settings page
 
 Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its own with its **Save** button; the links at the top jump to each.
 
 - **General**: the **title** and **motto** shown in the navbar, and the **local domains**. Type each domain and press Enter, comma or space to add it as a chip; × removes one. Links to hosts outside these domains get an "External" badge.
-- **Appearance**: the **color mode** (Auto follows the device's light or dark setting). The ◑ button in the navbar cycles through the same modes.
+- **Appearance**: the site's **color mode**, which every browser uses until it picks its own with the navbar's ◑ button. Auto follows the device's light or dark setting.
 - **Search**: the search engines, below.
 - **Integrations**: one card per integration; Uptime Kuma, below, is the only one so far.
 - **Backup**: export and import the whole configuration, below.
