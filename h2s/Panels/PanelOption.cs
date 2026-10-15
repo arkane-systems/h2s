@@ -15,6 +15,12 @@ public sealed record PanelOption (string Key, string Label, PanelOptionType Type
   public string? HelpText { get; init; }
 
   /// <summary>
+  ///   Gets a value indicating whether a text or integer option must have a value: text that isn't blank, or a number.
+  ///   Booleans always have one.
+  /// </summary>
+  public bool IsRequired { get; init; }
+
+  /// <summary>
   ///   Gets the value used when the panel has none stored, or a stored value doesn't fit the option: a
   ///   <see cref="string" />, <see cref="int" /> or <see cref="bool" /> to match <see cref="Type" />. Without one, text
   ///   reads as an empty string, a boolean as <c>false</c>, and an integer as blank.

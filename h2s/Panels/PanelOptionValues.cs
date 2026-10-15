@@ -4,7 +4,7 @@ namespace h2s.Panels;
 
 /// <summary>
 ///   A panel's option values, read from its stored JSON against its kind's schema. Unknown keys are ignored, and missing
-///   values, or values of the wrong type or out of range, take the option's default.
+///   values, or values of the wrong type, out of range, or blank where the option is required, take the option's default.
 /// </summary>
 public sealed class PanelOptionValues
 {
@@ -45,6 +45,12 @@ public sealed class PanelOptionValues
         this.values[option.Key] = read;
     }
   }
+
+  /// <summary>
+  ///   Gets every option's value, keyed by option name: a <see cref="string" />, <see cref="int" />, <see cref="bool" />
+  ///   or <c>null</c>, in schema order. The panel dialog starts from these.
+  /// </summary>
+  public IReadOnlyDictionary<string, object?> Values => this.values;
 
   /// <summary>
   ///   Gets a text option's value.
@@ -93,7 +99,8 @@ public sealed class PanelOptionValues
 
     switch (option.Type)
     {
-      case PanelOptionType.Text when element.ValueKind == JsonValueKind.String:
+      case PanelOptionType.Text when (element.ValueKind == JsonValueKind.String) &&
+                                     !(option.IsRequired && string.IsNullOrWhiteSpace (element.GetString ())):
         value = element.GetString ();
 
         return true;
@@ -103,7 +110,7 @@ public sealed class PanelOptionValues
 
         return true;
 
-      case PanelOptionType.Integer when element.ValueKind == JsonValueKind.Null:
+      case PanelOptionType.Integer when (element.ValueKind == JsonValueKind.Null) && !option.IsRequired:
         return true;
 
       case PanelOptionType.Integer when (element.ValueKind == JsonValueKind.Number)  &&

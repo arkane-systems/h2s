@@ -17,11 +17,12 @@
          data-reorder-panels-url="@Url.Page("/Admin/Editor", "ReorderPanels")">
         <div class="category-box-body d-flex flex-wrap align-items-center gap-2">
             <span class="me-auto">
-                <strong>Edit mode.</strong> Click a tile or a category's <span aria-hidden="true">✎</span> to change it. Drag the
+                <strong>Edit mode.</strong> Click a tile, or a category's or panel's <span aria-hidden="true">✎</span>, to change it. Drag the
                 <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to rearrange categories, links and the
                 panels above and below them. Changes save as you go.
             </span>
             <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-category">+ Add category</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-panel">+ Add panel</button>
             <a class="btn btn-sm btn-outline-secondary" asp-page="/Admin/Editor" title="All links in a filterable table">List view</a>
         </div>
     </div>
@@ -81,6 +82,7 @@
     {
         <partial name="_LinkDialog" model="new LinkDialogModel(Model.Categories, Model.IsUptimeKumaConfigured)" />
         <partial name="_CategoryDialog" />
+        <partial name="_PanelDialog" />
     }
 }
 

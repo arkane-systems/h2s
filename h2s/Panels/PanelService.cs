@@ -53,6 +53,21 @@ public sealed partial class PanelService
   }
 
   /// <summary>
+  ///   Loads one panel and builds its content.
+  /// </summary>
+  /// <param name="id">The panel's ID.</param>
+  /// <param name="cancellationToken">A token used to cancel the work.</param>
+  /// <returns>The panel, or <c>null</c> when it doesn't exist.</returns>
+  public async Task<PanelView?> GetPanelAsync (int id, CancellationToken cancellationToken = default)
+  {
+    Panel? panel = await this.context.Panels
+                             .AsNoTracking ()
+                             .FirstOrDefaultAsync (predicate: p => p.Id == id, cancellationToken: cancellationToken);
+
+    return panel == null ? null : await this.CreateViewAsync (panel: panel, cancellationToken: cancellationToken);
+  }
+
+  /// <summary>
   ///   Builds one panel's content.
   /// </summary>
   /// <param name="panel">The panel.</param>

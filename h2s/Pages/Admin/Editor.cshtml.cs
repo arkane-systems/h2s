@@ -1,6 +1,7 @@
 using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
+using h2s.Panels;
 using h2s.Services;
 using h2s.Validation;
 using Microsoft.AspNetCore.Mvc;
@@ -10,13 +11,16 @@ using Microsoft.EntityFrameworkCore;
 namespace h2s.Pages.Admin;
 
 /// <summary>
-///   Page model for the admin editor used to manage categories and links.
+///   Page model for the admin editor used to manage categories and links. It also hosts the JSON handlers dashboard edit
+///   mode calls; the panel handlers are in <c>Editor.Panels.cs</c>.
 /// </summary>
-public class EditorModel : PageModel
+public partial class EditorModel : PageModel
 {
   private readonly DashboardContext         context;
   private readonly IconCatalog              iconCatalog;
   private readonly PageMetadataReader       pageMetadataReader;
+  private readonly PanelCatalog             panelCatalog;
+  private readonly PanelService             panelService;
   private readonly DashboardSettingsService settingsService;
   private readonly UptimeKumaClient         uptimeKumaClient;
 
@@ -28,12 +32,18 @@ public class EditorModel : PageModel
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   /// <param name="pageMetadataReader">The reader used to suggest a label from a link's page.</param>
   /// <param name="uptimeKumaClient">The client used to list the monitors on the Uptime Kuma status page.</param>
+  /// <param name="panelCatalog">The panel kinds edit mode can add.</param>
+  /// <param name="panelService">The service used to render panels as edit mode shows them.</param>
   public EditorModel (DashboardContext         context,
                       IconCatalog              iconCatalog,
                       DashboardSettingsService settingsService,
                       PageMetadataReader       pageMetadataReader,
-                      UptimeKumaClient         uptimeKumaClient)
+                      UptimeKumaClient         uptimeKumaClient,
+                      PanelCatalog             panelCatalog,
+                      PanelService             panelService)
   {
+    this.panelCatalog       = panelCatalog;
+    this.panelService       = panelService;
     this.context            = context;
     this.iconCatalog        = iconCatalog;
     this.settingsService    = settingsService;
@@ -657,56 +667,6 @@ public class EditorModel : PageModel
       return this.BadRequestProblem ("The order must include every link in the category.");
 
     await this.PlaceLinksAsync (categoryId: categoryId, ids: ids, links: links);
-
-    return new JsonResult (new { Success = true });
-  }
-
-  /// <summary>
-  ///   Reorders the panels of one zone, moving any listed panels that sit in the other zone into it.
-  /// </summary>
-  /// <param name="zone">The zone whose panels are ordered: <c>Top</c> or <c>Bottom</c>.</param>
-  /// <param name="orderedIds">
-  ///   The IDs of every panel in the zone, plus any panels being moved into it, in the desired order.
-  /// </param>
-  /// <returns>A JSON payload confirming success, or a 400 problem response when validation fails.</returns>
-  public async Task<IActionResult> OnPostReorderPanelsAsync (string? zone, string[]? orderedIds)
-  {
-    // By name only: Enum.TryParse would also take numbers and comma-separated lists.
-    string? zoneName = Enum.GetNames<PanelZone> ()
-                           .FirstOrDefault (n => string.Equals (a: n,
-                                                                b: zone?.Trim (),
-                                                                comparisonType: StringComparison.OrdinalIgnoreCase));
-
-    if (zoneName == null)
-      return this.BadRequestProblem ("The zone must be Top or Bottom.");
-
-    var target = Enum.Parse<PanelZone> (zoneName);
-
-    if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
-      return this.BadRequestProblem (error);
-
-    List<Panel>            panels     = await this.context.Panels.ToListAsync ();
-    Dictionary<int, Panel> panelsById = panels.ToDictionary (p => p.Id);
-
-    if (ids.Any (id => !panelsById.ContainsKey (id)))
-      return this.BadRequestProblem ("One or more panels do not exist.");
-
-    if (panels.Any (p => (p.Zone == target) && !ids.Contains (p.Id)))
-      return this.BadRequestProblem ("The order must include every panel in the zone.");
-
-    for (var i = 0; i < ids.Count; i++)
-    {
-      panelsById[ids[i]].Zone      = target;
-      panelsById[ids[i]].SortOrder = i;
-    }
-
-    // Close the gap a panel moved in from the other zone leaves behind.
-    var position = 0;
-
-    foreach (Panel panel in panels.Where (p => p.Zone != target).OrderBy (p => p.SortOrder).ThenBy (p => p.Id))
-      panel.SortOrder = position++;
-
-    await this.context.SaveChangesAsync ();
 
     return new JsonResult (new { Success = true });
   }
