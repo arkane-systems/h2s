@@ -40,6 +40,7 @@ builder.Services.AddScoped<IconCatalog> ();
 builder.Services.AddScoped<UrlProbe> ();
 builder.Services.AddScoped<PageMetadataReader> ();
 builder.Services.AddScoped<UptimeKumaClient> ();
+builder.Services.AddScoped<DashboardBackupService> ();
 
 // Named clients for outbound HTTP. The accept-any-certificate client exists only so UrlProbe can tell an untrusted
 // certificate from an unreachable server; never use it to fetch content.

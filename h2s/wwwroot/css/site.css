@@ -312,6 +312,70 @@ footer,
   text-decoration: none;
 }
 
+/* Settings → Backup: the server lists a file's problems one per line. */
+.backup-errors {
+  white-space: pre-line;
+}
+
+/* The list view (Pages/Admin/Editor). */
+.list-view-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background-color: var(--bs-tertiary-bg);
+}
+
+.list-view-table {
+  --bs-table-bg: transparent;
+}
+
+.list-view-table tbody tr {
+  cursor: pointer;
+}
+
+.list-view-check,
+.list-view-icon {
+  width: 2.5rem;
+}
+
+.list-view-icon-image {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+}
+
+.list-view-url {
+  display: inline-block;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* Column headers sort the table; they look like headers, not buttons. */
+.list-view-sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: inherit;
+}
+
+th[aria-sort="ascending"] .list-view-sort::after {
+  content: " ▲";
+  font-size: 0.7em;
+}
+
+th[aria-sort="descending"] .list-view-sort::after {
+  content: " ▼";
+  font-size: 0.7em;
+}
+
 /* The link dialog's icon picker: a search box over a scrolling grid of selfh.st icons. */
 .icon-picker {
   margin-top: 0.5rem;

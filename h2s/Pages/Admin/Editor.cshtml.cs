@@ -47,9 +47,9 @@ public class EditorModel : PageModel
   public List<Category> Categories { get; private set; } = new ();
 
   /// <summary>
-  ///   Gets the links shown in the editor UI.
+  ///   Gets the links shown in the list view, as <see cref="OnGetLinksAsync" /> returns them.
   /// </summary>
-  public List<Link> Links { get; private set; } = new ();
+  public List<LinkRow> Links { get; private set; } = new ();
 
   /// <summary>
   ///   Gets a value indicating whether Uptime Kuma integration is configured.
@@ -65,9 +65,7 @@ public class EditorModel : PageModel
                                 .AsNoTracking ()
                                 .ToListAsync ();
 
-    this.Links = await this.GetOrderedLinksQuery ()
-                           .AsNoTracking ()
-                           .ToListAsync ();
+    this.Links = await this.GetLinkRowsAsync ();
 
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
     this.IsUptimeKumaConfigured = !string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl);
@@ -94,27 +92,7 @@ public class EditorModel : PageModel
   ///   Returns the ordered link list used by the editor client script.
   /// </summary>
   /// <returns>A JSON payload describing all links.</returns>
-  public async Task<IActionResult> OnGetLinksAsync ()
-  {
-    var links = await this.GetOrderedLinksQuery ()
-                          .AsNoTracking ()
-                          .Select (l => new
-                                        {
-                                          l.Id,
-                                          l.CategoryId,
-                                          CategoryName    = l.Category != null ? l.Category.Name : "",
-                                          IsAdminCategory = l.Category != null ? l.Category.IsAdminCategory : false,
-                                          l.Label,
-                                          l.Description,
-                                          l.IconName,
-                                          l.IconUrl,
-                                          l.MonitorId,
-                                          l.Url,
-                                        })
-                          .ToListAsync ();
-
-    return new JsonResult (links);
-  }
+  public async Task<IActionResult> OnGetLinksAsync () => new JsonResult (await this.GetLinkRowsAsync ());
 
   /// <summary>
   ///   Creates a new category from the posted editor form values.
@@ -678,55 +656,99 @@ public class EditorModel : PageModel
     if (await this.context.Links.AnyAsync (l => (l.CategoryId == categoryId) && !ids.Contains (l.Id)))
       return this.BadRequestProblem ("The order must include every link in the category.");
 
-    List<int> sourceCategoryIds = links.Where (l => l.CategoryId != categoryId)
-                                       .Select (l => l.CategoryId)
-                                       .Distinct ()
-                                       .ToList ();
-
-    Dictionary<int, Link> linksById = links.ToDictionary (l => l.Id);
-
-    for (var i = 0; i < ids.Count; i++)
-    {
-      Link link = linksById[ids[i]];
-      link.CategoryId = categoryId;
-      link.SortOrder  = i;
-    }
-
-    // Close the gaps that moved links leave in the categories they came from.
-    if (sourceCategoryIds.Count > 0)
-    {
-      List<Link> remaining = await this.context.Links
-                                       .Where (l => sourceCategoryIds.Contains (l.CategoryId) && !ids.Contains (l.Id))
-                                       .OrderBy (l => l.SortOrder)
-                                       .ThenBy (l => l.Label)
-                                       .ToListAsync ();
-
-      foreach (IGrouping<int, Link> category in remaining.GroupBy (l => l.CategoryId))
-      {
-        var position = 0;
-
-        foreach (Link link in category)
-          link.SortOrder = position++;
-      }
-    }
-
-    await this.context.SaveChangesAsync ();
+    await this.PlaceLinksAsync (categoryId: categoryId, ids: ids, links: links);
 
     return new JsonResult (new { Success = true });
   }
 
   /// <summary>
-  ///   Suggests an icon name based on the provided label when a matching selfh.st icon exists.
+  ///   Moves links to the end of a category, in the order given, for the list view's bulk move.
   /// </summary>
-  /// <param name="label">The link label used to derive an icon name suggestion.</param>
-  /// <returns>A JSON payload indicating whether a matching icon was found.</returns>
-  public async Task<IActionResult> OnGetSuggestIconAsync (string? label)
+  /// <param name="categoryId">The category to move the links to.</param>
+  /// <param name="orderedIds">The links to move, in the order they should follow the category's existing links.</param>
+  /// <returns>A JSON payload confirming success, or a 400 or 404 problem response when validation fails.</returns>
+  public async Task<IActionResult> OnPostMoveLinksAsync (int categoryId, string[]? orderedIds)
   {
-    string? suggestedIconName = await this.iconCatalog.SuggestIconNameAsync (label: label,
-                                                                             cancellationToken: this.HttpContext.RequestAborted);
+    if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+      return this.BadRequestProblem (error);
 
-    return new JsonResult (new { Found = suggestedIconName != null, SuggestedIconName = suggestedIconName ?? "" });
+    if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
+      return this.NotFoundProblem ("Category not found.");
+
+    List<Link> moving = await this.context.Links
+                                  .Where (l => ids.Contains (l.Id))
+                                  .ToListAsync ();
+
+    if (moving.Count != ids.Count)
+      return this.BadRequestProblem ("One or more links do not exist.");
+
+    // Links already in the category keep their places at the front; the moved ones follow in the order given.
+    List<Link> staying = await this.context.Links
+                                   .Where (l => (l.CategoryId == categoryId) && !ids.Contains (l.Id))
+                                   .OrderBy (l => l.SortOrder)
+                                   .ThenBy (l => l.Label)
+                                   .ToListAsync ();
+
+    await this.PlaceLinksAsync (categoryId: categoryId,
+                                ids: [.. staying.Select (l => l.Id), .. ids],
+                                links: [.. staying, .. moving]);
+
+    return new JsonResult (new { Success = true });
   }
+
+  /// <summary>
+  ///   Deletes several links at once, for the list view's bulk delete.
+  /// </summary>
+  /// <param name="ids">The links to delete.</param>
+  /// <returns>
+  ///   A JSON payload with the deleted IDs and a snapshot of each link, ordered by category and position, that
+  ///   <see cref="OnPostRestoreLinkAsync" /> can recreate them from one at a time; or a 400 problem response when
+  ///   validation fails.
+  /// </returns>
+  public async Task<IActionResult> OnPostDeleteLinksAsync (string[]? ids)
+  {
+    if (!OrderedIdParser.TryParse (values: ids, ids: out List<int>? linkIds, error: out string? error))
+      return this.BadRequestProblem (error);
+
+    List<Link> links = await this.context.Links
+                                 .Where (l => linkIds.Contains (l.Id))
+                                 .OrderBy (l => l.CategoryId)
+                                 .ThenBy (l => l.SortOrder)
+                                 .ToListAsync ();
+
+    if (links.Count != linkIds.Count)
+      return this.BadRequestProblem ("One or more links do not exist.");
+
+    // Restoring in this order puts each link back at its old position: each restore shifts the later ones along.
+    List<LinkSnapshot> snapshots = [.. links.Select (LinkSnapshot.From)];
+
+    this.context.Links.RemoveRange (links);
+    await this.context.SaveChangesAsync ();
+
+    return new JsonResult (new { DeletedIds = linkIds, Restore = snapshots });
+  }
+
+  /// <summary>
+  ///   Gets every link as the list view shows it, in dashboard order: by section and category, then position.
+  /// </summary>
+  /// <returns>The links, each with its category's name and the icon it shows.</returns>
+  private async Task<List<LinkRow>> GetLinkRowsAsync ()
+    => (await this.GetOrderedLinksQuery ()
+                  .AsNoTracking ()
+                  .ToListAsync ())
+      .Select (l => new LinkRow (Id: l.Id,
+                                 CategoryId: l.CategoryId,
+                                 CategoryName: l.Category?.Name               ?? "",
+                                 IsAdminCategory: l.Category?.IsAdminCategory ?? false,
+                                 Label: l.Label,
+                                 Description: l.Description,
+                                 IconName: l.IconName,
+                                 IconUrl: l.IconUrl,
+                                 IconSrc: l.GetIconUrl (),
+                                 MonitorId: l.MonitorId,
+                                 Url: l.Url,
+                                 SortOrder: l.SortOrder))
+      .ToList ();
 
   /// <summary>
   ///   Builds the ordered category query used by the editor UI.
@@ -777,6 +799,49 @@ public class EditorModel : PageModel
                   .MaxAsync () ??
         -1) +
        1;
+
+  /// <summary>
+  ///   Puts links into a category in the given order, numbering them from 0, and closes the gaps that moved links leave
+  ///   in the categories they came from.
+  /// </summary>
+  /// <param name="categoryId">The category.</param>
+  /// <param name="ids">The category's complete link order.</param>
+  /// <param name="links">The tracked links named in <paramref name="ids" />.</param>
+  private async Task PlaceLinksAsync (int categoryId, List<int> ids, List<Link> links)
+  {
+    List<int> sourceCategoryIds = links.Where (l => l.CategoryId != categoryId)
+                                       .Select (l => l.CategoryId)
+                                       .Distinct ()
+                                       .ToList ();
+
+    Dictionary<int, Link> linksById = links.ToDictionary (l => l.Id);
+
+    for (var i = 0; i < ids.Count; i++)
+    {
+      Link link = linksById[ids[i]];
+      link.CategoryId = categoryId;
+      link.SortOrder  = i;
+    }
+
+    if (sourceCategoryIds.Count > 0)
+    {
+      List<Link> remaining = await this.context.Links
+                                       .Where (l => sourceCategoryIds.Contains (l.CategoryId) && !ids.Contains (l.Id))
+                                       .OrderBy (l => l.SortOrder)
+                                       .ThenBy (l => l.Label)
+                                       .ToListAsync ();
+
+      foreach (IGrouping<int, Link> category in remaining.GroupBy (l => l.CategoryId))
+      {
+        var position = 0;
+
+        foreach (Link link in category)
+          link.SortOrder = position++;
+      }
+    }
+
+    await this.context.SaveChangesAsync ();
+  }
 
   /// <summary>
   ///   Builds a link's tile with the current dashboard settings.

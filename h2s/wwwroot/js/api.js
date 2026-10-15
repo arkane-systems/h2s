@@ -23,20 +23,21 @@ window.h2sApi = (() => {
         return error;
     };
 
-    // Posts form-encoded data (an object or a list of name/value pairs) to a page handler and returns its JSON.
+    // Posts form data to a page handler and returns its JSON. The data is an object or a list of name/value pairs, sent
+    // form-encoded; or a FormData, such as one holding a file, sent as multipart.
     const postForm = async (url, data = {}) => {
         const token = getToken();
-        const body = new URLSearchParams(data);
+        const isMultipart = data instanceof FormData;
+        const body = isMultipart ? data : new URLSearchParams(data);
         body.set('__RequestVerificationToken', token);
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'RequestVerificationToken': token
-            },
-            body
-        });
+        // The browser sets a multipart body's Content-Type itself, with its boundary.
+        const headers = { 'RequestVerificationToken': token };
+        if (!isMultipart) {
+            headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+        }
+
+        const response = await fetch(url, { method: 'POST', headers, body });
 
         if (!response.ok) {
             throw await toError(response, 'Request failed.');

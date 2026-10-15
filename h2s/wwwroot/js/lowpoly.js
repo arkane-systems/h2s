@@ -60,21 +60,31 @@ window.h2sLowPoly = (() => {
         };
     };
 
+    // A repeatable random number in [0, 1) for a grid position: the same seed, row, column and purpose always give the
+    // same number, whatever the size of the area.
+    const random = (seed, row, column, purpose) => {
+        let hash = seed ^ Math.imul(row + 1, 0x9E3779B1) ^ Math.imul(column + 1, 0x85EBCA77) ^ Math.imul(purpose + 1, 0xC2B2AE3D);
+        hash = Math.imul(hash ^ (hash >>> 16), 0x7FEB352D);
+        hash = Math.imul(hash ^ (hash >>> 15), 0x846CA68B);
+        hash ^= hash >>> 16;
+        return (hash >>> 0) / 4294967296;
+    };
+
     // Creates the SVG for an area. Points are jittered by up to variance × cellSize, and the grid bleeds one cell past
-    // every edge so the jittered triangles still cover the whole area.
-    const createSvg = ({ width, height, cellSize = 75, variance = 0.75, colors }) => {
+    // every edge so the jittered triangles still cover the whole area. The grid is anchored at the top left and its
+    // randomness comes from the seed, so redrawing a taller or wider area with the same seed only adds triangles: the
+    // existing ones stay where they were (though the colour gradients stretch to the new size).
+    const createSvg = ({ width, height, cellSize = 75, variance = 0.75, colors, seed = Math.floor(Math.random() * 2 ** 32) }) => {
         const colorAt = gradient(colors);
         const columns = Math.ceil(width / cellSize) + 2;
         const rows = Math.ceil(height / cellSize) + 2;
-        const offsetX = (width - columns * cellSize) / 2;
-        const offsetY = (height - rows * cellSize) / 2;
-        const jitter = () => (Math.random() - 0.5) * variance * cellSize;
+        const jitter = (row, column, axis) => (random(seed, row, column, axis) - 0.5) * variance * cellSize;
 
         const points = [];
         for (let row = 0; row <= rows; row++) {
             points.push([]);
             for (let column = 0; column <= columns; column++) {
-                points[row].push([offsetX + column * cellSize + jitter(), offsetY + row * cellSize + jitter()]);
+                points[row].push([(column - 1) * cellSize + jitter(row, column, 0), (row - 1) * cellSize + jitter(row, column, 1)]);
             }
         }
 
@@ -103,7 +113,7 @@ window.h2sLowPoly = (() => {
                 const bottomLeft = points[row + 1][column];
                 const bottomRight = points[row + 1][column + 1];
 
-                if (Math.random() < 0.5) {
+                if (random(seed, row, column, 2) < 0.5) {
                     addTriangle(topLeft, topRight, bottomRight);
                     addTriangle(topLeft, bottomRight, bottomLeft);
                 } else {

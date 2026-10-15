@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
@@ -13,6 +15,10 @@ namespace h2s.Pages.Admin;
 /// </summary>
 public class SettingsModel : PageModel
 {
+  // A dashboard file is a few kilobytes per hundred links, so this is generous.
+  private const long MaxBackupBytes = 2 * 1024 * 1024;
+
+  private readonly DashboardBackupService   backupService;
   private readonly DashboardContext         context;
   private readonly DashboardSettingsService settingsService;
   private readonly UrlProbe                 urlProbe;
@@ -23,11 +29,16 @@ public class SettingsModel : PageModel
   /// <param name="settingsService">The service used to load and save dashboard settings.</param>
   /// <param name="context">The database context used to manage infrastructure groups.</param>
   /// <param name="urlProbe">The probe used to check that the Uptime Kuma server is reachable.</param>
-  public SettingsModel (DashboardSettingsService settingsService, DashboardContext context, UrlProbe urlProbe)
+  /// <param name="backupService">The service used to export and import the whole configuration.</param>
+  public SettingsModel (DashboardSettingsService settingsService,
+                        DashboardContext         context,
+                        UrlProbe                 urlProbe,
+                        DashboardBackupService   backupService)
   {
     this.settingsService = settingsService;
     this.context         = context;
     this.urlProbe        = urlProbe;
+    this.backupService   = backupService;
   }
 
   /// <summary>
@@ -46,6 +57,65 @@ public class SettingsModel : PageModel
   /// </summary>
   [TempData]
   public string? UptimeKumaWarning { get; set; }
+
+  /// <summary>
+  ///   Downloads the whole configuration as a dashboard file.
+  /// </summary>
+  /// <returns>The file, named for the time of export.</returns>
+  public async Task<IActionResult> OnGetExportAsync ()
+  {
+    DashboardBackup backup = await this.backupService.ExportAsync (this.HttpContext.RequestAborted);
+    byte[]          json   = JsonSerializer.SerializeToUtf8Bytes (value: backup, options: DashboardBackup.JsonOptions);
+
+    return this.File (fileContents: json,
+                      contentType: "application/json",
+                      fileDownloadName: $"h2s-dashboard-{backup.ExportedAt:yyyyMMdd-HHmmss}.json");
+  }
+
+  /// <summary>
+  ///   Checks an uploaded dashboard file and summarizes what importing it would bring in, without changing anything.
+  /// </summary>
+  /// <param name="file">The dashboard file.</param>
+  /// <returns>
+  ///   A JSON payload with what the file holds and what the dashboard holds now, or a 400 problem response listing what
+  ///   is wrong with the file.
+  /// </returns>
+  public async Task<IActionResult> OnPostPreviewImportAsync (IFormFile? file)
+  {
+    (DashboardBackup? backup, IActionResult? problem) = await this.ReadBackupAsync (file);
+
+    if (backup == null)
+      return problem!;
+
+    return new JsonResult (new
+                           {
+                             Incoming = DashboardBackupService.Summarize (backup),
+                             Current = new
+                                       {
+                                         Categories           = await this.context.Categories.CountAsync (),
+                                         Links                = await this.context.Links.CountAsync (),
+                                         InfrastructureGroups = await this.context.InfrastructureGroups.CountAsync (),
+                                       },
+                           });
+  }
+
+  /// <summary>
+  ///   Replaces the whole configuration (settings, categories, links and infrastructure groups) with an uploaded
+  ///   dashboard file's.
+  /// </summary>
+  /// <param name="file">The dashboard file.</param>
+  /// <returns>A JSON payload summarizing what was imported, or a 400 problem response listing what is wrong with the file.</returns>
+  public async Task<IActionResult> OnPostImportAsync (IFormFile? file)
+  {
+    (DashboardBackup? backup, IActionResult? problem) = await this.ReadBackupAsync (file);
+
+    if (backup == null)
+      return problem!;
+
+    await this.backupService.ImportAsync (backup: backup, cancellationToken: this.HttpContext.RequestAborted);
+
+    return new JsonResult (DashboardBackupService.Summarize (backup));
+  }
 
   /// <summary>
   ///   Loads the current dashboard settings for display.
@@ -217,6 +287,27 @@ public class SettingsModel : PageModel
     await this.context.SaveChangesAsync ();
 
     return new JsonResult (new { Success = true });
+  }
+
+  /// <summary>
+  ///   Reads and checks an uploaded dashboard file.
+  /// </summary>
+  /// <param name="file">The upload.</param>
+  /// <returns>The configuration, or a 400 problem response listing what's wrong with the file (one problem per line).</returns>
+  private async Task<(DashboardBackup? Backup, IActionResult? Problem)> ReadBackupAsync (IFormFile? file)
+  {
+    if ((file == null) || (file.Length == 0))
+      return (null, this.BadRequestProblem ("Choose a dashboard file to import."));
+
+    if (file.Length > SettingsModel.MaxBackupBytes)
+      return (null, this.BadRequestProblem ("The file is too large to be a dashboard export."));
+
+    using var reader = new StreamReader (stream: file.OpenReadStream (), encoding: Encoding.UTF8);
+    string    json   = await reader.ReadToEndAsync (this.HttpContext.RequestAborted);
+
+    return DashboardBackupService.TryRead (json: json, backup: out DashboardBackup? backup, errors: out List<string> errors)
+             ? (backup, null)
+             : (null, this.BadRequestProblem (string.Join (separator: '\n', values: errors)));
   }
 
   /// <summary>
