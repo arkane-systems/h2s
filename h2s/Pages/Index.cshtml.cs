@@ -60,6 +60,12 @@ public class IndexModel : PageModel
   public List<PanelView> BottomPanels { get; private set; } = new ();
 
   /// <summary>
+  ///   Gets the search engines quick launch offers when nothing on the dashboard matches, in Settings order. Empty in edit
+  ///   mode, which has no quick launch.
+  /// </summary>
+  public List<SearchPanelEngine> QuickLaunchEngines { get; private set; } = new ();
+
+  /// <summary>
   ///   Gets a value indicating whether Uptime Kuma integration is configured.
   /// </summary>
   public bool IsUptimeKumaConfigured => this.tiles.IsUptimeKumaConfigured;
@@ -91,6 +97,25 @@ public class IndexModel : PageModel
 
     this.TopPanels    = panels.Where (p => p.Zone == PanelZone.Top).ToList ();
     this.BottomPanels = panels.Where (p => p.Zone == PanelZone.Bottom).ToList ();
+
+    // Quick launch is for using the dashboard, so edit mode leaves it out.
+    if (!this.IsEditMode)
+    {
+      List<SearchEngine> engines = await this.context.SearchEngines
+                                             .AsNoTracking ()
+                                             .OrderBy (e => e.SortOrder)
+                                             .ThenBy (e => e.Name)
+                                             .ToListAsync (cancellationToken);
+      SearchEngine? defaultEngine = WebSearch.GetDefault (engines);
+
+      this.QuickLaunchEngines =
+      [
+        .. engines.Select (e => new SearchPanelEngine (Id: e.Id,
+                                                       Name: e.Name,
+                                                       Shortcut: e.Shortcut,
+                                                       IsDefault: e == defaultEngine)),
+      ];
+    }
   }
 
   /// <summary>

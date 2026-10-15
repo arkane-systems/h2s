@@ -171,6 +171,17 @@ When you open the app, the home page shows link categories and their links. You 
 - Browse categories and open links directly from each card.
 - Use the search box for quick web searches. It uses the default engine from **Settings → Search**. To use another for one search, click the ⌕ and pick it (the menu also shows each engine's shortcut), or start or end the search with the engine's shortcut, such as `!g`. A shortcut wins if you do both.
 
+### Quick launch
+
+Start typing anywhere on the dashboard (or press `/`) to open **quick launch**, a search box that floats over the page and narrows the dashboard to the links whose name, description or address match:
+
+- **Enter** opens the highlighted link, and **Ctrl+Enter** (⌘+Enter on a Mac) opens it in a new tab. **↑** and **↓** move between matches.
+- **Shift+Enter** searches the web instead, with the default engine.
+- When no links match, quick launch lists the search engines in their Settings order. Enter searches with the highlighted one (the default, until you pick another with ↑ and ↓). A `!shortcut`, such as `!g`, picks the engine straight away.
+- **Esc**, or a click outside the box, closes it and puts the dashboard back.
+
+Quick launch is off in edit mode, and while you're typing in a field such as the search box.
+
 The search box and the Uptime Kuma status bar are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as the status bar before Uptime Kuma is set up, is hidden outside edit mode.
 - Toggle color mode from the navbar (Auto, Light, Dark).
 
@@ -188,7 +199,7 @@ Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its
 
 The search box sends searches to the **default** engine. h2s starts with Bing (the default, `!b`), DuckDuckGo (`!d`) and Google (`!g`). Start or end a search with an engine's shortcut to send it there instead; a shortcut no engine has stays in the search, so DuckDuckGo's own bangs still work when it's the default.
 
-Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is the address of a results page with `{query}` where the search terms go: search for something on the engine, copy the address, and replace your terms with `{query}`. Ticking **Default engine** moves the default to that engine. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder the list; the search box's ⌕ menu lists the engines in the same order. Deleting an engine has **Undo**; deleting the default makes the first engine left the default. With no engines, the search box is hidden.
+Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is the address of a results page with `{query}` where the search terms go: search for something on the engine, copy the address, and replace your terms with `{query}`. Ticking **Default engine** moves the default to that engine. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder the list; the search box's ⌕ menu and quick launch list the engines in the same order. Deleting an engine has **Undo**; deleting the default makes the first engine left the default. With no engines, the search box is hidden.
 
 #### Uptime Kuma integration
 

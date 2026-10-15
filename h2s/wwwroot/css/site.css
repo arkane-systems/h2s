@@ -724,6 +724,106 @@ th[aria-sort="descending"] .list-view-sort::after {
   font-size: 0.75rem;
 }
 
+/* Quick launch (Pages/Shared/_QuickLaunch.cshtml, wwwroot/js/modules/quick-launch.js): a floating box near the top of
+   the window that doesn't block the page, so the filtered tiles below it stay clickable. */
+.quick-launch {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 1050;
+  display: flex;
+  justify-content: center;
+  padding: 4.5rem 1rem 0;
+  pointer-events: none;
+}
+
+.quick-launch[hidden] {
+  display: none;
+}
+
+.quick-launch-box {
+  width: min(36rem, 100%);
+  padding: 0.5rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.9rem;
+  background-color: rgba(var(--bs-body-bg-rgb), 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.28);
+  pointer-events: auto;
+}
+
+.quick-launch-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+}
+
+.quick-launch-icon {
+  color: var(--bs-secondary-color);
+  font-size: 1.15rem;
+}
+
+.quick-launch-input {
+  border: 0;
+  background: transparent;
+  box-shadow: none !important;
+  font-size: 1.1rem;
+}
+
+.quick-launch-key {
+  font-size: 0.7rem;
+}
+
+.quick-launch-hint {
+  padding: 0.25rem 0.75rem 0.15rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.85rem;
+}
+
+.quick-launch-hint:empty {
+  display: none;
+}
+
+.quick-launch-engines {
+  margin: 0.35rem 0 0;
+  padding: 0.35rem 0 0;
+  border-top: 1px solid var(--bs-border-color);
+  list-style: none;
+}
+
+.quick-launch-engine {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--bs-body-color);
+  text-align: left;
+}
+
+.quick-launch-engine:hover,
+.quick-launch-engine[aria-selected="true"] {
+  background-color: rgba(var(--bs-primary-rgb), 0.15);
+}
+
+.quick-launch-hidden {
+  display: none !important;
+}
+
+/* Room for the box, so it doesn't cover the first matches. */
+.is-quick-launching .app-content {
+  padding-top: 4.5rem;
+}
+
+.link-block.is-quick-launch-target {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
 .home-search-input {
   border: 0;
   background: transparent;
