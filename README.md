@@ -169,7 +169,9 @@ This needs no root access and no rebuilt image.
 When you open the app, the home page shows link categories and their links. You can:
 
 - Browse categories and open links directly from each card.
-- Use the search box at the top for quick web searches.
+- Use the search box for quick web searches.
+
+The search box and the Uptime Kuma status bar are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as the status bar before Uptime Kuma is set up, is hidden outside edit mode.
 - Toggle color mode from the navbar (Auto, Light, Dark).
 
 ### Settings page
@@ -201,7 +203,7 @@ With Uptime Kuma configured, add infrastructure groups at the bottom of its card
 
 Click **Edit** at the right of the navbar to edit the dashboard in place; **Done** returns to the normal view.
 
-- Drag the ⠿ handles to reorder categories (within the regular or admin section) and links (within or between categories). A focused handle also responds to the arrow keys. Each move saves straight away.
+- Drag the ⠿ handles to reorder categories (within the regular or admin section), links (within or between categories) and panels (within or between the zones above and below the categories). A focused handle also responds to the arrow keys; a panel's carries on into the other zone past the end of its own. Each move saves straight away.
 - Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
   - **Browse…** searches the selfh.st icons with thumbnails.
   - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
@@ -221,7 +223,7 @@ Categories are managed in edit mode.
 
 ### Backup
 
-**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, and the infrastructure groups. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control.
+**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, the infrastructure groups and the panels. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels existed still import, and give the dashboard the default panels (the status bar, then search, above the categories).
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).

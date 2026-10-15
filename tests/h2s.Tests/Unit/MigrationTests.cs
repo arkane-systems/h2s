@@ -1,4 +1,5 @@
 using h2s.Data;
+using h2s.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -99,6 +100,31 @@ public class MigrationTests
                                                                     table: "Links",
                                                                     nameColumn: "Label",
                                                                     cancellationToken: cancellationToken));
+  }
+
+  [Fact]
+  public async Task AddPanels_CreatesTodaysPanelsAboveTheCategories ()
+  {
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+
+    await context.Database.MigrateAsync (cancellationToken);
+
+    Assert.Equal (expected: [("search", 1L), ("status-bar", 0L)],
+                  actual: await MigrationTests.ReadSortOrdersAsync (connection: connection,
+                                                                    table: "Panels",
+                                                                    nameColumn: "Kind",
+                                                                    cancellationToken: cancellationToken));
+    Assert.All (collection: await context.Panels.ToListAsync (cancellationToken),
+                action: p =>
+                        {
+                          Assert.Equal (expected: PanelZone.Top, actual: p.Zone);
+                          Assert.Equal (expected: "{}",          actual: p.OptionsJson);
+                        });
   }
 
   /// <summary>

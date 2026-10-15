@@ -138,6 +138,32 @@ namespace h2s.Migrations
                     b.ToTable("Links");
                 });
 
+            modelBuilder.Entity("h2s.Models.Panel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Zone")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Panels");
+                });
+
             modelBuilder.Entity("h2s.Models.Link", b =>
                 {
                     b.HasOne("h2s.Models.Category", "Category")

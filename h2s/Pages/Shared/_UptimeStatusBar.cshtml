@@ -1,20 +1,22 @@
-﻿@model IndexModel
-@* The Uptime Kuma status bar: a status and uptime badge pair per infrastructure group. It links to the Kuma status page
-   when a slug is configured; otherwise it isn't clickable. *@
+﻿@using h2s.Panels
+@model StatusBarPanelModel
+@* The status bar panel: a status badge, and optionally an uptime badge, per infrastructure group. It links to the Kuma
+   status page when a slug is configured; otherwise it isn't clickable. *@
 @{
-    var statusPageUrl = Model.BuildStatusPageUrl();
-
     void RenderBadges()
     {
         <div class="category-box-body">
             <div class="uptime-badge-list">
-                @foreach (var group in Model.InfrastructureGroups)
+                @foreach (var item in Model.Items)
                 {
                     <div class="uptime-badge-group">
-                        <div class="uptime-badge-label">@group.Name</div>
+                        <div class="uptime-badge-label">@item.Name</div>
                         <div class="uptime-badge-pair">
-                            <img src="@Model.BuildBadgeUrl(group.MonitorId, "status")" alt="@($"{group.Name} status")" loading="lazy" />
-                            <img src="@Model.BuildBadgeUrl(group.MonitorId, "uptime", Model.UptimeKumaDefaultDuration)" alt="@($"{group.Name} uptime")" loading="lazy" />
+                            <img src="@item.StatusBadgeUrl" alt="@($"{item.Name} status")" loading="lazy" />
+                            @if (item.UptimeBadgeUrl is not null)
+                            {
+                                <img src="@item.UptimeBadgeUrl" alt="@($"{item.Name} uptime")" loading="lazy" />
+                            }
                         </div>
                     </div>
                 }
@@ -22,9 +24,9 @@
         </div>
     }
 }
-@if (!string.IsNullOrWhiteSpace(statusPageUrl))
+@if (Model.StatusPageUrl is not null)
 {
-    <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@statusPageUrl" target="_blank" rel="noopener noreferrer">
+    <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@Model.StatusPageUrl" target="_blank" rel="noopener noreferrer">
         @{ RenderBadges(); }
     </a>
 }

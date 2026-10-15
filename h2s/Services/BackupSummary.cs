@@ -9,10 +9,12 @@ namespace h2s.Services;
 /// <param name="AdminCategories">How many of those are admin categories.</param>
 /// <param name="Links">The number of links.</param>
 /// <param name="InfrastructureGroups">The number of infrastructure groups.</param>
+/// <param name="Panels">The number of panels; for a file from before panels, the number of default panels.</param>
 public sealed record BackupSummary (
   string          Title,
   DateTimeOffset? ExportedAt,
   int             Categories,
   int             AdminCategories,
   int             Links,
-  int             InfrastructureGroups);
+  int             InfrastructureGroups,
+  int             Panels);

@@ -1,6 +1,7 @@
 using h2s.Authorization;
 using h2s.Data;
 using h2s.Data.Seeding;
+using h2s.Panels;
 using h2s.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -41,6 +42,12 @@ builder.Services.AddScoped<UrlProbe> ();
 builder.Services.AddScoped<PageMetadataReader> ();
 builder.Services.AddScoped<UptimeKumaClient> ();
 builder.Services.AddScoped<DashboardBackupService> ();
+
+// Panel kinds are singletons; the catalog lists them, and PanelService builds each panel's content per request.
+builder.Services.AddSingleton<IPanelKind, StatusBarPanelKind> ();
+builder.Services.AddSingleton<IPanelKind, SearchPanelKind> ();
+builder.Services.AddSingleton<PanelCatalog> ();
+builder.Services.AddScoped<PanelService> ();
 
 // Named clients for outbound HTTP. The accept-any-certificate client exists only so UrlProbe can tell an untrusted
 // certificate from an unreachable server; never use it to fetch content.

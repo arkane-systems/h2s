@@ -1,6 +1,7 @@
 using System.Text.Json;
 using h2s.Data;
 using h2s.Models;
+using h2s.Panels;
 using h2s.Validation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -52,6 +53,13 @@ public class DashboardBackupService
                                                  .ThenBy (g => g.Name)
                                                  .ToListAsync (cancellationToken);
 
+    List<Panel> panels = await this.context.Panels
+                                   .AsNoTracking ()
+                                   .OrderBy (p => p.Zone)
+                                   .ThenBy (p => p.SortOrder)
+                                   .ThenBy (p => p.Id)
+                                   .ToListAsync (cancellationToken);
+
     return new DashboardBackup (Format: DashboardBackup.FormatName,
                                 Version: DashboardBackup.CurrentVersion,
                                 ExportedAt: DateTimeOffset.UtcNow,
@@ -85,6 +93,13 @@ public class DashboardBackupService
                                 InfrastructureGroups:
                                 [
                                   .. groups.Select (g => new BackupInfrastructureGroup (Name: g.Name, MonitorId: g.MonitorId)),
+                                ],
+                                Panels:
+                                [
+                                  .. panels.Select (p => new BackupPanel (Kind: p.Kind,
+                                                                          Zone: p.Zone,
+                                                                          Options: DashboardBackupService
+                                                                           .ReadOptions (p.OptionsJson))),
                                 ]);
   }
 
@@ -92,10 +107,14 @@ public class DashboardBackupService
   ///   Reads and checks a dashboard file.
   /// </summary>
   /// <param name="json">The file's contents.</param>
-  /// <param name="backup">The configuration, when the file is valid.</param>
+  /// <param name="kinds">The panel kinds the file's panels may use.</param>
+  /// <param name="backup">
+  ///   The configuration, when the file is valid. A file from before panels comes back with no panels list (and any it
+  ///   holds anyway ignored).
+  /// </param>
   /// <param name="errors">What's wrong with the file, when it isn't; at most ten problems.</param>
   /// <returns><c>true</c> when the file is a valid dashboard configuration that can be imported.</returns>
-  public static bool TryRead (string json, out DashboardBackup? backup, out List<string> errors)
+  public static bool TryRead (string json, PanelCatalog kinds, out DashboardBackup? backup, out List<string> errors)
   {
     errors = [];
     backup = null;
@@ -120,7 +139,7 @@ public class DashboardBackupService
       return false;
     }
 
-    if (read.Version != DashboardBackup.CurrentVersion)
+    if (read.Version is < 1 or > DashboardBackup.CurrentVersion)
     {
       errors.Add (read.Version > DashboardBackup.CurrentVersion
                     ? $"The file is from a newer version of h2s (format version {read.Version}); update h2s to import it."
@@ -129,7 +148,10 @@ public class DashboardBackupService
       return false;
     }
 
-    DashboardBackupService.Validate (backup: read, errors: errors);
+    if (read.Version < DashboardBackup.PanelsVersion)
+      read = read with { Panels = null };
+
+    DashboardBackupService.Validate (backup: read, kinds: kinds, errors: errors);
 
     if (errors.Count > 0)
       return false;
@@ -150,7 +172,8 @@ public class DashboardBackupService
             Categories: backup.Categories?.Count                               ?? 0,
             AdminCategories: backup.Categories?.Count (c => c.IsAdminCategory) ?? 0,
             Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0)           ?? 0,
-            InfrastructureGroups: backup.InfrastructureGroups?.Count           ?? 0);
+            InfrastructureGroups: backup.InfrastructureGroups?.Count           ?? 0,
+            Panels: backup.Panels?.Count                                       ?? DefaultPanels.Create ().Count);
 
   /// <summary>
   ///   Replaces the whole configuration with a valid dashboard file's, in one transaction.
@@ -164,6 +187,7 @@ public class DashboardBackupService
     _ = await this.context.Links.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Categories.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.InfrastructureGroups.ExecuteDeleteAsync (cancellationToken);
+    _ = await this.context.Panels.ExecuteDeleteAsync (cancellationToken);
 
     // Positions count within each section, as on the dashboard.
     int regular = 0, admin = 0;
@@ -199,6 +223,29 @@ public class DashboardBackupService
                                                                                                         SortOrder = i,
                                                                                                       }));
 
+    // A file from before panels gets the default ones. Positions count within each zone.
+    if (backup.Panels == null)
+      this.context.Panels.AddRange (DefaultPanels.Create ());
+    else
+    {
+      int top = 0, bottom = 0;
+
+      this.context.Panels.AddRange (backup.Panels.Select (p => new Panel
+                                                               {
+                                                                 Kind      = p.Kind!.Trim (),
+                                                                 Zone      = p.Zone,
+                                                                 SortOrder = p.Zone == PanelZone.Top ? top++ : bottom++,
+
+                                                                 // Stored compact, however the file was indented.
+                                                                 OptionsJson = p.Options is
+                                                                               {
+                                                                                 ValueKind: JsonValueKind.Object,
+                                                                               } options
+                                                                                 ? JsonSerializer.Serialize (options)
+                                                                                 : "{}",
+                                                               }));
+    }
+
     await this.context.SaveChangesAsync (cancellationToken);
 
     BackupSettings    imported = backup.Settings!;
@@ -223,8 +270,9 @@ public class DashboardBackupService
   ///   Checks a dashboard file's contents, collecting up to ten problems.
   /// </summary>
   /// <param name="backup">The configuration.</param>
+  /// <param name="kinds">The panel kinds the file's panels may use.</param>
   /// <param name="errors">The list the problems are added to.</param>
-  private static void Validate (DashboardBackup backup, List<string> errors)
+  private static void Validate (DashboardBackup backup, PanelCatalog kinds, List<string> errors)
   {
     void Add (string error)
     {
@@ -295,6 +343,54 @@ public class DashboardBackupService
       if (group.MonitorId <= 0)
         Add ($"Infrastructure group {g + 1}: the monitor ID must be a positive integer.");
     }
+
+    if ((backup.Version >= DashboardBackup.PanelsVersion) && (backup.Panels == null))
+      Add ("The file has no panels list.");
+
+    var seenKinds = new HashSet<string> (StringComparer.Ordinal);
+
+    for (var p = 0; p < (backup.Panels?.Count ?? 0); p++)
+    {
+      BackupPanel panel = backup.Panels![p];
+      var         where = $"Panel {p + 1}";
+
+      if (string.IsNullOrWhiteSpace (panel.Kind))
+        Add ($"{where}: the kind is required.");
+      else if (kinds.Find (panel.Kind.Trim ()) is not { } kind)
+        Add ($"{where}: h2s has no “{panel.Kind.Trim ()}” panel kind.");
+      else if (!seenKinds.Add (kind.Key) && kind.IsSingleInstance)
+        Add ($"{where}: the dashboard can only have one {kind.DisplayName.ToLowerInvariant ()} panel.");
+
+      if (!Enum.IsDefined (panel.Zone))
+        Add ($"{where}: the zone isn't one of Top or Bottom.");
+
+      if (panel.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+        Add ($"{where}: the options must be a JSON object.");
+    }
+  }
+
+  /// <summary>
+  ///   Reads a panel's stored options for export.
+  /// </summary>
+  /// <param name="json">The stored options.</param>
+  /// <returns>The options as a JSON object; an empty one when what's stored isn't one.</returns>
+  private static JsonElement ReadOptions (string json)
+  {
+    try
+    {
+      using JsonDocument document = JsonDocument.Parse (json);
+
+      if (document.RootElement.ValueKind == JsonValueKind.Object)
+        return document.RootElement.Clone ();
+    }
+    catch (JsonException)
+    {
+      // Exported as no options, which read as the defaults.
+    }
+
+    using JsonDocument empty = JsonDocument.Parse ("{}");
+
+    return empty.RootElement.Clone ();
   }
 
   /// <summary>
