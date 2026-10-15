@@ -270,9 +270,9 @@ public class ListViewAndBackupTests
 
     string html = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains (expectedSubstring: "Imported",        actualString: html);
-    Assert.Contains (expectedSubstring: ">Bookmarks</h2>", actualString: html);
-    Assert.DoesNotContain (expectedSubstring: ">Media</h2>", actualString: html);
+    Assert.Contains (expectedSubstring: "Imported",                           actualString: html);
+    Assert.Contains (expectedSubstring: "\"category-name\">Bookmarks</span>", actualString: html);
+    Assert.DoesNotContain (expectedSubstring: "\"category-name\">Media</span>", actualString: html);
   }
 
   [Fact]

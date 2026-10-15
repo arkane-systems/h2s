@@ -198,6 +198,73 @@ public partial class IndexPageTests
   }
 
   [Fact]
+  public async Task Index_RendersCategoriesCollapsedFromTheCookie ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+    var (scope, context) = factory.CreateContext ();
+    int media, home;
+
+    using (scope)
+    {
+      media = await context.Categories.Where (c => c.Name == "Media")
+                           .Select (c => c.Id)
+                           .SingleAsync (TestContext.Current.CancellationToken);
+      home = await context.Categories.Where (c => c.Name == "Home")
+                          .Select (c => c.Id)
+                          .SingleAsync (TestContext.Current.CancellationToken);
+    }
+
+    HttpClient client = factory.CreateClient ();
+
+    string html = await IndexPageTests.GetWithCookieAsync (client: client,
+                                                           path: "/",
+                                                           cookie: $"h2s-collapsed={media}.junk.-3.{home}");
+
+    Assert.Matches (expectedRegexPattern: $"""<section class="category-box border  is-collapsed"\s+data-category-id="{media}""",
+                    actualString: html);
+    Assert.Matches (expectedRegexPattern: $"""aria-expanded="false"\s+aria-controls="category-body-{home}""", actualString: html);
+    Assert.Equal (expected: 2, actual: IndexPageTests.CollapsedPattern ().Count (html));
+    Assert.Matches (expectedRegexPattern: """<script type="module" src="/js/modules/category-collapse\.[^"]*js""",
+                    actualString: html);
+
+    // Edit mode shows everything, with the plain heading.
+    string edit = await IndexPageTests.GetWithCookieAsync (client: client, path: "/?edit=true", cookie: $"h2s-collapsed={media}");
+
+    Assert.DoesNotContain (expectedSubstring: "is-collapsed",             actualString: edit);
+    Assert.DoesNotContain (expectedSubstring: "category-collapse-button", actualString: edit);
+  }
+
+  [Fact]
+  public async Task Index_RendersEveryCategoryExpandedWithoutTheCookie ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: 0, actual: IndexPageTests.CollapsedPattern ().Count (html));
+    Assert.Equal (expected: 5, actual: IndexPageTests.ExpandedPattern ().Count (html));
+  }
+
+  /// <summary>
+  ///   Gets a page's HTML with a cookie.
+  /// </summary>
+  /// <param name="client">The client.</param>
+  /// <param name="path">The page.</param>
+  /// <param name="cookie">The <c>Cookie</c> header's value.</param>
+  /// <returns>The HTML.</returns>
+  private static async Task<string> GetWithCookieAsync (HttpClient client, string path, string cookie)
+  {
+    using var request = new HttpRequestMessage (method: HttpMethod.Get, requestUri: path);
+    request.Headers.Add (name: "Cookie", value: cookie);
+
+    using HttpResponseMessage response = await client.SendAsync (request: request,
+                                                                 cancellationToken: TestContext.Current.CancellationToken);
+
+    return await response.Content.ReadAsStringAsync (TestContext.Current.CancellationToken);
+  }
+
+  [Fact]
   public async Task Index_UsesSettingsForTitle ()
   {
     await using var factory = new DashboardApplicationFactory ();
@@ -209,7 +276,8 @@ public partial class IndexPageTests
     Assert.Contains (expectedSubstring: "Seeded sample data",               actualString: html);
   }
 
-  [GeneratedRegex ("""<h2 class="h5 mb-0">(?<name>[^<]+)</h2>""")]
+  // Edit mode renders the name in the heading; elsewhere it's inside the heading's collapse button.
+  [GeneratedRegex ("""(?:<h2 class="h5 mb-0">|<span class="category-name">)(?<name>[^<]+)<""")]
   private static partial Regex CategoryHeadingPattern ();
 
   [GeneratedRegex ("""<span class="link-block-title">(?<label>[^<]+)</span>""")]
@@ -223,6 +291,12 @@ public partial class IndexPageTests
 
   [GeneratedRegex ("""name="__RequestVerificationToken""")]
   private static partial Regex AntiforgeryFieldPattern ();
+
+  [GeneratedRegex ("""class="category-collapse-button" aria-expanded="false""")]
+  private static partial Regex CollapsedPattern ();
+
+  [GeneratedRegex ("""class="category-collapse-button" aria-expanded="true""")]
+  private static partial Regex ExpandedPattern ();
 
   [GeneratedRegex ("""class="link-external-flag""")]
   private static partial Regex ExternalFlagPattern ();

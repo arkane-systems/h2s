@@ -77,8 +77,11 @@ function initQuickLaunch(root) {
         for (const tile of tiles) {
             tile.element.classList.toggle('quick-launch-hidden', filtering && !visible.has(tile.element));
         }
+        // A category with matches shows them, even if this browser has it collapsed.
         for (const category of categories) {
-            category.classList.toggle('quick-launch-hidden', filtering && !category.querySelector('.link-block:not(.quick-launch-hidden)'));
+            const hasMatches = Boolean(category.querySelector('.link-block:not(.quick-launch-hidden)'));
+            category.classList.toggle('quick-launch-hidden', filtering && !hasMatches);
+            category.classList.toggle('quick-launch-expanded', filtering && hasMatches);
         }
         for (const element of hideWhileFiltering) {
             element.classList.toggle('quick-launch-hidden', filtering);

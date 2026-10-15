@@ -157,6 +157,60 @@ footer,
   padding: 0.75rem 1rem;
 }
 
+/* Collapsible categories (category-collapse.js). The title is the toggle; collapsed, a category shows only its header,
+   with a count of the links it hides. Quick launch opens a collapsed category while it has matches. */
+.category-collapse-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.category-collapse-button:focus-visible {
+  outline: 0;
+  border-radius: 0.25rem;
+  box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
+}
+
+.category-count {
+  display: none;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background-color: rgba(var(--bs-secondary-rgb), 0.15);
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.category-chevron {
+  margin-left: auto;
+  color: var(--bs-secondary-color);
+  font-size: 0.9rem;
+  transition: transform 0.15s ease;
+}
+
+.category-collapse-button:hover .category-chevron {
+  color: var(--bs-emphasis-color);
+}
+
+.category-box.is-collapsed .category-count {
+  display: inline-block;
+}
+
+.category-box.is-collapsed:not(.quick-launch-expanded) .category-chevron {
+  transform: rotate(-90deg);
+}
+
+.category-box.is-collapsed:not(.quick-launch-expanded) > .category-box-body {
+  display: none;
+}
+
 .category-box-body ul {
   padding-left: 1.25rem;
 }

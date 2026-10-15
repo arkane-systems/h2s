@@ -66,6 +66,11 @@ public class IndexModel : PageModel
   public List<SearchPanelEngine> QuickLaunchEngines { get; private set; } = new ();
 
   /// <summary>
+  ///   Gets the categories this browser has collapsed. Empty in edit mode, which always shows every category's links.
+  /// </summary>
+  public IReadOnlySet<int> CollapsedCategoryIds { get; private set; } = new HashSet<int> ();
+
+  /// <summary>
   ///   Gets a value indicating whether Uptime Kuma integration is configured.
   /// </summary>
   public bool IsUptimeKumaConfigured => this.tiles.IsUptimeKumaConfigured;
@@ -98,9 +103,11 @@ public class IndexModel : PageModel
     this.TopPanels    = panels.Where (p => p.Zone == PanelZone.Top).ToList ();
     this.BottomPanels = panels.Where (p => p.Zone == PanelZone.Bottom).ToList ();
 
-    // Quick launch is for using the dashboard, so edit mode leaves it out.
+    // Quick launch and collapsed categories are for using the dashboard, so edit mode leaves them out.
     if (!this.IsEditMode)
     {
+      this.CollapsedCategoryIds = ViewerPreferences.ReadCollapsedCategories (this.Request);
+
       List<SearchEngine> engines = await this.context.SearchEngines
                                              .AsNoTracking ()
                                              .OrderBy (e => e.SortOrder)

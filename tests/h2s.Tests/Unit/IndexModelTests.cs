@@ -6,6 +6,8 @@ using h2s.Panels;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -102,7 +104,10 @@ public class IndexModelTests
                                                                                            ]),
                                                                 services: services,
                                                                 logger: NullLogger<PanelService>.Instance),
-                                authorizationService: new AllowAllAuthorizationService ());
+                                authorizationService: new AllowAllAuthorizationService ())
+                {
+                  PageContext = new PageContext { HttpContext = new DefaultHttpContext () },
+                };
     await model.OnGetAsync (cancellationToken: TestContext.Current.CancellationToken);
 
     return model;

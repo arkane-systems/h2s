@@ -1,6 +1,7 @@
 ﻿@page
 @using h2s.Models
 @using h2s.Panels
+@using h2s.Services
 @model IndexModel
 @{
     ViewData["Title"] = "";
@@ -30,7 +31,7 @@
 
 <partial name="_PanelZone" model="new PanelZoneModel(PanelZone.Top, Model.TopPanels, Model.IsEditMode)" />
 
-<div class="category-grid @(Model.IsEditMode ? "is-editing" : "")">
+<div class="category-grid @(Model.IsEditMode ? "is-editing" : "")" data-collapse-cookie="@ViewerPreferences.CollapsedCategoriesCookie">
 @foreach (var category in Model.Categories)
 {
     @if (category.IsAdminCategory && hasRenderedRegularCategory && !adminSectionStarted)
@@ -39,22 +40,33 @@
         adminSectionStarted = true;
     }
 
-    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "")"
+    var isCollapsed = Model.CollapsedCategoryIds.Contains(category.Id);
+
+    <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "") @(isCollapsed ? "is-collapsed" : "")"
              data-category-id="@category.Id"
              data-admin-category="@(category.IsAdminCategory ? "true" : "false")">
         <header class="category-box-header">
             @if (Model.IsEditMode)
             {
                 <button type="button" class="drag-handle category-drag-handle" title="Drag to move" aria-label="Move category @category.Name">⠿</button>
-            }
-            <h2 class="h5 mb-0">@category.Name</h2>
-            @if (Model.IsEditMode)
-            {
+                <h2 class="h5 mb-0">@category.Name</h2>
                 <button type="button" class="category-edit-button ms-auto" title="Edit category" aria-label="Edit category @category.Name"
                         data-role="edit-category">✎</button>
             }
+            else
+            {
+                @* The title is the collapse toggle (category-collapse.js); a collapsed category shows how many links it hides. *@
+                <h2 class="h5 mb-0 category-title">
+                    <button type="button" class="category-collapse-button" aria-expanded="@(isCollapsed ? "false" : "true")"
+                            aria-controls="category-body-@category.Id">
+                        <span class="category-name">@category.Name</span>
+                        <span class="category-count" title="@category.Links.Count links">@category.Links.Count</span>
+                        <span class="category-chevron" aria-hidden="true">▾</span>
+                    </button>
+                </h2>
+            }
         </header>
-        <div class="category-box-body">
+        <div class="category-box-body" id="category-body-@category.Id">
             <div class="link-block-list" data-category-id="@category.Id">
                 @foreach (var link in category.Links)
                 {
@@ -99,5 +111,6 @@
     else
     {
         <script type="module" src="~/js/modules/quick-launch.js" asp-append-version="true"></script>
+        <script type="module" src="~/js/modules/category-collapse.js" asp-append-version="true"></script>
     }
 }
