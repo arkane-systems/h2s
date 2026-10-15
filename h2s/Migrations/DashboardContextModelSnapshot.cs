@@ -113,6 +113,10 @@ namespace h2s.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("IconUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Label")
                         .IsRequired()
                         .HasColumnType("TEXT");

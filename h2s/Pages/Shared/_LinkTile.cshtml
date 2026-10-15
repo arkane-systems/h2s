@@ -10,7 +10,8 @@
         <img class="link-status-badge" src="@Model.StatusBadgeUrl" alt="@($"{Model.Link.Label} status")" loading="lazy" />
     }
     <div class="link-block-icon-wrap">
-        @if (!string.IsNullOrWhiteSpace(Model.Link.IconName))
+        @* A selfh.st icon, else the link's own icon URL, else a dot. wwwroot/js/site.js swaps in the dot if the image fails. *@
+        @if (!string.IsNullOrWhiteSpace(Model.Link.GetIconUrl()))
         {
             <img class="link-block-icon" src="@Model.Link.GetIconUrl()" alt="@($"{Model.Link.Label} icon")" loading="lazy" />
         }

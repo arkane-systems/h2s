@@ -18,6 +18,7 @@ public class EditorModel : PageModel
   private readonly IconCatalog              iconCatalog;
   private readonly PageMetadataReader       pageMetadataReader;
   private readonly DashboardSettingsService settingsService;
+  private readonly UptimeKumaClient         uptimeKumaClient;
 
   /// <summary>
   ///   Initializes a new instance of the <see cref="EditorModel" /> class.
@@ -26,15 +27,18 @@ public class EditorModel : PageModel
   /// <param name="iconCatalog">The catalog used to suggest icons for link labels.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   /// <param name="pageMetadataReader">The reader used to suggest a label from a link's page.</param>
+  /// <param name="uptimeKumaClient">The client used to list the monitors on the Uptime Kuma status page.</param>
   public EditorModel (DashboardContext         context,
                       IconCatalog              iconCatalog,
                       DashboardSettingsService settingsService,
-                      PageMetadataReader       pageMetadataReader)
+                      PageMetadataReader       pageMetadataReader,
+                      UptimeKumaClient         uptimeKumaClient)
   {
     this.context            = context;
     this.iconCatalog        = iconCatalog;
     this.settingsService    = settingsService;
     this.pageMetadataReader = pageMetadataReader;
+    this.uptimeKumaClient   = uptimeKumaClient;
   }
 
   /// <summary>
@@ -103,6 +107,7 @@ public class EditorModel : PageModel
                                           l.Label,
                                           l.Description,
                                           l.IconName,
+                                          l.IconUrl,
                                           l.MonitorId,
                                           l.Url,
                                         })
@@ -209,6 +214,7 @@ public class EditorModel : PageModel
   /// <param name="label">The display label for the link.</param>
   /// <param name="description">Optional descriptive text for the link.</param>
   /// <param name="iconName">Optional icon name to normalize and store.</param>
+  /// <param name="iconUrl">Optional absolute image URL used as the icon when there is no icon name.</param>
   /// <param name="monitorId">Optional Uptime Kuma monitor ID; blank for none.</param>
   /// <param name="url">The destination URL for the link.</param>
   /// <returns>A JSON payload describing the created link, or a 400 problem response when validation fails.</returns>
@@ -216,13 +222,15 @@ public class EditorModel : PageModel
                                                           string? label,
                                                           string? description,
                                                           string? iconName,
+                                                          string? iconUrl,
                                                           string? monitorId,
                                                           string? url)
   {
-    string normalizedLabel = (label ?? string.Empty).Trim ();
-    string normalizedUrl   = (url   ?? string.Empty).Trim ();
+    string normalizedLabel   = (label   ?? string.Empty).Trim ();
+    string normalizedUrl     = (url     ?? string.Empty).Trim ();
+    string normalizedIconUrl = (iconUrl ?? string.Empty).Trim ();
 
-    if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl) is { } invalid)
+    if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl, iconUrl: normalizedIconUrl) is { } invalid)
       return this.BadRequestProblem (invalid);
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
@@ -237,6 +245,7 @@ public class EditorModel : PageModel
                  Label       = normalizedLabel,
                  Description = (description ?? string.Empty).Trim (),
                  IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
+                 IconUrl     = normalizedIconUrl,
                  MonitorId   = parsedMonitorId,
                  Url         = normalizedUrl,
                  SortOrder   = await this.GetNextLinkSortOrderAsync (categoryId),
@@ -258,6 +267,7 @@ public class EditorModel : PageModel
                              link.Label,
                              link.Description,
                              link.IconName,
+                             link.IconUrl,
                              link.MonitorId,
                              link.Url,
                            });
@@ -271,6 +281,9 @@ public class EditorModel : PageModel
   /// <param name="label">The updated display label.</param>
   /// <param name="description">The updated descriptive text.</param>
   /// <param name="iconName">The updated icon name.</param>
+  /// <param name="iconUrl">
+  ///   The updated icon image URL; blank to remove it. When the field is not posted at all, the stored URL is kept.
+  /// </param>
   /// <param name="monitorId">
   ///   The updated Uptime Kuma monitor ID; blank to remove it. When the field is not posted at all, the stored monitor ID
   ///   is kept.
@@ -282,13 +295,15 @@ public class EditorModel : PageModel
                                                           string? label,
                                                           string? description,
                                                           string? iconName,
+                                                          string? iconUrl,
                                                           string? monitorId,
                                                           string? url)
   {
-    string normalizedLabel = (label ?? string.Empty).Trim ();
-    string normalizedUrl   = (url   ?? string.Empty).Trim ();
+    string normalizedLabel   = (label   ?? string.Empty).Trim ();
+    string normalizedUrl     = (url     ?? string.Empty).Trim ();
+    string normalizedIconUrl = (iconUrl ?? string.Empty).Trim ();
 
-    if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl) is { } invalid)
+    if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl, iconUrl: normalizedIconUrl) is { } invalid)
       return this.BadRequestProblem (invalid);
 
     Link? link = await this.context.Links
@@ -318,6 +333,10 @@ public class EditorModel : PageModel
     if (this.Request.Form.ContainsKey (nameof (monitorId)))
       link.MonitorId = parsedMonitorId;
 
+    // Likewise the older Editor page has no icon URL field.
+    if (this.Request.Form.ContainsKey (nameof (iconUrl)))
+      link.IconUrl = normalizedIconUrl;
+
     await this.context.SaveChangesAsync ();
 
     string categoryName = await this.context.Categories
@@ -333,6 +352,7 @@ public class EditorModel : PageModel
                              link.Label,
                              link.Description,
                              link.IconName,
+                             link.IconUrl,
                              link.MonitorId,
                              link.Url,
                            });
@@ -404,6 +424,7 @@ public class EditorModel : PageModel
                              link.Label,
                              link.Description,
                              link.IconName,
+                             link.IconUrl,
                              link.MonitorId,
                              link.Url,
                              link.SortOrder,
@@ -472,6 +493,7 @@ public class EditorModel : PageModel
                                          l.Label,
                                          l.Description,
                                          l.IconName,
+                                         l.IconUrl,
                                          l.MonitorId,
                                          l.Url,
                                        })
@@ -487,7 +509,10 @@ public class EditorModel : PageModel
   /// </summary>
   /// <param name="url">The link URL.</param>
   /// <param name="label">The label entered so far, if any; it is tried first when suggesting an icon.</param>
-  /// <returns>A JSON payload with the suggested label and the icon name, either of which may be <c>null</c>.</returns>
+  /// <returns>
+  ///   A JSON payload with the suggested label, the selfh.st icon name and the site's own icon URL, any of which may be
+  ///   <c>null</c>.
+  /// </returns>
   public async Task<IActionResult> OnGetSuggestLinkAsync (string? url, string? label)
   {
     CancellationToken cancellationToken = this.HttpContext.RequestAborted;
@@ -504,7 +529,44 @@ public class EditorModel : PageModel
                                                    ],
                                                    cancellationToken: cancellationToken);
 
-    return new JsonResult (new { Label = metadata.SuggestedLabel, IconName = iconName });
+    return new JsonResult (new { Label = metadata.SuggestedLabel, IconName = iconName, metadata.IconUrl });
+  }
+
+  /// <summary>
+  ///   Lists the monitors on the configured Uptime Kuma status page, for the link dialog's monitor picker.
+  /// </summary>
+  /// <returns>
+  ///   A JSON payload with the monitor groups, and a message instead when they can't be listed: Kuma or its status page
+  ///   isn't configured, or Kuma can't be read. The dialog then falls back to entering an ID.
+  /// </returns>
+  public async Task<IActionResult> OnGetKumaMonitorsAsync ()
+  {
+    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
+
+    if (string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl))
+      return new JsonResult (KumaMonitorList.Failed ("Uptime Kuma isn't configured."));
+
+    if (string.IsNullOrWhiteSpace (settings.UptimeKumaStatusPageSlug))
+      return new JsonResult (KumaMonitorList.Failed ("Set a status page slug in Settings to pick monitors from it."));
+
+    return new JsonResult (await this.uptimeKumaClient.GetStatusPageMonitorsAsync (serverUrl: settings.UptimeKumaServerUrl,
+                                                                                   slug: settings.UptimeKumaStatusPageSlug,
+                                                                                   cancellationToken: this.HttpContext
+                                                                                                          .RequestAborted));
+  }
+
+  /// <summary>
+  ///   Searches the selfh.st icons for the link dialog's icon picker.
+  /// </summary>
+  /// <param name="q">The search text.</param>
+  /// <returns>A JSON array of up to 48 icons, each with its name, reference and thumbnail URL.</returns>
+  public async Task<IActionResult> OnGetSearchIconsAsync (string? q)
+  {
+    IReadOnlyList<IconInfo> icons = await this.iconCatalog.SearchAsync (query: q,
+                                                                        limit: 48,
+                                                                        cancellationToken: this.HttpContext.RequestAborted);
+
+    return new JsonResult (icons.Select (i => new { i.Reference, i.Name, Url = Link.BuildIconUrl (i.Reference) }));
   }
 
   /// <summary>
@@ -514,12 +576,14 @@ public class EditorModel : PageModel
   /// <param name="url">The link URL.</param>
   /// <param name="description">The link description.</param>
   /// <param name="iconName">The selfh.st icon name.</param>
+  /// <param name="iconUrl">The icon image URL; ignored when not an HTTP or HTTPS URL.</param>
   /// <param name="monitorId">The Uptime Kuma monitor ID; ignored when blank or invalid.</param>
   /// <returns>The tile's HTML.</returns>
   public async Task<IActionResult> OnGetTilePreviewAsync (string? label,
                                                           string? url,
                                                           string? description,
                                                           string? iconName,
+                                                          string? iconUrl,
                                                           string? monitorId)
   {
     _ = MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId);
@@ -530,6 +594,7 @@ public class EditorModel : PageModel
                  Url         = (url         ?? string.Empty).Trim (),
                  Description = (description ?? string.Empty).Trim (),
                  IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
+                 IconUrl     = EditorModel.IsValidWebUrl ((iconUrl ?? string.Empty).Trim ()) ? iconUrl!.Trim () : "",
                  MonitorId   = parsedMonitorId,
                };
 
@@ -726,8 +791,9 @@ public class EditorModel : PageModel
   /// </summary>
   /// <param name="label">The trimmed label.</param>
   /// <param name="url">The trimmed URL.</param>
+  /// <param name="iconUrl">The trimmed icon image URL; empty for none.</param>
   /// <returns>The problem with the link, or <c>null</c> when it is valid.</returns>
-  private static string? ValidateLink (string label, string url)
+  private static string? ValidateLink (string label, string url, string iconUrl)
   {
     if (string.IsNullOrWhiteSpace (label))
       return "Link label is required.";
@@ -735,7 +801,10 @@ public class EditorModel : PageModel
     if (string.IsNullOrWhiteSpace (url))
       return "Link URL is required.";
 
-    return EditorModel.IsValidWebUrl (url) ? null : "Link URL must be a valid HTTP or HTTPS URL.";
+    if (!EditorModel.IsValidWebUrl (url))
+      return "Link URL must be a valid HTTP or HTTPS URL.";
+
+    return (iconUrl.Length == 0) || EditorModel.IsValidWebUrl (iconUrl) ? null : "Icon URL must be a valid HTTP or HTTPS URL.";
   }
 
   /// <summary>
@@ -748,7 +817,9 @@ public class EditorModel : PageModel
     if (snapshot.MonitorId is <= 0)
       return "Monitor ID must be a positive integer.";
 
-    return EditorModel.ValidateLink (label: (snapshot.Label ?? string.Empty).Trim (), url: (snapshot.Url ?? string.Empty).Trim ());
+    return EditorModel.ValidateLink (label: (snapshot.Label     ?? string.Empty).Trim (),
+                                     url: (snapshot.Url         ?? string.Empty).Trim (),
+                                     iconUrl: (snapshot.IconUrl ?? string.Empty).Trim ());
   }
 
   /// <summary>
@@ -763,6 +834,7 @@ public class EditorModel : PageModel
          Label       = (snapshot.Label       ?? string.Empty).Trim (),
          Description = (snapshot.Description ?? string.Empty).Trim (),
          IconName    = Link.NormalizeIconName (snapshot.IconName ?? string.Empty),
+         IconUrl     = (snapshot.IconUrl ?? string.Empty).Trim (),
          MonitorId   = snapshot.MonitorId,
          Url         = (snapshot.Url ?? string.Empty).Trim (),
          SortOrder   = sortOrder,

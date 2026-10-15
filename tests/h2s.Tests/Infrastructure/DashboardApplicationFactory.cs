@@ -31,7 +31,7 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                         { "Name": "Jellyfin", "Reference": "jellyfin" },
                                         { "Name": "Home Assistant", "Reference": "home-assistant" },
                                         { "Name": "GitHub", "Reference": "github" },
-                                        { "Name": "Navidrome", "Reference": "navidrome" }
+                                        { "Name": "Navidrome", "Reference": "navidrome", "Tags": "Music" }
                                       ]
                                       """;
 
@@ -43,7 +43,8 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
   public DashboardApplicationFactory () => this.connection.Open ();
 
   /// <summary>
-  ///   Gets or sets how the stubbed network answers the icon catalog and the page metadata reader. By default it serves
+  ///   Gets or sets how the stubbed network answers the icon catalog, the page metadata reader and the Uptime Kuma client. By default it
+  ///   serves
   ///   <see cref="IconIndexJson" /> as the icon index and 404 for everything else. Set it before the first request.
   /// </summary>
   public Func<HttpRequestMessage, HttpResponseMessage> Outbound { get; set; } = DashboardApplicationFactory.ServeIconIndex;
@@ -93,8 +94,13 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                      services.RemoveAll<IDbContextOptionsConfiguration<DashboardContext>> ();
                                      services.AddDbContext<DashboardContext> (options => options.UseSqlite (this.connection));
 
-                                     // Keep the icon catalog and the page metadata reader off the network.
-                                     foreach (string name in new[] { IconCatalog.ClientName, PageMetadataReader.ClientName })
+                                     // Keep the icon catalog, the page metadata reader and the Uptime Kuma client off the network.
+                                     foreach (string name in new[]
+                                                             {
+                                                               IconCatalog.ClientName,
+                                                               PageMetadataReader.ClientName,
+                                                               UptimeKumaClient.ClientName,
+                                                             })
                                      {
                                        services.AddHttpClient (name)
                                                .ConfigurePrimaryHttpMessageHandler (() => new StubHttpMessageHandler (request

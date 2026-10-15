@@ -1,5 +1,8 @@
 /* The shared add/edit link dialog (Pages/Shared/_LinkDialog.cshtml). URL first: once a URL is entered, the server
-   suggests a label from the page title and a selfh.st icon, and the preview shows the tile the server would render. */
+   suggests a label, a selfh.st icon (or the site's own icon), and the preview shows the tile the server would render.
+   The icon and Uptime Kuma monitor fields have pickers. */
+import { IconPicker } from './icon-picker.js';
+import { MonitorPicker } from './monitor-picker.js';
 
 const debounce = (action, wait) => {
     let timer = 0;
@@ -38,6 +41,7 @@ export class LinkDialog {
             label: this.form.elements.label,
             description: this.form.elements.description,
             iconName: this.form.elements.iconName,
+            iconUrl: this.form.elements.iconUrl,
             monitorId: this.form.elements.monitorId ?? null,
             categoryId: this.form.elements.categoryId
         };
@@ -48,10 +52,34 @@ export class LinkDialog {
         this.deleteButton = element.querySelector('[data-role="delete"]');
         this.saveButton = element.querySelector('[data-role="save"]');
         this.linkId = null;
-        this.autofilled = { label: false, iconName: false };
+        this.autofilled = { label: false, iconName: false, iconUrl: false };
         this.suggestion = 0;
         this.suggestedUrl = null;
         this.previewRequest = 0;
+
+        const browseIcons = element.querySelector('[data-role="browse-icons"]');
+        this.iconPicker = new IconPicker(element.querySelector('[data-role="icon-picker"]'), browseIcons, {
+            searchUrl: this.urls.searchIconsUrl,
+            onPick: reference => {
+                this.fields.iconName.value = reference;
+                this.autofilled.iconName = false;
+                this.fields.iconName.focus();
+                this.refreshPreview();
+            }
+        });
+        browseIcons.addEventListener('click', () => {
+            if (this.iconPicker.isOpen) {
+                this.iconPicker.close();
+            } else {
+                this.iconPicker.open(this.fields.iconName.value || this.fields.label.value);
+            }
+        });
+
+        const monitorSelect = element.querySelector('[data-role="monitor-select"]');
+        this.monitorPicker = monitorSelect && this.urls.monitorsUrl
+            ? new MonitorPicker(monitorSelect, this.fields.monitorId, element.querySelector('[data-role="monitor-status"]'),
+                this.urls.monitorsUrl)
+            : null;
 
         const previewSoon = debounce(() => this.refreshPreview(), 250);
 
@@ -59,7 +87,7 @@ export class LinkDialog {
         // someone types would chase every partial host name.
         this.fields.url.addEventListener('paste', () => window.setTimeout(() => this.suggest(), 0));
         this.fields.url.addEventListener('change', () => this.suggest());
-        for (const name of ['label', 'iconName']) {
+        for (const name of ['label', 'iconName', 'iconUrl']) {
             // Typing in a field takes it over from the suggestions.
             this.fields[name].addEventListener('input', () => { this.autofilled[name] = false; });
         }
@@ -78,6 +106,7 @@ export class LinkDialog {
         this.title.textContent = 'Add link';
         this.fields.categoryId.value = String(categoryId);
         this.deleteButton.classList.add('d-none');
+        this.monitorPicker?.setValue('');
         this.refreshPreview();
         this.modal.show();
     }
@@ -94,7 +123,10 @@ export class LinkDialog {
         this.fields.label.value = link.label;
         this.fields.description.value = link.description;
         this.fields.iconName.value = link.iconName;
-        if (this.fields.monitorId) {
+        this.fields.iconUrl.value = link.iconUrl;
+        if (this.monitorPicker) {
+            await this.monitorPicker.setValue(link.monitorId);
+        } else if (this.fields.monitorId) {
             this.fields.monitorId.value = link.monitorId ?? '';
         }
         this.fields.categoryId.value = String(link.categoryId);
@@ -106,11 +138,12 @@ export class LinkDialog {
         this.form.reset();
         this.form.classList.remove('was-validated');
         this.linkId = null;
-        this.autofilled = { label: false, iconName: false };
+        this.autofilled = { label: false, iconName: false, iconUrl: false };
         this.suggestedUrl = null;
         this.showError('');
         this.status.textContent = '';
         this.preview.replaceChildren();
+        this.iconPicker.close();
     }
 
     showError(message) {
@@ -156,6 +189,14 @@ export class LinkDialog {
                 notes.push(`Icon suggested: ${suggestion.iconName}.`);
             }
 
+            // The site's own icon is only a fallback, so it's offered when there's no selfh.st icon.
+            if (suggestion.iconUrl && !this.fields.iconName.value.trim() &&
+                (this.autofilled.iconUrl || !this.fields.iconUrl.value.trim())) {
+                this.fields.iconUrl.value = suggestion.iconUrl;
+                this.autofilled.iconUrl = true;
+                notes.push("Using the site's own icon.");
+            }
+
             this.status.textContent = notes.join(' ');
             this.refreshPreview();
         } catch {
@@ -171,6 +212,7 @@ export class LinkDialog {
             label: this.fields.label.value.trim(),
             description: this.fields.description.value.trim(),
             iconName: this.fields.iconName.value.trim(),
+            iconUrl: this.fields.iconUrl.value.trim(),
             categoryId: this.fields.categoryId.value
         };
         if (this.fields.monitorId) {

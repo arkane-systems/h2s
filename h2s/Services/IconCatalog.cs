@@ -83,6 +83,34 @@ public partial class IconCatalog
   }
 
   /// <summary>
+  ///   Searches the icon index for the icon picker. Exact matches come first, then names and references that start with
+  ///   the query, then those that contain it, then icons whose tags mention it.
+  /// </summary>
+  /// <param name="query">The search text.</param>
+  /// <param name="limit">The most icons to return.</param>
+  /// <param name="cancellationToken">A token used to cancel downloading the index.</param>
+  /// <returns>The matching icons, best first; none for a blank query or when the index is unavailable.</returns>
+  public async Task<IReadOnlyList<IconInfo>> SearchAsync (string? query, int limit, CancellationToken cancellationToken = default)
+  {
+    string compact = IconCatalog.Compact (query ?? "");
+
+    if (compact.Length == 0)
+      return [];
+
+    IconIndex index = await this.GetIndexAsync (cancellationToken);
+    string    word  = query!.Trim ();
+
+    return index.Icons
+                .Select (icon => (Icon: icon, Rank: IconCatalog.Rank (icon: icon, compactQuery: compact, query: word)))
+                .Where (match => match.Rank < int.MaxValue)
+                .OrderBy (match => match.Rank)
+                .ThenBy (keySelector: match => match.Icon.Name, comparer: StringComparer.OrdinalIgnoreCase)
+                .Take (limit)
+                .Select (match => match.Icon)
+                .ToList ();
+  }
+
+  /// <summary>
   ///   Gets the names worth trying as icon names for a URL's host: its first label (<c>jellyfin</c> in
   ///   <c>jellyfin.home.arpa</c>) and the label before its top-level domain (<c>github</c> in <c>github.com</c>).
   /// </summary>
@@ -155,6 +183,32 @@ public partial class IconCatalog
   }
 
   /// <summary>
+  ///   Ranks an icon against a search: lower is better, and <see cref="int.MaxValue" /> means no match.
+  /// </summary>
+  /// <param name="icon">The icon.</param>
+  /// <param name="compactQuery">The query, compacted.</param>
+  /// <param name="query">The query as typed, trimmed.</param>
+  /// <returns>The rank.</returns>
+  private static int Rank (IconInfo icon, string compactQuery, string query)
+  {
+    string name      = IconCatalog.Compact (icon.Name);
+    string reference = IconCatalog.Compact (icon.Reference);
+
+    if ((name == compactQuery) || (reference == compactQuery))
+      return 0;
+
+    if (name.StartsWith (value: compactQuery, comparisonType: StringComparison.Ordinal) ||
+        reference.StartsWith (value: compactQuery, comparisonType: StringComparison.Ordinal))
+      return 1;
+
+    if (name.Contains (value: compactQuery, comparisonType: StringComparison.Ordinal) ||
+        reference.Contains (value: compactQuery, comparisonType: StringComparison.Ordinal))
+      return 2;
+
+    return icon.Tags.Contains (value: query, comparisonType: StringComparison.OrdinalIgnoreCase) ? 3 : int.MaxValue;
+  }
+
+  /// <summary>
   ///   Reduces a name to lowercase letters and digits, so that <c>Home Assistant</c>, <c>home-assistant</c> and
   ///   <c>homeassistant</c> compare equal.
   /// </summary>
@@ -171,7 +225,8 @@ public partial class IconCatalog
   /// </summary>
   /// <param name="Name">The display name, such as <c>Home Assistant</c>.</param>
   /// <param name="Reference">The icon name used in CDN URLs, such as <c>home-assistant</c>.</param>
-  private sealed record Entry (string? Name, string? Reference);
+  /// <param name="Tags">Comma-separated tags, such as <c>Podcasts</c>.</param>
+  private sealed record Entry (string? Name, string? Reference, string? Tags);
 
   /// <summary>
   ///   The icon index, keyed for matching candidate names against icon references and display names.
@@ -179,6 +234,8 @@ public partial class IconCatalog
   private sealed class IconIndex
   {
     private readonly Dictionary<string, string> byCompactName = new (StringComparer.Ordinal);
+
+    private readonly List<IconInfo> icons = [];
 
     private readonly HashSet<string> references = new (StringComparer.Ordinal);
 
@@ -193,7 +250,12 @@ public partial class IconCatalog
         if (string.IsNullOrWhiteSpace (entry.Reference))
           continue;
 
-        _ = this.references.Add (entry.Reference);
+        if (!this.references.Add (entry.Reference))
+          continue;
+
+        this.icons.Add (new IconInfo (Reference: entry.Reference,
+                                      Name: string.IsNullOrWhiteSpace (entry.Name) ? entry.Reference : entry.Name,
+                                      Tags: entry.Tags ?? ""));
 
         // The first icon to claim a compacted name keeps it.
         _ = this.byCompactName.TryAdd (key: IconCatalog.Compact (entry.Reference), value: entry.Reference);
@@ -202,6 +264,11 @@ public partial class IconCatalog
           _ = this.byCompactName.TryAdd (key: IconCatalog.Compact (entry.Name), value: entry.Reference);
       }
     }
+
+    /// <summary>
+    ///   Gets every icon in the index.
+    /// </summary>
+    public IReadOnlyList<IconInfo> Icons => this.icons;
 
     /// <summary>
     ///   Gets a value indicating whether the index holds no icons.

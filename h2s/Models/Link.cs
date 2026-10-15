@@ -36,6 +36,12 @@ public class Link
   public string IconName { get; set; } = "";
 
   /// <summary>
+  ///   Gets or sets an absolute image URL, such as the site's favicon, used as the link's icon when it has no selfh.st
+  ///   icon name. Empty for none.
+  /// </summary>
+  public string IconUrl { get; set; } = "";
+
+  /// <summary>
   ///   Gets or sets the destination URL for the link.
   /// </summary>
   public string Url { get; set; } = "";
@@ -58,11 +64,14 @@ public class Link
   public Category? Category { get; set; }
 
   /// <summary>
-  ///   Builds the icon URL for this link using the configured icon name.
+  ///   Gets the URL of the link's icon: its selfh.st icon when it has an icon name, otherwise its <see cref="IconUrl" />.
   /// </summary>
-  /// <param name="format">The desired image format. Supported values are <c>png</c>, <c>svg</c>, and <c>webp</c>.</param>
-  /// <returns>The icon URL, or an empty string when no icon name is configured.</returns>
-  public string GetIconUrl (string format = "png") => Link.BuildIconUrl (iconName: this.IconName, format: format);
+  /// <param name="format">
+  ///   The desired selfh.st image format. Supported values are <c>png</c>, <c>svg</c>, and <c>webp</c>.
+  /// </param>
+  /// <returns>The icon URL, or an empty string when the link has no icon.</returns>
+  public string GetIconUrl (string format = "png")
+    => string.IsNullOrWhiteSpace (this.IconName) ? this.IconUrl : Link.BuildIconUrl (iconName: this.IconName, format: format);
 
   /// <summary>
   ///   Builds a selfh.st CDN URL for a normalized icon name and format.

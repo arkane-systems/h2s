@@ -8,7 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 namespace h2s.Services;
 
 /// <summary>
-///   Reads what the link dialog can suggest from a web page: its title and the name of the app behind it.
+///   Reads what the link dialog can suggest from a web page: its title, the name of the app behind it, and its icon.
 /// </summary>
 /// <remarks>
 ///   <para>
@@ -45,6 +45,9 @@ public partial class PageMetadataReader
   private const int MaxManifestBytes = 64 * 1024;
 
   private const int MaxTitleLength = 200;
+
+  // The size a scalable (SVG or "any") icon counts as when choosing the best icon.
+  private const int ScalableIconSize = 512;
 
   // A script redirect is followed only from a page this small: a stub that exists to redirect, rather than a real page
   // that happens to set location somewhere in its scripts.
@@ -257,7 +260,7 @@ public partial class PageMetadataReader
   }
 
   /// <summary>
-  ///   Fetches the entered URL and any pages it redirects to on the client, gathering the title and app names.
+  ///   Fetches the entered URL and any pages it redirects to on the client, gathering the title, app names and icon.
   /// </summary>
   /// <param name="uri">The entered URL.</param>
   /// <param name="cancellationToken">A token used to cancel the requests.</param>
@@ -265,6 +268,8 @@ public partial class PageMetadataReader
   private async Task<PageMetadata> CollectAsync (Uri uri, CancellationToken cancellationToken)
   {
     string? title    = null;
+    Uri?    iconUrl  = null;
+    Uri?    lastPage = null;
     var     appNames = new List<string> ();
     var     visited  = new HashSet<Uri> ();
     Uri?    current  = uri;
@@ -276,18 +281,29 @@ public partial class PageMetadataReader
       if (page?.Html == null)
         break;
 
+      lastPage = page.Uri;
+
       // Later pages are closer to the app itself, so what they say takes precedence.
       if (page.IsSuccess                                             &&
           PageMetadataReader.ParseTitle (page.Html) is { } pageTitle &&
           PageMetadataReader.CleanTitle (pageTitle) is { } cleanTitle)
         title = cleanTitle;
 
-      appNames.InsertRange (index: 0,
-                            collection: await this.ReadAppNamesAsync (html: page.Html,
-                                                                      pageUri: page.Uri,
-                                                                      cancellationToken: cancellationToken));
+      PageDetails details = await this.ReadDetailsAsync (html: page.Html, pageUri: page.Uri, cancellationToken: cancellationToken);
+
+      appNames.InsertRange (index: 0, collection: details.AppNames);
+      iconUrl = PageMetadataReader.ChooseIcon (details.Icons) ?? iconUrl;
 
       current = PageMetadataReader.FindClientRedirect (html: page.Html, pageUri: page.Uri);
+    }
+
+    // A site that declares no icon may still serve the conventional one.
+    if ((iconUrl == null) && (lastPage != null))
+    {
+      var favicon = new Uri (baseUri: lastPage, relativeUri: "/favicon.ico");
+
+      if (await this.IsImageAsync (uri: favicon, cancellationToken: cancellationToken))
+        iconUrl = favicon;
     }
 
     return new PageMetadata (Title: title,
@@ -295,7 +311,8 @@ public partial class PageMetadataReader
                              [
                                .. appNames.Where (n => !PageMetadataReader.IsGenericTitle (n))
                                           .Distinct (StringComparer.OrdinalIgnoreCase),
-                             ]);
+                             ],
+                             IconUrl: iconUrl?.AbsoluteUri);
   }
 
   /// <summary>
@@ -340,26 +357,28 @@ public partial class PageMetadataReader
   }
 
   /// <summary>
-  ///   Reads the app names a page declares: its web app manifest's <c>short_name</c> and <c>name</c>, then its
-  ///   <c>application-name</c>, <c>apple-mobile-web-app-title</c> and <c>og:site_name</c> meta tags.
+  ///   Reads what a page declares about its app: names from its web app manifest's <c>short_name</c> and <c>name</c>
+  ///   and its <c>application-name</c>, <c>apple-mobile-web-app-title</c> and <c>og:site_name</c> meta tags; and icons
+  ///   from its <c>&lt;link rel="icon"&gt;</c> and <c>apple-touch-icon</c> tags and its manifest.
   /// </summary>
   /// <param name="html">The page.</param>
-  /// <param name="pageUri">The page's URL, against which the manifest URL is resolved.</param>
+  /// <param name="pageUri">The page's URL, against which the manifest and icon URLs are resolved.</param>
   /// <param name="cancellationToken">A token used to cancel the manifest request.</param>
-  /// <returns>The names, best first.</returns>
-  private async Task<List<string>> ReadAppNamesAsync (string html, Uri pageUri, CancellationToken cancellationToken)
+  /// <returns>The names, best first, and the icons.</returns>
+  private async Task<PageDetails> ReadDetailsAsync (string html, Uri pageUri, CancellationToken cancellationToken)
   {
-    var names = new List<string> ();
+    var                              details = new PageDetails (AppNames: [], Icons: []);
+    List<Dictionary<string, string>> links   = [.. PageMetadataReader.ReadTags (html: html, tagName: "link")];
 
-    string? manifestHref = PageMetadataReader.ReadTags (html: html, tagName: "link")
-                                             .FirstOrDefault (link => link.TryGetValue (key: "rel", value: out string? rel) &&
-                                                                      rel.Split (' ')
-                                                                         .Contains (value: "manifest",
-                                                                                    comparer: StringComparer.OrdinalIgnoreCase))
-                                            ?.GetValueOrDefault ("href");
+    string? manifestHref = links.FirstOrDefault (link => PageMetadataReader.GetRels (link).Contains ("manifest"))
+                               ?.GetValueOrDefault ("href");
 
     if (PageMetadataReader.TryGetWebUri (value: manifestHref, baseUri: pageUri, uri: out Uri? manifestUri))
-      names.AddRange (await this.ReadManifestNamesAsync (uri: manifestUri, cancellationToken: cancellationToken));
+    {
+      PageDetails manifest = await this.ReadManifestAsync (uri: manifestUri, cancellationToken: cancellationToken);
+      details.AppNames.AddRange (manifest.AppNames);
+      details.Icons.AddRange (manifest.Icons);
+    }
 
     foreach (Dictionary<string, string> meta in PageMetadataReader.ReadTags (html: html, tagName: "meta"))
     {
@@ -367,20 +386,40 @@ public partial class PageMetadataReader
 
       if (key is "application-name" or "apple-mobile-web-app-title" or "og:site_name" &&
           PageMetadataReader.CleanText (meta.GetValueOrDefault ("content") ?? "") is { } name)
-        names.Add (name);
+        details.AppNames.Add (name);
     }
 
-    return names;
+    foreach (Dictionary<string, string> link in links)
+    {
+      HashSet<string> rels = PageMetadataReader.GetRels (link);
+
+      // A mask-icon is a single-colour silhouette, not something to show on a tile.
+      if (rels.Contains ("mask-icon") || !(rels.Contains ("icon") || rels.Contains ("apple-touch-icon")))
+        continue;
+
+      if (PageMetadataReader.TryGetWebUri (value: link.GetValueOrDefault ("href"), baseUri: pageUri, uri: out Uri? icon))
+      {
+        int size = PageMetadataReader.ParseIconSize (sizes: link.GetValueOrDefault ("sizes"),
+                                                     type: link.GetValueOrDefault ("type"),
+                                                     uri: icon,
+                                                     unknownSize: rels.Contains ("apple-touch-icon") ? 180 : 32);
+        details.Icons.Add (new IconCandidate (Uri: icon, Size: size));
+      }
+    }
+
+    return details;
   }
 
   /// <summary>
-  ///   Reads a web app manifest's <c>short_name</c> and <c>name</c>.
+  ///   Reads a web app manifest's <c>short_name</c> and <c>name</c>, and its icons other than maskable-only ones.
   /// </summary>
-  /// <param name="uri">The manifest URL.</param>
+  /// <param name="uri">The manifest URL, against which its icon URLs are resolved.</param>
   /// <param name="cancellationToken">A token used to cancel the request.</param>
-  /// <returns>The names that are present, possibly none.</returns>
-  private async Task<List<string>> ReadManifestNamesAsync (Uri uri, CancellationToken cancellationToken)
+  /// <returns>The names and icons that are present, possibly none.</returns>
+  private async Task<PageDetails> ReadManifestAsync (Uri uri, CancellationToken cancellationToken)
   {
+    var details = new PageDetails (AppNames: [], Icons: []);
+
     try
     {
       HttpClient client = this.httpClientFactory.CreateClient (PageMetadataReader.ClientName);
@@ -393,30 +432,144 @@ public partial class PageMetadataReader
                                                                    cancellationToken: cancellationToken);
 
       if (!response.IsSuccessStatusCode)
-        return [];
+        return details;
 
       string json = await PageMetadataReader.ReadPrefixAsync (content: response.Content,
                                                               maxBytes: PageMetadataReader.MaxManifestBytes,
                                                               cancellationToken: cancellationToken);
 
       using JsonDocument manifest = JsonDocument.Parse (json);
+      JsonElement        root     = manifest.RootElement;
 
-      return manifest.RootElement.ValueKind != JsonValueKind.Object
-               ? []
-               : new[] { "short_name", "name" }
-                .Select (property => manifest.RootElement.TryGetProperty (propertyName: property, value: out JsonElement value) &&
-                                     (value.ValueKind == JsonValueKind.String)
-                                       ? PageMetadataReader.CleanText (value.GetString () ?? "")
-                                       : null)
-                .OfType<string> ()
-                .ToList ();
+      if (root.ValueKind != JsonValueKind.Object)
+        return details;
+
+      foreach (string property in new[] { "short_name", "name" })
+      {
+        if (PageMetadataReader.GetString (element: root, property: property) is { } value &&
+            PageMetadataReader.CleanText (value) is { } name)
+          details.AppNames.Add (name);
+      }
+
+      if (root.TryGetProperty (propertyName: "icons", value: out JsonElement icons) && (icons.ValueKind == JsonValueKind.Array))
+      {
+        foreach (JsonElement icon in icons.EnumerateArray ())
+        {
+          if (icon.ValueKind != JsonValueKind.Object)
+            continue;
+
+          string[] purposes = (PageMetadataReader.GetString (element: icon, property: "purpose") ?? "any").Split (' ');
+
+          if (purposes.All (p => p.Equals (value: "maskable", comparisonType: StringComparison.OrdinalIgnoreCase)) ||
+              !PageMetadataReader.TryGetWebUri (value: PageMetadataReader.GetString (element: icon, property: "src"),
+                                                baseUri: uri,
+                                                uri: out Uri? src))
+            continue;
+
+          details.Icons.Add (new IconCandidate (Uri: src,
+                                                Size: PageMetadataReader.ParseIconSize (sizes:
+                                                                                        PageMetadataReader.GetString (element: icon,
+                                                                                                                      property:
+                                                                                                                      "sizes"),
+                                                                                        type: PageMetadataReader
+                                                                                         .GetString (element: icon,
+                                                                                                     property: "type"),
+                                                                                        uri: src,
+                                                                                        unknownSize: 64)));
+        }
+      }
+
+      return details;
     }
     catch when (!cancellationToken.IsCancellationRequested)
     {
-      // A missing, protected or malformed manifest just means one less name.
-      return [];
+      // A missing, protected or malformed manifest just means fewer names and icons.
+      return details;
     }
   }
+
+  /// <summary>
+  ///   Determines whether a URL serves an image, or at least something that isn't an error or a web page.
+  /// </summary>
+  /// <param name="uri">The URL.</param>
+  /// <param name="cancellationToken">A token used to cancel the request.</param>
+  /// <returns><c>true</c> when the URL answers with success and content that isn't HTML.</returns>
+  private async Task<bool> IsImageAsync (Uri uri, CancellationToken cancellationToken)
+  {
+    try
+    {
+      HttpClient client = this.httpClientFactory.CreateClient (PageMetadataReader.ClientName);
+
+      using var request = new HttpRequestMessage (method: HttpMethod.Get, requestUri: uri);
+      using HttpResponseMessage response = await client.SendAsync (request: request,
+                                                                   completionOption: HttpCompletionOption.ResponseHeadersRead,
+                                                                   cancellationToken: cancellationToken);
+
+      // Some servers answer every path with their app's page; that isn't a favicon.
+      string? mediaType = response.Content.Headers.ContentType?.MediaType;
+
+      return response.IsSuccessStatusCode && ((mediaType == null) || !mediaType.Contains ("html"));
+    }
+    catch when (!cancellationToken.IsCancellationRequested)
+    {
+      return false;
+    }
+  }
+
+  /// <summary>
+  ///   Chooses the icon to suggest: the largest, preferring vector and PNG images to ICO files at equal sizes.
+  /// </summary>
+  /// <param name="icons">The candidates.</param>
+  /// <returns>The chosen icon's URL, or <c>null</c> when there are none.</returns>
+  private static Uri? ChooseIcon (IEnumerable<IconCandidate> icons)
+    => icons.OrderByDescending (i => i.Size)
+            .ThenBy (i => i.Uri.AbsolutePath.EndsWith (value: ".ico", comparisonType: StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault ()
+           ?.Uri;
+
+  /// <summary>
+  ///   Works out an icon's size in pixels from its declared <c>sizes</c> and type.
+  /// </summary>
+  /// <param name="sizes">The declared sizes, such as <c>16x16 32x32</c> or <c>any</c>.</param>
+  /// <param name="type">The declared media type, if any.</param>
+  /// <param name="uri">The icon URL, whose extension may reveal an SVG.</param>
+  /// <param name="unknownSize">The size to assume when none is declared.</param>
+  /// <returns>The largest declared dimension; scalable icons count as 512.</returns>
+  private static int ParseIconSize (string? sizes, string? type, Uri uri, int unknownSize)
+  {
+    if ((type?.Contains ("svg") ?? false)                                                             ||
+        uri.AbsolutePath.EndsWith (value: ".svg", comparisonType: StringComparison.OrdinalIgnoreCase) ||
+        (sizes?.Contains (value: "any", comparisonType: StringComparison.OrdinalIgnoreCase) ?? false))
+      return PageMetadataReader.ScalableIconSize;
+
+    int largest = (sizes ?? "").Split (separator: ' ', options: StringSplitOptions.RemoveEmptyEntries)
+                               .Select (size => int.TryParse (s: size.Split ('x', 'X')[0], result: out int width) ? width : 0)
+                               .DefaultIfEmpty (0)
+                               .Max ();
+
+    return largest > 0 ? largest : unknownSize;
+  }
+
+  /// <summary>
+  ///   Gets a link tag's relationships.
+  /// </summary>
+  /// <param name="link">The link tag's attributes.</param>
+  /// <returns>The relationships, compared case-insensitively.</returns>
+  private static HashSet<string> GetRels (Dictionary<string, string> link)
+    => new (collection: (link.GetValueOrDefault ("rel") ?? "").Split (separator: ' ',
+                                                                      options: StringSplitOptions.RemoveEmptyEntries),
+            comparer: StringComparer.OrdinalIgnoreCase);
+
+  /// <summary>
+  ///   Gets a string property of a JSON object.
+  /// </summary>
+  /// <param name="element">The object.</param>
+  /// <param name="property">The property name.</param>
+  /// <returns>The value, or <c>null</c> when it is missing or not a string.</returns>
+  private static string? GetString (JsonElement element, string property)
+    => element.TryGetProperty (propertyName: property, value: out JsonElement value) && (value.ValueKind == JsonValueKind.String)
+         ? value.GetString ()
+         : null;
 
   /// <summary>
   ///   Reads the attributes of every tag with the given name.
@@ -561,4 +714,18 @@ public partial class PageMetadataReader
   /// <param name="IsSuccess">Whether the response had a success status.</param>
   /// <param name="Html">The start of the page, or <c>null</c> when it isn't HTML.</param>
   private sealed record Page (Uri Uri, bool IsSuccess, string? Html);
+
+  /// <summary>
+  ///   An icon a page or manifest declares.
+  /// </summary>
+  /// <param name="Uri">The icon URL.</param>
+  /// <param name="Size">Its largest dimension in pixels, or an estimate.</param>
+  private sealed record IconCandidate (Uri Uri, int Size);
+
+  /// <summary>
+  ///   What a page (or its manifest) declares about its app.
+  /// </summary>
+  /// <param name="AppNames">The app names, best first.</param>
+  /// <param name="Icons">The icons.</param>
+  private sealed record PageDetails (List<string> AppNames, List<IconCandidate> Icons);
 }
