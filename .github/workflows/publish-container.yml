@@ -49,7 +49,7 @@ jobs:
           IMAGE_NAME="$(echo "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${GITHUB_REF}" != "refs/heads/master" ]; then
-            # Pre-release build from a working branch (e.g. dev) for soak testing. Never touch the release or
+            # Pre-release build from a working branch for soak testing. Never touch the release or
             # latest tags: publish <branch> and <branch>-<short sha> instead.
             BRANCH_TAG="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
             TAGS="$(printf '%s\n%s' "${IMAGE_NAME}:${BRANCH_TAG}" "${IMAGE_NAME}:${BRANCH_TAG}-${GITHUB_SHA::7}")"

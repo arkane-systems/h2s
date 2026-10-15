@@ -128,12 +128,13 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 
 ## CI and release
 
-`.github/workflows/ci.yml` runs on pushes and PRs to `dev` and `master`. It has two parallel jobs:
+`.github/workflows/ci.yml` runs on pushes and PRs to `master`. It has three parallel jobs, all required by `master`'s branch protection:
 - **Build and test:** a Release build with `ContinuousIntegrationBuild=true` (warnings are errors), then `dotnet test`.
+- **Container image:** builds `h2s/Dockerfile` without pushing.
 - **Code style and inspections:** `jb cleanupcode` must leave `git diff` empty. On failure, a `cleanup-patch` artifact holds the required changes. `jb inspectcode` then uploads an `inspectcode-sarif` artifact; it's informational and doesn't fail the build.
 
 The style job is the slow one, at roughly 5–10 minutes.
 
-`.github/workflows/publish-container.yml` publishes `ghcr.io/arkane-systems/h2s:<tag>` and `:latest` on tag push, but only if the tagged commit is on `master`. It first runs `ci.yml` as a reusable workflow and publishes only if that passes. Manual dispatch uses the latest tag.
+`.github/workflows/publish-container.yml` publishes `ghcr.io/arkane-systems/h2s:<tag>` and `:latest` on tag push, but only if the tagged commit is on `master`. It first runs `ci.yml` as a reusable workflow and publishes only if that passes. Manual dispatch from `master` uses the latest tag; from any other branch it publishes a soak-test image as `:<branch>` and `:<branch>-<short sha>`, never touching the release tags.
 
-Day-to-day work happens on feature branches off `dev`, one PR into `dev` per change, merged with merge commits (not squash, which would invalidate `.git-blame-ignore-revs`). `dev` merges to `master` for release.
+Day-to-day work happens on feature branches off `master`, one PR into `master` per change, merged with merge commits (not squash, which would invalidate `.git-blame-ignore-revs`). A release is an annotated version tag (`0.4`, …) on `master`.

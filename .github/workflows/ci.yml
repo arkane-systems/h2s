@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [dev, master]
+    branches: [master]
   pull_request:
-    branches: [dev, master]
+    branches: [master]
   workflow_dispatch:
   # Reused by publish-container.yml so images are only published from a passing build.
   workflow_call:
