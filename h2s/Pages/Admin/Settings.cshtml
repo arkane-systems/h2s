@@ -145,7 +145,41 @@
     </div>
 </section>
 
+<hr class="my-4" />
+
+@* Driven by wwwroot/js/modules/backup.js: upload, preview what the file holds, then confirm the replacement. *@
+<section class="backup-section" id="backup"
+         data-preview-url="@Url.Page("/Admin/Settings", "PreviewImport")"
+         data-import-url="@Url.Page("/Admin/Settings", "Import")">
+    <h2 class="h4">Backup</h2>
+    <p class="text-muted">
+        Export the whole configuration (settings, categories, links and infrastructure groups) as a JSON file, or import one
+        to replace it.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <a class="btn btn-outline-primary" asp-page="/Admin/Settings" asp-page-handler="Export">Export configuration</a>
+        <label class="btn btn-outline-secondary mb-0" for="backup-file">Import…</label>
+        <input type="file" class="visually-hidden" id="backup-file" accept=".json,application/json" data-role="backup-file" />
+    </div>
+
+    <div class="alert alert-danger d-none backup-errors" role="alert" data-role="backup-error"></div>
+
+    <div class="card d-none" data-role="backup-preview">
+        <div class="card-body">
+            <h3 class="h5" data-role="backup-file-name"></h3>
+            <p class="mb-2" data-role="backup-summary"></p>
+            <p class="text-danger mb-3" data-role="backup-warning"></p>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-danger" data-role="backup-confirm">Replace everything</button>
+                <button type="button" class="btn btn-secondary" data-role="backup-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+</section>
+
 @section Scripts {
+    <script type="module" src="~/js/modules/backup.js" asp-append-version="true"></script>
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
     <script src="~/js/infrastructure-groups.js" asp-append-version="true"></script>
     <script>

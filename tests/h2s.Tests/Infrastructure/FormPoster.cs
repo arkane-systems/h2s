@@ -51,6 +51,34 @@ public static partial class FormPoster
   }
 
   /// <summary>
+  ///   Posts a file as multipart form data to a page handler, including an antiforgery token obtained from the same page.
+  /// </summary>
+  /// <param name="client">The test client.</param>
+  /// <param name="pagePath">The page path, used both to obtain the token and as the post target.</param>
+  /// <param name="handler">The named page handler.</param>
+  /// <param name="fieldName">The form field the file is posted as.</param>
+  /// <param name="fileName">The file's name.</param>
+  /// <param name="contents">The file's contents.</param>
+  /// <returns>The response.</returns>
+  public static async Task<HttpResponseMessage> PostFileAsync (HttpClient client,
+                                                               string     pagePath,
+                                                               string     handler,
+                                                               string     fieldName,
+                                                               string     fileName,
+                                                               byte[]     contents)
+  {
+    string token = await FormPoster.GetAntiforgeryTokenAsync (client: client, pagePath: pagePath);
+
+    using var form = new MultipartFormDataContent ();
+    form.Add (content: new StringContent (token),       name: "__RequestVerificationToken");
+    form.Add (content: new ByteArrayContent (contents), name: fieldName, fileName: fileName);
+
+    return await client.PostAsync (requestUri: $"{pagePath}?handler={handler}",
+                                   content: form,
+                                   cancellationToken: TestContext.Current.CancellationToken);
+  }
+
+  /// <summary>
   ///   Reads a response body as a JSON document.
   /// </summary>
   /// <param name="response">The response.</param>

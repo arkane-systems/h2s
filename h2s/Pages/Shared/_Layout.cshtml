@@ -61,18 +61,8 @@
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav me-auto">
                     </ul>
+                    @* Edit/Done is the primary action, so it sits at the far right. The list view is reached from edit mode. *@
                     <ul class="navbar-nav align-items-center">
-                        <li class="nav-item me-sm-2">
-                            @if (isEditMode)
-                            {
-                                <a class="btn btn-sm btn-primary" asp-area="" asp-page="/Index" title="Leave edit mode">Done</a>
-                            }
-                            else
-                            {
-                                <a class="btn btn-sm btn-outline-secondary" asp-area="" asp-page="/Index" asp-route-edit="true"
-                                   title="Rearrange the dashboard">Edit</a>
-                            }
-                        </li>
                         <li class="nav-item">
                             <button id="color-mode-toggle"
                                     class="nav-link icon-nav-link"
@@ -82,10 +72,18 @@
                                     aria-label="@colorModeTitle">@colorModeIcon</button>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link icon-nav-link" asp-area="" asp-page="/Admin/Editor" title="Editor" aria-label="Editor">✎</a>
-                        </li>
-                        <li class="nav-item">
                             <a class="nav-link icon-nav-link" asp-area="" asp-page="/Admin/Settings" title="Settings" aria-label="Settings">⚙</a>
+                        </li>
+                        <li class="nav-item ms-sm-2">
+                            @if (isEditMode)
+                            {
+                                <a class="btn btn-sm btn-primary" asp-area="" asp-page="/Index" title="Leave edit mode">Done</a>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-outline-secondary" asp-area="" asp-page="/Index" asp-route-edit="true"
+                                   title="Edit the dashboard">Edit</a>
+                            }
                         </li>
                     </ul>
                 </div>

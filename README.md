@@ -206,7 +206,7 @@ Save changes to apply them across the app.
 
 ### Edit mode
 
-Click **Edit** in the navbar to edit the dashboard in place; **Done** returns to the normal view.
+Click **Edit** at the right of the navbar to edit the dashboard in place; **Done** returns to the normal view.
 
 - Drag the ⠿ handles to reorder categories (within the regular or admin section) and links (within or between categories). A focused handle also responds to the arrow keys. Each move saves straight away.
 - Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
@@ -216,17 +216,19 @@ Click **Edit** in the navbar to edit the dashboard in place; **Done** returns to
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
 - Deletes take effect immediately, and the toast that confirms them has an **Undo** button.
 
-### Editor page
+### List view
 
-Open **Editor** from the navbar to manage dashboard content:
+**List view** in the edit-mode banner opens every link in one table:
 
-- Create, rename, and delete categories.
-- Mark categories as admin categories (shown beneath regular categories and tinted red).
-- Add, edit, and delete links in each category.
-- Set link label, description, URL, and optional icon name. Icons aren't stored locally; they're brought in from the [selfh.st/icons](https://selfh.st/icons/) content delivery network.
-- When Uptime Kuma is enabled in Settings, links also support an optional **Monitor ID** (positive integer) for a compact per-link status badge.
+- Filter by text (label, URL, description or icon) and by category. Click a column heading to sort by it.
+- Click a row to edit the link in the same dialog as edit mode, or use **+ Add link**.
+- Tick links (or the heading's box, for everything shown) to move them to another category, or to delete them. Deletes have **Undo**.
 
-Changes in the editor are saved to the database and are reflected on the dashboard immediately.
+Categories are managed in edit mode.
+
+### Backup
+
+**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, and the infrastructure groups. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control.
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).
