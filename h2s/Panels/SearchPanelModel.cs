@@ -5,5 +5,5 @@ namespace h2s.Panels;
 /// </summary>
 /// <param name="Placeholder">The search box's placeholder text.</param>
 /// <param name="EngineName">The default engine's name.</param>
-/// <param name="Shortcuts">The engines' shortcuts with their names, such as <c>!g Google</c>, in order.</param>
-public sealed record SearchPanelModel (string Placeholder, string EngineName, IReadOnlyList<string> Shortcuts);
+/// <param name="Engines">The engines for the search box's menu, in Settings order.</param>
+public sealed record SearchPanelModel (string Placeholder, string EngineName, IReadOnlyList<SearchPanelEngine> Engines);

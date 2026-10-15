@@ -59,10 +59,13 @@ public sealed class SearchPanelKind : IPanelKind
                                                                           ? placeholder
                                                                           : $"Search with {engine.Name}",
                                                            EngineName: engine.Name,
-                                                           Shortcuts:
+                                                           Engines:
                                                            [
-                                                             .. engines.Where (e => e.Shortcut.Length > 0)
-                                                                       .Select (e => $"!{e.Shortcut} {e.Name}"),
+                                                             .. engines.Select (e => new SearchPanelEngine (Id: e.Id,
+                                                                                                            Name: e.Name,
+                                                                                                            Shortcut: e.Shortcut,
+                                                                                                            IsDefault: e ==
+                                                                                                                       engine)),
                                                            ]));
   }
 }

@@ -35,6 +35,26 @@ public class WebSearchTests
     => Assert.Equal (expected: expected, actual: WebSearch.BuildUrl (engines: WebSearchTests.Engines, query: query));
 
   [Theory]
+  [InlineData ("home lab",       "https://duckduckgo.com/?q=home%20lab")]
+  [InlineData ("home lab !b",    "https://www.bing.com/search?q=home%20lab")]
+  [InlineData ("!nope home lab", "https://duckduckgo.com/?q=%21nope%20home%20lab")]
+  public void BuildUrl_UsesTheChosenEngineUnlessAShortcutOverridesIt (string query, string expected)
+  {
+    // The engines get IDs in their order, so DuckDuckGo is 2.
+    List<SearchEngine> engines = DefaultSearchEngines.Create ();
+
+    for (var i = 0; i < engines.Count; i++)
+      engines[i].Id = i + 1;
+
+    Assert.Equal (expected: expected, actual: WebSearch.BuildUrl (engines: engines, query: query, engineId: 2));
+  }
+
+  [Fact]
+  public void BuildUrl_IgnoresAnUnknownChosenEngine ()
+    => Assert.Equal (expected: "https://www.google.com/search?q=x",
+                     actual: WebSearch.BuildUrl (engines: WebSearchTests.Engines, query: "x", engineId: 999));
+
+  [Theory]
   [InlineData (null)]
   [InlineData ("")]
   [InlineData ("   ")]

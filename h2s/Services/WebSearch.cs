@@ -4,8 +4,8 @@ using h2s.Validation;
 namespace h2s.Services;
 
 /// <summary>
-///   Turns a query into a search engine's URL: a <c>!shortcut</c> word at its start or end picks the engine, and anything
-///   else goes to the default.
+///   Turns a query into a search engine's URL: a <c>!shortcut</c> word at its start or end picks the engine; failing that,
+///   the engine chosen in the search box's menu; and failing that, the default.
 /// </summary>
 public static class WebSearch
 {
@@ -14,11 +14,15 @@ public static class WebSearch
   /// </summary>
   /// <param name="engines">The engines, in order.</param>
   /// <param name="query">The query as typed, such as <c>!g kubernetes ingress</c>.</param>
+  /// <param name="engineId">
+  ///   The engine chosen in the search box's menu, if any. A shortcut in the query overrides it, and an ID that isn't an
+  ///   engine's is ignored.
+  /// </param>
   /// <returns>
   ///   The search URL, or <c>null</c> when the query is blank or there are no engines. A shortcut that matches no engine is
   ///   left in the terms, for the default engine (DuckDuckGo, say, has bangs of its own).
   /// </returns>
-  public static string? BuildUrl (IReadOnlyList<SearchEngine> engines, string? query)
+  public static string? BuildUrl (IReadOnlyList<SearchEngine> engines, string? query, int? engineId = null)
   {
     List<string> words = [.. (query ?? "").Split (separator: (char[]?)null, options: StringSplitOptions.RemoveEmptyEntries)];
 
@@ -43,7 +47,7 @@ public static class WebSearch
       }
     }
 
-    engine ??= WebSearch.GetDefault (engines);
+    engine ??= engines.FirstOrDefault (e => e.Id == engineId) ?? WebSearch.GetDefault (engines);
 
     return engine!.UrlTemplate.Replace (oldValue: SearchEngineRules.QueryPlaceholder,
                                         newValue: Uri.EscapeDataString (string.Join (separator: ' ', values: words)),

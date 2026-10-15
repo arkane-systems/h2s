@@ -9,7 +9,7 @@ namespace h2s.Pages;
 
 /// <summary>
 ///   Sends a web search to its engine: the search panel's form and quick launch both go through here, so a
-///   <c>!shortcut</c> picks the engine without any script.
+///   <c>!shortcut</c> picks the engine without any script. A shortcut overrides the engine chosen in the search box's menu.
 /// </summary>
 public class SearchModel : PageModel
 {
@@ -25,8 +25,9 @@ public class SearchModel : PageModel
   ///   Redirects a query to its engine's search page.
   /// </summary>
   /// <param name="q">The query as typed, with an optional <c>!shortcut</c> word at its start or end.</param>
+  /// <param name="engine">The ID of the engine chosen in the search box's menu, if any; otherwise the default is used.</param>
   /// <returns>A redirect to the search, or back to the dashboard when the query is blank or there are no engines.</returns>
-  public async Task<IActionResult> OnGetAsync (string? q)
+  public async Task<IActionResult> OnGetAsync (string? q, int? engine)
   {
     List<SearchEngine> engines = await this.context.SearchEngines
                                            .AsNoTracking ()
@@ -34,6 +35,8 @@ public class SearchModel : PageModel
                                            .ThenBy (e => e.Name)
                                            .ToListAsync (this.HttpContext.RequestAborted);
 
-    return WebSearch.BuildUrl (engines: engines, query: q) is { } url ? this.Redirect (url) : this.RedirectToPage ("/Index");
+    return WebSearch.BuildUrl (engines: engines, query: q, engineId: engine) is { } url
+             ? this.Redirect (url)
+             : this.RedirectToPage ("/Index");
   }
 }

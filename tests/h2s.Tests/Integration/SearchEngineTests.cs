@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using h2s.Models;
 using h2s.Tests.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -32,6 +33,44 @@ public class SearchEngineTests
   }
 
   [Fact]
+  public async Task Search_UsesTheChosenEngineUnlessAShortcutOverridesIt ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+    HttpClient      client  = factory.CreateClient (new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+    int             google  = (await SearchEngineTests.GetIdsAsync (factory))["Google"];
+
+    using HttpResponseMessage chosen = await client.GetAsync (requestUri: $"/Search?q=home+lab&engine={google}",
+                                                              cancellationToken: TestContext.Current.CancellationToken);
+    using HttpResponseMessage overridden = await client.GetAsync (requestUri: $"/Search?q=home+lab+%21d&engine={google}",
+                                                                  cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: "https://www.google.com/search?q=home%20lab", actual: chosen.Headers.Location?.OriginalString);
+    Assert.Equal (expected: "https://duckduckgo.com/?q=home%20lab",       actual: overridden.Headers.Location?.OriginalString);
+  }
+
+  [Fact]
+  public async Task Index_SearchPanelListsTheEnginesInOrder ()
+  {
+    await using var         factory = new DashboardApplicationFactory ();
+    Dictionary<string, int> ids     = await SearchEngineTests.GetIdsAsync (factory);
+    await SearchEngineTests.PostAsync (factory: factory,
+                                       handler: "ReorderSearchEngines",
+                                       ("orderedIds", ids["Google"].ToString ()),
+                                       ("orderedIds", ids["Bing"].ToString ()),
+                                       ("orderedIds", ids["DuckDuckGo"].ToString ()));
+
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: ["Google", "Bing", "DuckDuckGo"],
+                  actual: Regex.Matches (input: html, pattern: "data-engine-name=\"([^\"]+)\"")
+                               .Select (m => m.Groups[1].Value));
+    Assert.Contains (expectedSubstring: """<kbd class="home-search-shortcut">!g</kbd>""",           actualString: html);
+    Assert.Contains (expectedSubstring: """<input type="hidden" name="engine" value="" disabled""", actualString: html);
+    Assert.Matches (expectedRegexPattern: """<script type="module" src="/js/modules/search-panel\.[^"]*js""", actualString: html);
+  }
+
+  [Fact]
   public async Task Index_SearchPanelGoesThroughSearch ()
   {
     await using var factory = new DashboardApplicationFactory ();
@@ -39,8 +78,8 @@ public class SearchEngineTests
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains (expectedSubstring: """<form class="home-search-form" method="get" role="search" action="/Search">""",
-                     actualString: html);
+    Assert.Matches (expectedRegexPattern: """<form class="home-search-form" method="get" role="search"[^>]* action="/Search">""",
+                    actualString: html);
     Assert.Contains (expectedSubstring: """placeholder="Search with Bing""", actualString: html);
     Assert.DoesNotContain (expectedSubstring: "bing.com", actualString: html);
   }

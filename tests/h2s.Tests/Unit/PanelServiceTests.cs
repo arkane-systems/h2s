@@ -32,9 +32,10 @@ public class PanelServiceTests
                   actual: panels[0].Content.EmptyMessage);
     Assert.Equal (expected: "_SearchPanel", actual: panels[1].Content.PartialName);
     var search = (SearchPanelModel)panels[1].Content.Model!;
-    Assert.Equal (expected: "Search with Bing",                        actual: search.Placeholder);
-    Assert.Equal (expected: "Bing",                                    actual: search.EngineName);
-    Assert.Equal (expected: ["!b Bing", "!d DuckDuckGo", "!g Google"], actual: search.Shortcuts);
+    Assert.Equal (expected: "Search with Bing", actual: search.Placeholder);
+    Assert.Equal (expected: "Bing",             actual: search.EngineName);
+    Assert.Equal (expected: [("Bing", "b", true), ("DuckDuckGo", "d", false), ("Google", "g", false)],
+                  actual: search.Engines.Select (e => (e.Name, e.Shortcut, e.IsDefault)));
   }
 
   [Fact]
