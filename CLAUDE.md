@@ -137,4 +137,4 @@ The style job is the slow one, at roughly 5–10 minutes.
 
 `.github/workflows/publish-container.yml` publishes `ghcr.io/arkane-systems/h2s:<tag>` and `:latest` on tag push, but only if the tagged commit is on `master`. It first runs `ci.yml` as a reusable workflow and publishes only if that passes. Manual dispatch from `master` uses the latest tag; from any other branch it publishes a soak-test image as `:<branch>` and `:<branch>-<short sha>`, never touching the release tags.
 
-Day-to-day work happens on feature branches off `master`, one PR into `master` per change, merged with merge commits (not squash, which would invalidate `.git-blame-ignore-revs`). A release is an annotated version tag (`0.4`, …) on `master`.
+Day-to-day work happens on feature branches off `master`, one PR into `master` per change, merged with merge commits (not squash, which would invalidate `.git-blame-ignore-revs`). A release is an annotated version tag (`0.4`, …) on `master`. The footer shows `<Version>` from `h2s/h2s.csproj` (through `AppVersion`), so bump it in a PR first: publishing fails when the tag doesn't match it.

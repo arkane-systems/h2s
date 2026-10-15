@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
+    <!-- The release version, shown in the footer. Bump it before tagging a release: publishing refuses a tag that differs. -->
+    <Version>0.4</Version>
+
     <!-- Ship only English resources; dependencies otherwise publish satellite assemblies for every language. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
