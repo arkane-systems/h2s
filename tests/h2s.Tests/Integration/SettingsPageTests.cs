@@ -385,34 +385,59 @@ public class SettingsPageTests
   }
 
   [Fact]
-  public async Task ToggleColorMode_UpdatesTheRenderedDashboard ()
+  public async Task ColorMode_FollowsTheSiteDefaultWithoutACookie ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    HttpClient      client  = factory.CreateClient ();
+    var (scope, context) = factory.CreateContext ();
 
-    _ = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
-    _ = await FormPoster.PostAsync (client: client, pagePath: "/Admin/ToggleColorMode", handler: null, fields: []);
+    using (scope)
+    {
+      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression:
+                                                                                                x => x.ColorMode,
+                                                                                                valueExpression: ColorMode.Dark),
+                                                          cancellationToken: TestContext.Current.CancellationToken);
+    }
 
-    string html = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
+    string html = await factory.CreateClient ()
+                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains (expectedSubstring: $"data-color-mode=\"{(int)ColorMode.Light}\"", actualString: html);
+    Assert.Contains (expectedSubstring: $"const mode = {(int)ColorMode.Dark};",                  actualString: html);
+    Assert.Contains (expectedSubstring: "data-viewer-mode=\"\"",                                 actualString: html);
+    Assert.Contains (expectedSubstring: "data-site-mode=\"Dark\"",                               actualString: html);
+    Assert.Contains (expectedSubstring: "Site default (Dark). Click for light in this browser.", actualString: html);
+  }
+
+  [Theory]
+  [InlineData ("light", ColorMode.Light, "Light")]
+  [InlineData ("DARK",  ColorMode.Dark,  "Dark")]
+  [InlineData ("auto",  ColorMode.Auto,  "Auto")]
+  [InlineData ("pink",  ColorMode.Auto,  "")]
+  public async Task ColorMode_ThisBrowsersCookieWins (string cookie, ColorMode mode, string viewerMode)
+  {
+    await using var factory = new DashboardApplicationFactory ();
+    using var       request = new HttpRequestMessage (method: HttpMethod.Get, requestUri: "/");
+    request.Headers.Add (name: "Cookie", value: $"h2s-color-mode={cookie}");
+
+    using HttpResponseMessage response = await factory.CreateClient ()
+                                                      .SendAsync (request: request,
+                                                                  cancellationToken: TestContext.Current.CancellationToken);
+    string html = await response.Content.ReadAsStringAsync (TestContext.Current.CancellationToken);
+
+    // The seeded site default is Auto, so an unreadable cookie falls back to it.
+    Assert.Contains (expectedSubstring: $"const mode = {(int)mode};",         actualString: html);
+    Assert.Contains (expectedSubstring: $"data-viewer-mode=\"{viewerMode}\"", actualString: html);
   }
 
   [Fact]
-  public async Task ToggleColorMode_CyclesThroughModes ()
+  public async Task ToggleColorMode_IsGone ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    HttpClient      client  = factory.CreateClient ();
-    var             modes   = new List<string?> ();
 
-    for (var i = 0; i < 3; i++)
-    {
-      HttpResponseMessage response =
-        await FormPoster.PostAsync (client: client, pagePath: "/Admin/ToggleColorMode", handler: null, fields: []);
-      modes.Add ((await FormPoster.ReadJsonAsync (response)).GetProperty ("colorMode").GetString ());
-    }
+    using HttpResponseMessage response = await factory.CreateClient ()
+                                                      .GetAsync (requestUri: "/Admin/ToggleColorMode",
+                                                                 cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Equal (expected: ["Light", "Dark", "Auto"], actual: modes);
+    Assert.Equal (expected: HttpStatusCode.NotFound, actual: response.StatusCode);
   }
 
   /// <summary>

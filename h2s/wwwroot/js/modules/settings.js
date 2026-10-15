@@ -27,7 +27,7 @@ const afterSave = {
         }
         document.title = document.title.replace(/^h2s - .*? - Settings$/, `h2s - ${result.title} - Settings`);
     },
-    appearance: result => window.h2sColorMode?.apply(result.colorMode),
+    appearance: result => window.h2sColorMode?.setSiteDefault(result.colorMode),
     'uptime-kuma': result => {
         // Infrastructure groups only matter when Uptime Kuma is on.
         document.getElementById('infrastructure-groups')?.classList.toggle('d-none', !result.isConfigured);
