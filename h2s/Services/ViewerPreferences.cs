@@ -1,10 +1,12 @@
+using System.Globalization;
 using h2s.Models;
 
 namespace h2s.Services;
 
 /// <summary>
 ///   Preferences each browser keeps for itself, in cookies the server reads so it can render them without a flash. The
-///   client sets them (<c>_Layout.cshtml</c>'s color mode toggle); nothing here is stored on the server.
+///   client sets them (<c>_Layout.cshtml</c>'s color mode toggle, and <c>category-collapse.js</c>); nothing here is stored
+///   on the server.
 /// </summary>
 public static class ViewerPreferences
 {
@@ -13,6 +15,35 @@ public static class ViewerPreferences
   ///   follows the site's color mode from Settings → Appearance.
   /// </summary>
   public const string ColorModeCookie = "h2s-color-mode";
+
+  /// <summary>
+  ///   The cookie holding the IDs of the categories this browser has collapsed, separated by dots (commas aren't safe in
+  ///   a cookie value).
+  /// </summary>
+  public const string CollapsedCategoriesCookie = "h2s-collapsed";
+
+  // More than any dashboard has categories, so a tampered cookie can't make the server parse much.
+  private const int MaxCollapsedCategories = 500;
+
+  /// <summary>
+  ///   Reads the categories this browser has collapsed.
+  /// </summary>
+  /// <param name="request">The request.</param>
+  /// <returns>The collapsed category IDs; anything in the cookie that isn't a positive integer is ignored.</returns>
+  public static IReadOnlySet<int> ReadCollapsedCategories (HttpRequest request)
+  {
+    var ids = new HashSet<int> ();
+
+    foreach (string part in (request.Cookies[ViewerPreferences.CollapsedCategoriesCookie] ?? "")
+                           .Split (separator: '.', options: StringSplitOptions.RemoveEmptyEntries)
+                           .Take (ViewerPreferences.MaxCollapsedCategories))
+    {
+      if (int.TryParse (s: part, style: NumberStyles.None, provider: CultureInfo.InvariantCulture, result: out int id) && (id > 0))
+        _ = ids.Add (id);
+    }
+
+    return ids;
+  }
 
   /// <summary>
   ///   Reads this browser's color mode.

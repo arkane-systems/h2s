@@ -223,10 +223,10 @@ public class LinkDialogHandlerTests
 
     string html = await client.GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.True (html.IndexOf (value: ">Media</h2>", comparisonType: StringComparison.Ordinal) <
-                 html.IndexOf (value: ">Home</h2>",  comparisonType: StringComparison.Ordinal));
-    Assert.True (html.IndexOf (value: ">Home</h2>",      comparisonType: StringComparison.Ordinal) <
-                 html.IndexOf (value: ">Reference</h2>", comparisonType: StringComparison.Ordinal));
+    Assert.True (html.IndexOf (value: "\"category-name\">Media</span>", comparisonType: StringComparison.Ordinal) <
+                 html.IndexOf (value: "\"category-name\">Home</span>",  comparisonType: StringComparison.Ordinal));
+    Assert.True (html.IndexOf (value: "\"category-name\">Home</span>",      comparisonType: StringComparison.Ordinal) <
+                 html.IndexOf (value: "\"category-name\">Reference</span>", comparisonType: StringComparison.Ordinal));
     Assert.Equal (expected: ["Home Assistant", "Frigate", "Paperless-ngx", "Recipes"],
                   actual: await LinkDialogHandlerTests.GetLinkOrderAsync (factory: factory, categoryName: "Home"));
   }

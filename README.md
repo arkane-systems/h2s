@@ -168,7 +168,7 @@ This needs no root access and no rebuilt image.
 
 When you open the app, the home page shows link categories and their links. You can:
 
-- Browse categories and open links directly from each card.
+- Browse categories and open links directly from each card. Click a category's name to collapse it to its header (showing how many links it holds), and again to open it; your browser remembers which are collapsed. Edit mode always shows every category open.
 - Use the search box for quick web searches. It uses the default engine from **Settings → Search**. To use another for one search, click the ⌕ and pick it (the menu also shows each engine's shortcut), or start or end the search with the engine's shortcut, such as `!g`. A shortcut wins if you do both.
 
 ### Quick launch
@@ -180,7 +180,7 @@ Start typing anywhere on the dashboard (or press `/`) to open **quick launch**, 
 - When no links match, quick launch lists the search engines in their Settings order. Enter searches with the highlighted one (the default, until you pick another with ↑ and ↓). A `!shortcut`, such as `!g`, picks the engine straight away.
 - **Esc**, or a click outside the box, closes it and puts the dashboard back.
 
-Quick launch is off in edit mode, and while you're typing in a field such as the search box.
+Quick launch is off in edit mode, and while you're typing in a field such as the search box. It shows matches in collapsed categories too, opening them until you close it.
 
 The search box and the Uptime Kuma status bar are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as the status bar before Uptime Kuma is set up, is hidden outside edit mode.
 - Pick a color mode for your browser with the navbar's ◑ button. It cycles through the site default, Light, Dark and Auto, and only your browser changes; back at the site default, it follows **Settings → Appearance** again.
