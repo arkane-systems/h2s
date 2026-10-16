@@ -22,6 +22,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@fullPageTitle</title>
+    @* Installable as an app (Pages/Manifest). The installed app's title bar follows this browser's color mode, or the
+       system's in Auto. *@
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/favicon.ico" sizes="any" />
+    <link rel="icon" href="~/icons/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="~/icons/apple-touch-icon.png" />
+    @switch (viewerColorMode ?? settings.ColorMode)
+    {
+        case ColorMode.Light:
+            <meta name="theme-color" content="@h2s.Pages.ManifestModel.LightThemeColor" />
+            break;
+        case ColorMode.Dark:
+            <meta name="theme-color" content="@h2s.Pages.ManifestModel.DarkThemeColor" />
+            break;
+        default:
+            <meta name="theme-color" content="@h2s.Pages.ManifestModel.LightThemeColor" media="(prefers-color-scheme: light)" />
+            <meta name="theme-color" content="@h2s.Pages.ManifestModel.DarkThemeColor" media="(prefers-color-scheme: dark)" />
+            break;
+    }
     <!-- Apply theme before stylesheets load to prevent flash of unstyled content -->
     <script>
         (function () {
@@ -200,6 +219,15 @@
                     : (systemDarkQuery.matches ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-bs-theme', theme);
                 renderPattern({ force: true });
+
+                // An installed app's title bar follows the theme too.
+                document.querySelectorAll('meta[name="theme-color"]').forEach(meta => meta.remove());
+                const themeColor = document.createElement('meta');
+                themeColor.name = 'theme-color';
+                themeColor.content = theme === 'dark'
+                    ? '@h2s.Pages.ManifestModel.DarkThemeColor'
+                    : '@h2s.Pages.ManifestModel.LightThemeColor';
+                document.head.append(themeColor);
             };
 
             const showToggle = () => {
