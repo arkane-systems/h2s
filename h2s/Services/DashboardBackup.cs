@@ -50,7 +50,7 @@ public sealed record DashboardBackup (
   /// <summary>
   ///   The format version this build of h2s writes. It also reads every earlier version.
   /// </summary>
-  public const int CurrentVersion = 5;
+  public const int CurrentVersion = 6;
 
   /// <summary>
   ///   The first format version with panels.
@@ -71,6 +71,13 @@ public sealed record DashboardBackup (
   ///   The first format version with connections. Earlier files keep Uptime Kuma's settings in the settings.
   /// </summary>
   public const int ConnectionsVersion = 5;
+
+  /// <summary>
+  ///   The first format version in which uptime periods are windows (<c>1d</c>, <c>30d</c>, <c>365d</c>) rather than hours:
+  ///   the Uptime Kuma connection's <c>defaultUptimeWindow</c> and the status bar panel's <c>uptimeWindow</c>. Earlier files'
+  ///   hours read as the shortest window that covers them.
+  /// </summary>
+  public const int UptimeWindowsVersion = 6;
 
   /// <summary>
   ///   The JSON options for dashboard files: camel-case names, enums as names, and indented so the file reads (and

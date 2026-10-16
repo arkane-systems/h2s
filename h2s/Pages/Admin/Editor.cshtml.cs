@@ -34,7 +34,7 @@ public partial class EditorModel : PageModel
   /// <param name="iconCatalog">The catalog used to suggest icons for link labels.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   /// <param name="pageMetadataReader">The reader used to suggest a label from a link's page.</param>
-  /// <param name="uptimeKumaClient">The client used to list the monitors on the Uptime Kuma status page.</param>
+  /// <param name="uptimeKumaClient">The client used to list Uptime Kuma's monitors.</param>
   /// <param name="panelCatalog">The panel kinds edit mode can add.</param>
   /// <param name="panelService">The service used to render panels as edit mode shows them.</param>
   /// <param name="connections">The service holding the Uptime Kuma connection.</param>
@@ -540,11 +540,11 @@ public partial class EditorModel : PageModel
   }
 
   /// <summary>
-  ///   Lists the monitors on the configured Uptime Kuma status page, for the link dialog's monitor picker.
+  ///   Lists every Uptime Kuma monitor, from Kuma's <c>/metrics</c>, for the link dialog's monitor picker.
   /// </summary>
   /// <returns>
-  ///   A JSON payload with the monitor groups, and a message instead when they can't be listed: Kuma or its status page
-  ///   isn't configured, or Kuma can't be read. The dialog then falls back to entering an ID.
+  ///   A JSON payload with the monitors (group monitors first, then the rest), and a message instead when they can't be
+  ///   listed: Kuma or its API key isn't set up, or Kuma can't be read. The dialog then falls back to entering an ID.
   /// </returns>
   public async Task<IActionResult> OnGetKumaMonitorsAsync ()
   {
@@ -553,13 +553,14 @@ public partial class EditorModel : PageModel
     if (uptimeKuma == null)
       return new JsonResult (KumaMonitorList.Failed ("Uptime Kuma isn't configured."));
 
-    if (uptimeKuma.StatusPageSlug == null)
-      return new JsonResult (KumaMonitorList.Failed ("Set a status page slug in Settings to pick monitors from it."));
+    if (uptimeKuma.ApiKey == null)
+      return new JsonResult (KumaMonitorList.Failed ("Add an API key to the Uptime Kuma settings to pick monitors."));
 
-    return new JsonResult (await this.uptimeKumaClient.GetStatusPageMonitorsAsync (serverUrl: uptimeKuma.ServerUrl,
-                                                                                   slug: uptimeKuma.StatusPageSlug,
-                                                                                   cancellationToken: this.HttpContext
-                                                                                                          .RequestAborted));
+    KumaMetrics metrics = await this.uptimeKumaClient.GetMetricsAsync (serverUrl: uptimeKuma.ServerUrl,
+                                                                       apiKey: uptimeKuma.ApiKey,
+                                                                       cancellationToken: this.HttpContext.RequestAborted);
+
+    return new JsonResult (metrics.ToMonitorList ());
   }
 
   /// <summary>

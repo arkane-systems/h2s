@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -40,43 +39,44 @@ public class LinkPickerHandlerTests
   }
 
   [Fact]
-  public async Task KumaMonitors_AsksForAStatusPageSlug ()
+  public async Task KumaMonitors_AsksForAnApiKey ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    await LinkPickerHandlerTests.ConfigureKumaAsync (factory: factory, slug: null);
+    await factory.AddUptimeKumaAsync ();
 
     JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
 
-    Assert.Equal (expected: "Set a status page slug in Settings to pick monitors from it.",
+    Assert.Equal (expected: "Add an API key to the Uptime Kuma settings to pick monitors.",
                   actual: list.GetProperty ("message").GetString ());
   }
 
   [Fact]
-  public async Task KumaMonitors_ListsTheStatusPagesMonitors ()
+  public async Task KumaMonitors_ListsEveryMonitorFromTheMetrics_GroupsFirst ()
   {
-    await using var factory = new DashboardApplicationFactory ();
-    await LinkPickerHandlerTests.ConfigureKumaAsync (factory: factory, slug: "main");
-    factory.Outbound = request => request.RequestUri == new Uri ("https://status.home.arpa/api/status-page/main")
-                                    ? new HttpResponseMessage (HttpStatusCode.OK)
-                                      {
-                                        Content = new StringContent (content: """
-                                                                              { "publicGroupList": [
-                                                                                { "name": "Compute", "monitorList": [ { "id": 1, "name": "Proxmox" } ] }
-                                                                              ] }
-                                                                              """,
-                                                                     encoding: Encoding.UTF8,
-                                                                     mediaType: "application/json"),
-                                      }
-                                    : DashboardApplicationFactory.ServeIconIndex (request);
+    await using var factory = new DashboardApplicationFactory { Outbound = TestConnections.ServeKuma };
+    await factory.AddUptimeKumaAsync (apiKey: TestConnections.KumaApiKey);
 
     JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
 
-    JsonElement group = Assert.Single (list.GetProperty ("groups").EnumerateArray ());
-
     Assert.Equal (expected: JsonValueKind.Null, actual: list.GetProperty ("message").ValueKind);
-    Assert.Equal (expected: "Compute",          actual: group.GetProperty ("name").GetString ());
-    Assert.Equal (expected: 1,                  actual: group.GetProperty ("monitors")[0].GetProperty ("id").GetInt32 ());
-    Assert.Equal (expected: "Proxmox",          actual: group.GetProperty ("monitors")[0].GetProperty ("name").GetString ());
+    Assert.Equal (expected: [("Groups", "1 Infrastructure"), ("Monitors", "11 Jellyfin"), ("Monitors", "12 Sonarr \"TV\"")],
+                  actual: list.GetProperty ("groups")
+                              .EnumerateArray ()
+                              .SelectMany (g => g.GetProperty ("monitors")
+                                                 .EnumerateArray ()
+                                                 .Select (m => (g.GetProperty ("name").GetString (),
+                                                                $"{m.GetProperty ("id").GetInt32 ()} {m.GetProperty ("name").GetString ()}"))));
+  }
+
+  [Fact]
+  public async Task KumaMonitors_SaysWhenTheApiKeyIsRefused ()
+  {
+    await using var factory = new DashboardApplicationFactory { Outbound = TestConnections.ServeKuma };
+    await factory.AddUptimeKumaAsync (apiKey: "wrong");
+
+    JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
+
+    Assert.Equal (expected: "Uptime Kuma refused the API key.", actual: list.GetProperty ("message").GetString ());
   }
 
   [Fact]

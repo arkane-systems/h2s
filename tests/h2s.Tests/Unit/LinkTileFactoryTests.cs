@@ -15,7 +15,7 @@ public class LinkTileFactoryTests
     var tiles = new LinkTileFactory (settings: new DashboardSettings (),
                                      uptimeKuma: new UptimeKumaSettings (ServerUrl: "https://status.home.arpa/",
                                                                          StatusPageSlug: null,
-                                                                         DefaultDuration: 24));
+                                                                         DefaultUptimeWindow: "1d"));
 
     Assert.Equal (expected: "https://status.home.arpa/api/badge/7/status?style=flat",
                   actual: tiles.BuildBadgeUrl (monitorId: 7, type: "status"));

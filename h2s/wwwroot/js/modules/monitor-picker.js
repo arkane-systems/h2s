@@ -1,5 +1,5 @@
-/* Picks an Uptime Kuma monitor from the configured status page, for the link dialog. The posted field stays the plain
-   monitor ID input: the select fills it, and it is shown for an ID that isn't on the status page, or when the monitors
+/* Picks an Uptime Kuma monitor from every monitor Kuma reports, for the link dialog. The posted field stays the plain
+   monitor ID input: the select fills it, and it is shown for an ID Kuma doesn't report, or when the monitors
    can't be listed. */
 
 export class MonitorPicker {
@@ -34,7 +34,7 @@ export class MonitorPicker {
         this.input.classList.toggle('d-none', !visible);
     }
 
-    /** Lists the status page's monitors once, however often it is asked. */
+    /** Lists Kuma's monitors once, however often it is asked. */
     load() {
         this.loading ??= this.fetchMonitors();
         return this.loading;
@@ -61,7 +61,7 @@ export class MonitorPicker {
         }
     }
 
-    /** Shows a stored monitor ID: picked in the select when it's on the status page, otherwise typed in. */
+    /** Shows a stored monitor ID: picked in the select when Kuma reports it, otherwise typed in. */
     async setValue(monitorId) {
         const value = monitorId == null ? '' : String(monitorId);
         this.input.value = value;

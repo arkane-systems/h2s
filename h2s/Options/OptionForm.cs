@@ -137,7 +137,7 @@ public static class OptionForm
 
         return true;
 
-      case OptionType.Text or OptionType.Url or OptionType.Integer when option.IsRequired && (raw.Length == 0):
+      case OptionType.Text or OptionType.Url or OptionType.Integer or OptionType.Select when option.IsRequired && (raw.Length == 0):
         error = $"{option.Label} is required.";
 
         return false;
@@ -163,6 +163,16 @@ public static class OptionForm
         return false;
 
       case OptionType.Url:
+        value = raw;
+
+        return true;
+
+      case OptionType.Select when (raw.Length > 0) && option.Choices.All (c => c.Value != raw):
+        error = $"{option.Label} must be one of {string.Join (separator: ", ", values: option.Choices.Select (c => c.Label))}.";
+
+        return false;
+
+      case OptionType.Select:
         value = raw;
 
         return true;

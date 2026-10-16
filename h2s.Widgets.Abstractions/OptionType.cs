@@ -22,4 +22,7 @@ public enum OptionType
   ///   never exported: the core keeps it encrypted, and the edit form can only set, replace or clear it.
   /// </summary>
   Secret = 4,
+
+  /// <summary>One of the option's <see cref="SchemaOption.Choices" />, stored as the choice's value, a JSON string.</summary>
+  Select = 5,
 }

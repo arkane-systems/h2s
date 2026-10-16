@@ -190,7 +190,8 @@ public class MigrationTests
                                                   """,
                                             cancellationToken: cancellationToken);
 
-    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+    await migrator.MigrateAsync (targetMigration: "20261016030011_MoveUptimeKumaToConnection",
+                                 cancellationToken: cancellationToken);
 
     List<Connection> connections = await context.Connections.AsNoTracking ().ToListAsync (cancellationToken);
 
@@ -215,6 +216,83 @@ public class MigrationTests
     Assert.Equal (expected: (revertedServerUrl, revertedSlug, revertedDuration),
                   actual: (reader.IsDBNull (0) ? null : reader.GetString (0), reader.IsDBNull (1) ? null : reader.GetString (1),
                            reader.GetInt64 (2)));
+  }
+
+  [Theory]
+  [InlineData (24,   "1d")]
+  [InlineData (48,   "30d")]
+  [InlineData (720,  "30d")]
+  [InlineData (8760, "365d")]
+  public async Task UseUptimeWindows_TurnsHoursIntoTheShortestWindowThatCoversThem (int hours, string window)
+  {
+    const string Before = "20261016030011_MoveUptimeKumaToConnection";
+
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    // The AddPanels migration inserted the status bar, with no options of its own.
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+    var kuma      = $$"""{"serverUrl":"https://status.home.arpa","statusPageSlug":"","defaultDuration":{{hours}}}""";
+    var statusBar = $$"""{"showUptime":true,"uptimeHours":{{hours}}}""";
+    await context.Database.ExecuteSqlAsync (sql: $"""
+                                                  INSERT INTO "Connections" ("IntegrationKey", "Name", "OptionsJson")
+                                                  VALUES ('uptime-kuma', 'Uptime Kuma', {kuma});
+                                                  UPDATE "Panels" SET "OptionsJson" = {statusBar} WHERE "Kind" = 'status-bar';
+                                                  """,
+                                            cancellationToken: cancellationToken);
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    Assert.Equal (expected: $$"""{"serverUrl":"https://status.home.arpa","statusPageSlug":"","defaultUptimeWindow":"{{window}}"}""",
+                  actual: (await context.Connections.AsNoTracking ().SingleAsync (cancellationToken)).OptionsJson);
+    Assert.Equal (expected: $$"""{"showUptime":true,"uptimeWindow":"{{window}}"}""",
+                  actual: (await context.Panels.AsNoTracking ()
+                                        .SingleAsync (predicate: p => p.Kind == "status-bar",
+                                                      cancellationToken: cancellationToken)).OptionsJson);
+
+    // Down turns each window back into its length in hours.
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+
+    await using SqliteCommand command = connection.CreateCommand ();
+    command.CommandText = """SELECT json_extract("OptionsJson", '$.defaultDuration') FROM "Connections" """;
+
+    Assert.Equal (expected: window switch
+                            {
+                              "1d"  => 24L,
+                              "30d" => 720L,
+                              _     => 8760L,
+                            },
+                  actual: (long)(await command.ExecuteScalarAsync (cancellationToken))!);
+  }
+
+  [Fact]
+  public async Task UseUptimeWindows_LeavesAStatusBarWithoutAPeriodOnTheDefault ()
+  {
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    await migrator.MigrateAsync (targetMigration: "20261016030011_MoveUptimeKumaToConnection",
+                                 cancellationToken: cancellationToken);
+    const string NoPeriod = """{"uptimeHours":null}""";
+    await context.Database.ExecuteSqlAsync (sql: $"""UPDATE "Panels" SET "OptionsJson" = {NoPeriod} WHERE "Kind" = 'status-bar';""",
+                                            cancellationToken: cancellationToken);
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    Assert.Equal (expected: "{}",
+                  actual: (await context.Panels.AsNoTracking ()
+                                        .SingleAsync (predicate: p => p.Kind == "status-bar",
+                                                      cancellationToken: cancellationToken)).OptionsJson);
   }
 
   /// <summary>

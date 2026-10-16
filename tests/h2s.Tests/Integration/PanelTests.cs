@@ -153,10 +153,15 @@ public partial class PanelTests
                                .Select (k => (k.GetProperty ("key").GetString ()!, k.GetProperty ("isAvailable").GetBoolean ())));
 
     JsonElement statusBarOptions = kinds[0].GetProperty ("options");
-    Assert.Equal (expected: ["showUptime", "uptimeHours"],
+    Assert.Equal (expected: ["showUptime", "uptimeWindow"],
                   actual: statusBarOptions.EnumerateArray ().Select (o => o.GetProperty ("key").GetString ()!));
     Assert.Equal (expected: "boolean", actual: statusBarOptions[0].GetProperty ("type").GetString ());
-    Assert.Equal (expected: 1,         actual: statusBarOptions[1].GetProperty ("minimum").GetInt32 ());
+    Assert.Equal (expected: "select",  actual: statusBarOptions[1].GetProperty ("type").GetString ());
+    Assert.Equal (expected: ["1d", "30d", "365d"],
+                  actual: statusBarOptions[1]
+                         .GetProperty ("choices")
+                         .EnumerateArray ()
+                         .Select (c => c.GetProperty ("value").GetString ()!));
   }
 
   [Fact]
@@ -166,7 +171,7 @@ public partial class PanelTests
     await PanelTests.UpdatePanelAsync (factory: factory,
                                        kind: StatusBarPanelKind.KindKey,
                                        zone: PanelZone.Top,
-                                       optionsJson: """{"uptimeHours":48}""");
+                                       optionsJson: """{"uptimeWindow":"30d"}""");
     Dictionary<string, int> ids = await PanelTests.GetPanelIdsAsync (factory);
 
     JsonElement panel = await PanelTests.GetJsonAsync (client: factory.CreateClient (),
@@ -176,7 +181,7 @@ public partial class PanelTests
     Assert.True (panel.GetProperty ("isKnown").GetBoolean ());
     Assert.Equal (expected: "Top", actual: panel.GetProperty ("zone").GetString ());
     Assert.True (panel.GetProperty ("values").GetProperty ("showUptime").GetBoolean ());
-    Assert.Equal (expected: 48, actual: panel.GetProperty ("values").GetProperty ("uptimeHours").GetInt32 ());
+    Assert.Equal (expected: "30d", actual: panel.GetProperty ("values").GetProperty ("uptimeWindow").GetString ());
   }
 
   [Fact]
@@ -209,11 +214,11 @@ public partial class PanelTests
                                                                      handler: "UpdatePanel",
                                                                      ("id", ids["status-bar"].ToString ()),
                                                                      ("options[showUptime]", "true"),
-                                                                     ("options[uptimeHours]", "0"));
+                                                                     ("options[uptimeWindow]", "7d"));
 
     await FormPoster.AssertProblemAsync (response: response,
                                          status: HttpStatusCode.BadRequest,
-                                         detail: "Uptime period (hours) must be at least 1.");
+                                         detail: "Uptime period must be one of 1 day, 30 days, 365 days.");
     Assert.Equal (expected: "{}", actual: await PanelTests.GetOptionsAsync (factory: factory, kind: "status-bar"));
   }
 

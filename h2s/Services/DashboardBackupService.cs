@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using h2s.Data;
 using h2s.Integrations;
 using h2s.Integrations.UptimeKuma;
@@ -202,6 +203,9 @@ public class DashboardBackupService
 
     if (read.Version < DashboardBackup.ConnectionsVersion)
       read = read with { Connections = DashboardBackupService.ConnectionsFromSettings (read.Settings) };
+
+    if (read.Version < DashboardBackup.UptimeWindowsVersion)
+      read = DashboardBackupService.UseUptimeWindows (read);
 
     DashboardBackupService.Validate (backup: read, kinds: kinds, integrations: integrations, errors: errors);
 
@@ -544,7 +548,7 @@ public class DashboardBackupService
                   };
 
     if (settings.UptimeKumaDefaultDuration is { } duration)
-      options[UptimeKumaIntegration.DefaultDurationOption] = duration;
+      options[UptimeKumaIntegration.LegacyDefaultDurationOption] = duration;
 
     return
     [
@@ -552,6 +556,61 @@ public class DashboardBackupService
                             Name: "Uptime Kuma",
                             Options: JsonSerializer.SerializeToElement (options)),
     ];
+  }
+
+  /// <summary>
+  ///   Turns the uptime periods in hours of a file from before uptime windows into windows: the Uptime Kuma connection's
+  ///   default, and the status bar panel's.
+  /// </summary>
+  /// <param name="backup">The file.</param>
+  /// <returns>The file with windows.</returns>
+  private static DashboardBackup UseUptimeWindows (DashboardBackup backup)
+    => backup with
+       {
+         Connections = backup.Connections
+                            ?.Select (c => c.Integration?.Trim () == UptimeKumaIntegration.IntegrationKey
+                                             ? c with
+                                               {
+                                                 Options = DashboardBackupService.HoursToWindow (options: c.Options,
+                                                                                                 hoursKey: UptimeKumaIntegration
+                                                                                                  .LegacyDefaultDurationOption,
+                                                                                                 windowKey: UptimeKumaIntegration
+                                                                                                  .DefaultUptimeWindowOption),
+                                               }
+                                             : c)
+                             .ToList (),
+         Panels = backup.Panels
+                       ?.Select (p => p.Kind?.Trim () == StatusBarPanelKind.KindKey
+                                        ? p with
+                                          {
+                                            Options = DashboardBackupService.HoursToWindow (options: p.Options,
+                                                                                            hoursKey: StatusBarPanelKind
+                                                                                             .LegacyUptimeHoursOption,
+                                                                                            windowKey: StatusBarPanelKind
+                                                                                             .UptimeWindowOption),
+                                          }
+                                        : p)
+                        .ToList (),
+       };
+
+  /// <summary>
+  ///   Replaces a period in hours in an options object with the shortest uptime window that covers it.
+  /// </summary>
+  /// <param name="options">The options, if they're an object.</param>
+  /// <param name="hoursKey">The key of the period in hours.</param>
+  /// <param name="windowKey">The key of the window.</param>
+  /// <returns>The options, with the window instead of the hours when there were hours.</returns>
+  private static JsonElement? HoursToWindow (JsonElement? options, string hoursKey, string windowKey)
+  {
+    if (options is not { ValueKind: JsonValueKind.Object } element || JsonNode.Parse (element.GetRawText ()) is not JsonObject json)
+      return options;
+
+    if (json[hoursKey] is JsonValue hours && hours.TryGetValue (out int value))
+      json[windowKey] = UptimeKumaWindows.FromHours (value);
+
+    _ = json.Remove (hoursKey);
+
+    return JsonSerializer.SerializeToElement (json);
   }
 
   /// <summary>

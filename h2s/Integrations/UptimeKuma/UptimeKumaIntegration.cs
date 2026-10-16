@@ -5,8 +5,9 @@ using h2s.Widgets.Abstractions;
 namespace h2s.Integrations.UptimeKuma;
 
 /// <summary>
-///   The Uptime Kuma integration: one server, whose badges the dashboard shows on links and in the status bar, and whose
-///   status page lists the monitors to pick from.
+///   The Uptime Kuma integration: one server, whose monitors the dashboard shows on links and in the status bar. It reads
+///   every monitor from Kuma's <c>/metrics</c> endpoint with a read-only API key; a status page is optional, for the status
+///   bar to link to.
 /// </summary>
 public sealed class UptimeKumaIntegration : IIntegration
 {
@@ -21,19 +22,25 @@ public sealed class UptimeKumaIntegration : IIntegration
   public const string ServerUrlOption = "serverUrl";
 
   /// <summary>
+  ///   The key of the secret option holding the API key that reads <c>/metrics</c>.
+  /// </summary>
+  public const string ApiKeyOption = "apiKey";
+
+  /// <summary>
   ///   The key of the option holding the status page slug.
   /// </summary>
   public const string StatusPageSlugOption = "statusPageSlug";
 
   /// <summary>
-  ///   The key of the option holding the default uptime badge period, in hours.
+  ///   The key of the option holding the default uptime window.
   /// </summary>
-  public const string DefaultDurationOption = "defaultDuration";
+  public const string DefaultUptimeWindowOption = "defaultUptimeWindow";
 
   /// <summary>
-  ///   The default uptime badge period, in hours.
+  ///   The key of the option that held the default uptime period in hours, before windows replaced it. Older backups still
+  ///   carry it.
   /// </summary>
-  public const int DefaultDuration = 24;
+  public const string LegacyDefaultDurationOption = "defaultDuration";
 
   /// <summary>
   ///   The message for a server URL that isn't a base URL.
@@ -49,6 +56,14 @@ public sealed class UptimeKumaIntegration : IIntegration
   /// <returns>The result.</returns>
   private static ConnectionTestResult Result (ConnectionTestLevel level, string message) => new (Level: level, Message: message);
 
+  /// <summary>
+  ///   Counts something in words.
+  /// </summary>
+  /// <param name="count">How many.</param>
+  /// <param name="noun">What, in the singular.</param>
+  /// <returns>Such as "1 group" or "16 monitors".</returns>
+  private static string Count (int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+
   /// <inheritdoc />
   public string Key => UptimeKumaIntegration.IntegrationKey;
 
@@ -57,8 +72,8 @@ public sealed class UptimeKumaIntegration : IIntegration
 
   /// <inheritdoc />
   public string Description
-    => "Status badges for links, and a status bar of infrastructure groups. Monitors must be on the status page for their " +
-       "badges to show.";
+    => "Status badges for links, and a status bar of infrastructure groups. Until the badges move to h2s's own widgets, a " +
+       "monitor must also be on a published status page for its badge to show.";
 
   /// <inheritdoc />
   public bool AllowsMultipleConnections => false;
@@ -70,16 +85,25 @@ public sealed class UptimeKumaIntegration : IIntegration
       {
         IsRequired = true, Placeholder = "https://status.example.com",
       },
+      new (Key: UptimeKumaIntegration.ApiKeyOption, Label: "API key", Type: OptionType.Secret)
+      {
+        IsRequired = true,
+        HelpText = "Create one in Uptime Kuma under Settings → API Keys. h2s uses it only to read Kuma's /metrics, which " +
+                   "lists every monitor.",
+      },
       new (Key: UptimeKumaIntegration.StatusPageSlugOption, Label: "Status page slug", Type: OptionType.Text)
       {
         Pattern            = @"[A-Za-z0-9\-]+",
         PatternDescription = "may only contain letters, numbers, and hyphens",
         Placeholder        = "main",
-        HelpText           = "The status bar links to this page, and the monitor picker lists its monitors.",
+        HelpText           = "Optional. The status bar links to this status page.",
       },
-      new (Key: UptimeKumaIntegration.DefaultDurationOption, Label: "Default uptime duration (hours)", Type: OptionType.Integer)
+      new (Key: UptimeKumaIntegration.DefaultUptimeWindowOption, Label: "Default uptime period", Type: OptionType.Select)
       {
-        IsRequired = true, Minimum = 1, DefaultValue = UptimeKumaIntegration.DefaultDuration,
+        IsRequired   = true,
+        Choices      = UptimeKumaWindows.Choices,
+        DefaultValue = UptimeKumaWindows.OneDay,
+        HelpText     = "The period uptime figures cover unless they choose their own.",
       },
     ];
 
@@ -91,8 +115,8 @@ public sealed class UptimeKumaIntegration : IIntegration
 
   /// <inheritdoc />
   /// <remarks>
-  ///   It checks whether the server answers, whether the h2s server trusts its certificate, and whether the status page
-  ///   exists and lists monitors.
+  ///   It checks whether the server answers, whether the h2s server trusts its certificate, whether Kuma accepts the API key
+  ///   for <c>/metrics</c>, and, when a slug is set, whether the status page exists.
   /// </remarks>
   public async Task<ConnectionTestResult> TestAsync (ConnectionContext context)
   {
@@ -109,38 +133,43 @@ public sealed class UptimeKumaIntegration : IIntegration
       case UrlReachability.UntrustedCertificate:
         return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Warning,
                                              message:
-                                             "Uptime Kuma answers, but the h2s server doesn't trust its certificate. Badges still load " +
-                                             "in browsers that trust it, but the monitor picker can't list monitors until the CA is " +
-                                             "mounted (see the README's section on trusting a homelab certificate authority).");
+                                             "Uptime Kuma answers, but the h2s server doesn't trust its certificate, so it can't read " +
+                                             "Kuma's monitors until the CA is mounted (see the README's section on trusting a homelab " +
+                                             "certificate authority).");
     }
 
-    if (settings.StatusPageSlug == null)
+    if (settings.ApiKey == null)
     {
       return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Warning,
-                                           message:
-                                           "Connected to Uptime Kuma. Add a status page slug to link the status bar and pick " +
-                                           "monitors from the page.");
+                                           message: "Uptime Kuma answers. Add an API key so h2s can read its monitors.");
     }
 
-    KumaMonitorList monitors = await context.Services.GetRequiredService<UptimeKumaClient> ()
-                                            .GetStatusPageMonitorsAsync (serverUrl: settings.ServerUrl,
-                                                                         slug: settings.StatusPageSlug,
-                                                                         cancellationToken: context.CancellationToken);
+    var client = context.Services.GetRequiredService<UptimeKumaClient> ();
+    KumaMetrics metrics = await client.GetMetricsAsync (serverUrl: settings.ServerUrl,
+                                                        apiKey: settings.ApiKey,
+                                                        cancellationToken: context.CancellationToken);
 
-    if (monitors.Message != null)
+    if (metrics.Message != null)
     {
       return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Danger,
-                                           message: $"Connected to Uptime Kuma, but: {monitors.Message}");
+                                           message: $"Connected to Uptime Kuma, but: {metrics.Message}");
     }
 
-    int count = monitors.Groups.Sum (g => g.Monitors.Count);
+    int groups   = metrics.Monitors.Values.Count (m => m.IsGroup);
+    int monitors = metrics.Monitors.Count - groups;
+    var found =
+      $"Connected. Uptime Kuma reports {UptimeKumaIntegration.Count (count: monitors, noun: "monitor")} and {UptimeKumaIntegration.Count (count: groups, noun: "group")}.";
 
-    return count > 0
-             ? UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success,
-                                             message:
-                                             $"Connected. The status page lists {count} monitor{(count == 1 ? "" : "s")} in " +
-                                             $"{monitors.Groups.Count} group{(monitors.Groups.Count    == 1 ? "" : "s")}.")
+    if (settings.StatusPageSlug == null)
+      return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success, message: found);
+
+    KumaMonitorList page = await client.GetStatusPageMonitorsAsync (serverUrl: settings.ServerUrl,
+                                                                    slug: settings.StatusPageSlug,
+                                                                    cancellationToken: context.CancellationToken);
+
+    return page.Message == null
+             ? UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success, message: $"{found} The status page exists.")
              : UptimeKumaIntegration.Result (level: ConnectionTestLevel.Warning,
-                                             message: "Connected, but the status page lists no monitors, so badges will show N/A.");
+                                             message: $"{found} But for the status page: {page.Message}");
   }
 }

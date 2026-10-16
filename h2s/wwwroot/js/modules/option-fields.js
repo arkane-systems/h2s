@@ -153,6 +153,18 @@ export function createOptionField(option, value, { idPrefix, secretIsSet = false
         const label = make('label', 'form-check-label', option.label);
         label.htmlFor = id;
         field.append(input, label);
+    } else if (option.type === 'select') {
+        const label = make('label', 'form-label', option.label);
+        label.htmlFor = id;
+        input = make('select', 'form-select');
+        input.id = id;
+        input.required = option.isRequired;
+        if (!option.isRequired) {
+            input.append(new Option(option.placeholder ?? 'None', ''));
+        }
+        input.append(...option.choices.map(choice => new Option(choice.label, choice.value)));
+        input.value = value ?? '';
+        field.append(label, input, make('div', 'invalid-feedback', `Choose ${option.label.toLowerCase()}.`));
     } else if (option.type === 'secret' && secretIsSet) {
         input = storedSecret(field, option, id);
     } else {
@@ -190,7 +202,7 @@ export function createOptionField(option, value, { idPrefix, secretIsSet = false
 export function readOptionFields(host) {
     const pairs = [];
     for (const field of host.querySelectorAll('[data-option-key]')) {
-        const input = field.querySelector('input');
+        const input = field.querySelector('input, select');
         if (field.dataset.optionType === 'boolean') {
             pairs.push([input.name, String(input.checked)]);
         } else if (field.dataset.optionType === 'secret') {

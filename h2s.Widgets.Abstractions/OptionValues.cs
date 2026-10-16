@@ -103,11 +103,11 @@ public sealed class OptionValues
        string.IsNullOrEmpty (uri.UserInfo);
 
   /// <summary>
-  ///   Gets a text or URL option's value.
+  ///   Gets a text, URL or select option's value.
   /// </summary>
   /// <param name="key">The option's key.</param>
   /// <returns>The stored text, or the default; an empty string when there is neither.</returns>
-  public string GetText (string key) => this.Get (key: key, OptionType.Text, OptionType.Url) as string ?? "";
+  public string GetText (string key) => this.Get (key: key, OptionType.Text, OptionType.Url, OptionType.Select) as string ?? "";
 
   /// <summary>
   ///   Gets an integer option's value.
@@ -157,6 +157,19 @@ public sealed class OptionValues
           return false;
 
         value = text;
+
+        return true;
+
+      case OptionType.Select when (element.ValueKind == JsonValueKind.String) &&
+                                  option.Choices.Any (c => c.Value == element.GetString ()):
+        value = element.GetString ();
+
+        return true;
+
+      case OptionType.Select when (element.ValueKind == JsonValueKind.String) &&
+                                  !option.IsRequired                          &&
+                                  string.IsNullOrEmpty (element.GetString ()):
+        value = "";
 
         return true;
 
