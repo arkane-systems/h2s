@@ -128,6 +128,9 @@ public class ConnectionServiceTests
     public string DisplayName => "Secret";
 
     /// <inheritdoc />
+    public string Description => "An integration with a token.";
+
+    /// <inheritdoc />
     public bool AllowsMultipleConnections => true;
 
     /// <inheritdoc />

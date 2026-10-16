@@ -91,16 +91,26 @@ public sealed class ConnectionService
          : null;
 
   /// <summary>
-  ///   Saves an integration's only connection, creating it (named after the integration) if it doesn't exist yet. Its
-  ///   secrets are kept.
+  ///   Decrypts a connection's secret settings.
+  /// </summary>
+  /// <param name="connection">The connection.</param>
+  /// <returns>The secrets, keyed by option name; empty when none are set or they can no longer be decrypted.</returns>
+  public IReadOnlyDictionary<string, string> ReadSecrets (Connection connection) => this.secrets.Unprotect (connection.SecretsJson);
+
+  /// <summary>
+  ///   Saves an integration's only connection, creating it (named after the integration) if it doesn't exist yet.
   /// </summary>
   /// <param name="integration">The integration.</param>
   /// <param name="optionsJson">The connection's settings, already checked against the integration's schema.</param>
+  /// <param name="secrets">
+  ///   The connection's secret settings, keyed by option name, which replace those stored; <c>null</c> keeps them.
+  /// </param>
   /// <param name="cancellationToken">A token used to cancel the save.</param>
   /// <returns>The saved connection.</returns>
-  public async Task<Connection> SaveOnlyAsync (IIntegration      integration,
-                                               string            optionsJson,
-                                               CancellationToken cancellationToken = default)
+  public async Task<Connection> SaveOnlyAsync (IIntegration                         integration,
+                                               string                               optionsJson,
+                                               IReadOnlyDictionary<string, string>? secrets           = null,
+                                               CancellationToken                    cancellationToken = default)
   {
     Connection? connection = await this.context.Connections
                                        .Where (c => c.IntegrationKey == integration.Key)
@@ -114,6 +124,10 @@ public sealed class ConnectionService
     }
 
     connection.OptionsJson = optionsJson;
+
+    if (secrets != null)
+      connection.SecretsJson = this.secrets.Protect (secrets);
+
     await this.context.SaveChangesAsync (cancellationToken);
     this.ForgetCached ();
 

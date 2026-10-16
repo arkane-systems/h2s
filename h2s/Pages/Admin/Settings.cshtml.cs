@@ -1,16 +1,12 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using h2s.Data;
 using h2s.Integrations;
 using h2s.Integrations.UptimeKuma;
 using h2s.Models;
-using h2s.Options;
 using h2s.Panels;
 using h2s.Services;
 using h2s.Validation;
-using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -67,19 +63,9 @@ public partial class SettingsModel : PageModel
   public List<InfrastructureGroup> InfrastructureGroups { get; private set; } = new ();
 
   /// <summary>
-  ///   Gets the Uptime Kuma connection's settings, or <c>null</c> when Uptime Kuma is off.
-  /// </summary>
-  public UptimeKumaSettings? UptimeKuma { get; private set; }
-
-  /// <summary>
   ///   Gets a value indicating whether Uptime Kuma is configured, which shows the infrastructure groups.
   /// </summary>
-  public bool IsUptimeKumaConfigured => this.UptimeKuma != null;
-
-  /// <summary>
-  ///   Gets the Uptime Kuma integration.
-  /// </summary>
-  private IIntegration KumaIntegration => this.integrations.Find (UptimeKumaIntegration.IntegrationKey)!;
+  public bool IsUptimeKumaConfigured { get; private set; }
 
   /// <summary>
   ///   Downloads the whole configuration as a dashboard file.
@@ -148,8 +134,9 @@ public partial class SettingsModel : PageModel
   /// </summary>
   public async Task OnGetAsync ()
   {
-    this.Settings   = await this.settingsService.GetSettingsAsync ();
-    this.UptimeKuma = await UptimeKumaSettings.LoadAsync (this.connections);
+    this.Settings               = await this.settingsService.GetSettingsAsync ();
+    this.IsUptimeKumaConfigured = await UptimeKumaSettings.LoadAsync (this.connections) != null;
+    this.IntegrationCards       = await this.DescribeIntegrationsAsync ();
     this.InfrastructureGroups = await this.GetOrderedInfrastructureGroupsQuery ()
                                           .AsNoTracking ()
                                           .ToListAsync ();
@@ -194,82 +181,6 @@ public partial class SettingsModel : PageModel
     await this.settingsService.SaveSettingsAsync (settings);
 
     return new JsonResult (new { ColorMode = mode.ToString () });
-  }
-
-  /// <summary>
-  ///   Saves the Uptime Kuma part of the Integrations section, as the Uptime Kuma connection.
-  /// </summary>
-  /// <param name="serverUrl">The server's base URL; blank turns the integration off, removing the connection.</param>
-  /// <param name="statusPageSlug">The status page slug; blank for none.</param>
-  /// <param name="defaultDuration">The default uptime badge duration, in whole hours of at least 1.</param>
-  /// <returns>A JSON payload with the saved values, or a 400 problem response when validation fails.</returns>
-  public async Task<IActionResult> OnPostSaveUptimeKumaAsync (string? serverUrl, string? statusPageSlug, string? defaultDuration)
-  {
-    CancellationToken cancellationToken = this.HttpContext.RequestAborted;
-
-    if (SettingsModel.Blank (serverUrl))
-    {
-      await this.connections.DeleteAllAsync (integrationKey: this.KumaIntegration.Key, cancellationToken: cancellationToken);
-
-      return new JsonResult (new
-                             {
-                               ServerUrl       = (string?)null,
-                               StatusPageSlug  = SettingsModel.Blank (statusPageSlug) ? null : statusPageSlug!.Trim (),
-                               DefaultDuration = defaultDuration?.Trim (),
-                               IsConfigured    = false,
-                             });
-    }
-
-    if (!this.TryReadUptimeKuma (serverUrl: serverUrl,
-                                 statusPageSlug: statusPageSlug,
-                                 defaultDuration: defaultDuration,
-                                 json: out string? json,
-                                 options: out OptionValues? options,
-                                 problem: out IActionResult? problem))
-      return problem;
-
-    _ = await this.connections.SaveOnlyAsync (integration: this.KumaIntegration,
-                                              optionsJson: json,
-                                              cancellationToken: cancellationToken);
-    UptimeKumaSettings saved = UptimeKumaSettings.From (options)!;
-
-    return new JsonResult (new
-                           {
-                             saved.ServerUrl, saved.StatusPageSlug, saved.DefaultDuration, IsConfigured = true,
-                           });
-  }
-
-  /// <summary>
-  ///   Tests Uptime Kuma settings without saving them, through the integration's connection test.
-  /// </summary>
-  /// <param name="serverUrl">The server's base URL, as entered.</param>
-  /// <param name="statusPageSlug">The status page slug, as entered; blank to test only the server.</param>
-  /// <returns>
-  ///   A JSON payload with a level (<c>success</c>, <c>warning</c> or <c>danger</c>) and a message, or a 400 problem
-  ///   response when the URL is missing or malformed.
-  /// </returns>
-  public async Task<IActionResult> OnPostTestUptimeKumaAsync (string? serverUrl, string? statusPageSlug)
-  {
-    if (SettingsModel.Blank (serverUrl))
-      return this.BadRequestProblem ("Enter the Uptime Kuma server URL to test.");
-
-    // The test doesn't use the badge period, so the form doesn't post it.
-    var duration = UptimeKumaIntegration.DefaultDuration.ToString (CultureInfo.InvariantCulture);
-
-    if (!this.TryReadUptimeKuma (serverUrl: serverUrl,
-                                 statusPageSlug: statusPageSlug,
-                                 defaultDuration: duration,
-                                 json: out _,
-                                 options: out OptionValues? options,
-                                 problem: out IActionResult? problem))
-      return problem;
-
-    ConnectionTestResult result =
-      await this.KumaIntegration.TestAsync (new ConnectionContext (Options: options,
-                                                                   Services: this.HttpContext.RequestServices,
-                                                                   CancellationToken: this.HttpContext.RequestAborted));
-
-    return new JsonResult (new { Level = result.Level.ToString ().ToLowerInvariant (), result.Message });
   }
 
   /// <summary>
@@ -460,60 +371,6 @@ public partial class SettingsModel : PageModel
                                            errors: out List<string> errors)
              ? (backup, null)
              : (null, this.BadRequestProblem (string.Join (separator: '\n', values: errors)));
-  }
-
-  /// <summary>
-  ///   Determines whether a posted value is missing or blank.
-  /// </summary>
-  /// <param name="value">The value.</param>
-  /// <returns><c>true</c> when it is.</returns>
-  private static bool Blank (string? value) => string.IsNullOrWhiteSpace (value);
-
-  /// <summary>
-  ///   Checks posted Uptime Kuma settings against the integration's schema and rules.
-  /// </summary>
-  /// <param name="serverUrl">The server's base URL.</param>
-  /// <param name="statusPageSlug">The status page slug.</param>
-  /// <param name="defaultDuration">The default uptime badge duration, in hours.</param>
-  /// <param name="json">The settings as the connection stores them, when they're valid.</param>
-  /// <param name="options">The settings, when they're valid.</param>
-  /// <param name="problem">A 400 problem response saying what's wrong, when they aren't.</param>
-  /// <returns><c>true</c> when the settings are valid.</returns>
-  private bool TryReadUptimeKuma (string?                                  serverUrl,
-                                  string?                                  statusPageSlug,
-                                  string?                                  defaultDuration,
-                                  [NotNullWhen (true)] out  string?        json,
-                                  [NotNullWhen (true)] out  OptionValues?  options,
-                                  [NotNullWhen (false)] out IActionResult? problem)
-  {
-    IIntegration integration = this.KumaIntegration;
-    var posted = new Dictionary<string, string?>
-                 {
-                   [UptimeKumaIntegration.ServerUrlOption]       = serverUrl,
-                   [UptimeKumaIntegration.StatusPageSlugOption]  = statusPageSlug,
-                   [UptimeKumaIntegration.DefaultDurationOption] = defaultDuration,
-                 };
-
-    options = null;
-    problem = null;
-
-    if (!OptionForm.TryParse (schema: integration.ConnectionOptions, posted: posted, json: out json, error: out string? error))
-    {
-      problem = this.BadRequestProblem (error);
-
-      return false;
-    }
-
-    options = new OptionValues (schema: integration.ConnectionOptions, json: json);
-
-    if (integration.Validate (options) is not { } invalid)
-      return true;
-
-    problem = this.BadRequestProblem (invalid);
-    json    = null;
-    options = null;
-
-    return false;
   }
 
   /// <summary>

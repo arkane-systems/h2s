@@ -51,6 +51,12 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
   public Func<HttpRequestMessage, HttpResponseMessage> Outbound { get; set; } = DashboardApplicationFactory.ServeIconIndex;
 
   /// <summary>
+  ///   Gets or sets a last change to the app's services, such as registering a test-only integration. Set it before the
+  ///   first request.
+  /// </summary>
+  public Action<IServiceCollection>? ConfigureServices { get; set; }
+
+  /// <summary>
   ///   Answers with the stub icon index for its URL, and 404 for any other.
   /// </summary>
   /// <param name="request">The outbound request.</param>
@@ -114,6 +120,8 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                      // Keep Data Protection keys in memory rather than in the source tree's App_Data.
                                      services.Configure<KeyManagementOptions> (options => options.XmlRepository =
                                                                                             new InMemoryXmlRepository ());
+
+                                     this.ConfigureServices?.Invoke (services);
                                    });
   }
 

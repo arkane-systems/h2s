@@ -21,6 +21,11 @@ public static class OptionForm
   public const int MaxUrlLength = 2048;
 
   /// <summary>
+  ///   The longest secret an option accepts, which leaves room for long API tokens.
+  /// </summary>
+  public const int MaxSecretLength = 4096;
+
+  /// <summary>
   ///   Checks posted option values.
   /// </summary>
   /// <param name="schema">The options.</param>
@@ -53,6 +58,58 @@ public static class OptionForm
     }
 
     json = JsonSerializer.Serialize (values);
+
+    return true;
+  }
+
+  /// <summary>
+  ///   Works out a connection's secrets from what the form posts and what's stored. The form never shows a secret, so a
+  ///   field left blank keeps the stored secret unless the form asks to clear it.
+  /// </summary>
+  /// <param name="schema">The options; only the secret ones are read.</param>
+  /// <param name="posted">The secrets typed into the form, keyed by option name; blank ones are ignored.</param>
+  /// <param name="clear">The names of the secrets to clear, unless a new value was typed.</param>
+  /// <param name="stored">The secrets stored now, keyed by option name.</param>
+  /// <param name="secrets">The secrets to store, when every required one is set.</param>
+  /// <param name="error">What's wrong, when something is.</param>
+  /// <returns><c>true</c> when the secrets are valid.</returns>
+  public static bool TryResolveSecrets (IReadOnlyList<SchemaOption>                           schema,
+                                        IReadOnlyDictionary<string, string?>?                 posted,
+                                        IReadOnlyCollection<string>?                          clear,
+                                        IReadOnlyDictionary<string, string>                   stored,
+                                        [NotNullWhen (true)] out  Dictionary<string, string>? secrets,
+                                        [NotNullWhen (false)] out string?                     error)
+  {
+    secrets = null;
+    error   = null;
+
+    var resolved = new Dictionary<string, string> (StringComparer.Ordinal);
+
+    foreach (SchemaOption option in schema.Where (o => o.Type == OptionType.Secret))
+    {
+      string typed = (posted?.GetValueOrDefault (option.Key) ?? "").Trim ();
+
+      if (typed.Length > OptionForm.MaxSecretLength)
+      {
+        error = $"{option.Label} must be at most {OptionForm.MaxSecretLength} characters.";
+
+        return false;
+      }
+
+      if (typed.Length > 0)
+        resolved[option.Key] = typed;
+      else if ((clear?.Contains (option.Key) != true) && stored.TryGetValue (key: option.Key, value: out string? kept))
+        resolved[option.Key] = kept;
+
+      if (option.IsRequired && !resolved.ContainsKey (option.Key))
+      {
+        error = $"{option.Label} is required.";
+
+        return false;
+      }
+    }
+
+    secrets = resolved;
 
     return true;
   }

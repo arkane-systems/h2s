@@ -213,9 +213,11 @@ Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is th
 
 You can optionally enable service-health badges powered by Uptime Kuma:
 
-- **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`). Leave it blank to turn the integration off.
+- **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`).
 - **Status page slug**: the slug of the public status page that the top status bar links to, and that the monitor pickers list monitors from.
-- **Uptime period (hours)**: the period for the uptime badges in the top status bar.
+- **Default uptime duration (hours)**: the period for the uptime badges in the top status bar.
+
+**Save** turns the integration on. **Remove** turns it off again, after asking, and forgets its settings.
 
 **Test connection** checks the values in the form before you save them. It tells you whether the server answers, whether h2s trusts its certificate, and whether the status page exists and how many monitors it lists.
 

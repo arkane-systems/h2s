@@ -1,5 +1,6 @@
 /* The add/edit panel dialog for dashboard edit mode (Pages/Shared/_PanelDialog.cshtml). Its option fields are built from
-   the kind's schema, as the Editor's PanelKinds and Panel handlers describe it. */
+   the kind's schema, as the Editor's PanelKinds and Panel handlers describe it, by option-fields.js. */
+import { createOptionField, readOptionFields } from './option-fields.js';
 
 // A handler URL with query parameters added.
 const withQuery = (url, params) => {
@@ -122,85 +123,10 @@ export class PanelDialog {
      * @param {string} [emptyMessage] What to say when there are no options.
      */
     showOptions(options, values, emptyMessage = 'This kind of panel has no options.') {
-        this.optionsHost.replaceChildren(...options.map(option => this.createField(option, values[option.key] ?? option.defaultValue)));
+        this.optionsHost.replaceChildren(...options.map(option =>
+            createOptionField(option, values[option.key] ?? option.defaultValue, { idPrefix: 'panel-option-' })));
         this.noOptions.textContent = emptyMessage;
         this.noOptions.classList.toggle('d-none', options.length > 0);
-    }
-
-    createField(option, value) {
-        const id = `panel-option-${option.key}`;
-        const field = document.createElement('div');
-        field.className = 'mb-3';
-        field.dataset.optionKey = option.key;
-        field.dataset.optionType = option.type;
-
-        const input = document.createElement('input');
-        input.id = id;
-        input.name = `options[${option.key}]`;
-
-        const label = document.createElement('label');
-        label.htmlFor = id;
-        label.textContent = option.label;
-
-        if (option.type === 'boolean') {
-            field.classList.add('form-check', 'form-switch');
-            input.type = 'checkbox';
-            input.className = 'form-check-input';
-            input.setAttribute('role', 'switch');
-            input.checked = value === true;
-            label.className = 'form-check-label';
-            field.append(input, label);
-        } else {
-            input.className = 'form-control';
-            input.required = option.isRequired;
-            if (option.type === 'integer') {
-                input.type = 'number';
-                input.step = '1';
-                input.inputMode = 'numeric';
-                if (option.minimum !== null) {
-                    input.min = String(option.minimum);
-                }
-                if (option.maximum !== null) {
-                    input.max = String(option.maximum);
-                }
-            } else {
-                input.type = 'text';
-                input.maxLength = option.maxLength;
-                input.autocomplete = 'off';
-            }
-            input.value = value ?? '';
-            label.className = 'form-label';
-
-            const invalid = document.createElement('div');
-            invalid.className = 'invalid-feedback';
-            const bounds = [
-                option.minimum !== null ? `at least ${option.minimum}` : '',
-                option.maximum !== null ? `at most ${option.maximum}` : ''
-            ].filter(Boolean).join(' and ');
-            invalid.textContent = option.type === 'integer'
-                ? `Enter a whole number${bounds ? ` of ${bounds}` : ''}${option.isRequired ? '' : ', or leave it blank'}.`
-                : `${option.label} is required.`;
-            field.append(label, input, invalid);
-        }
-
-        if (option.helpText) {
-            const help = document.createElement('div');
-            help.className = 'form-text';
-            help.id = `${id}-help`;
-            help.textContent = option.helpText;
-            input.setAttribute('aria-describedby', help.id);
-            field.append(help);
-        }
-
-        return field;
-    }
-
-    // The option values as the handlers take them: booleans as true or false, everything else as typed.
-    optionValues() {
-        return [...this.optionsHost.querySelectorAll('[data-option-key]')].map(field => {
-            const input = field.querySelector('input');
-            return [input.name, field.dataset.optionType === 'boolean' ? String(input.checked) : input.value.trim()];
-        });
     }
 
     async save() {
@@ -216,8 +142,8 @@ export class PanelDialog {
         try {
             const panel = isNew
                 ? await window.h2sApi.postForm(this.urls.createUrl,
-                    [['kind', this.kind.value], ['zone', this.zone.value], ...this.optionValues()])
-                : await window.h2sApi.postForm(this.urls.updateUrl, [['id', this.panel.id], ...this.optionValues()]);
+                    [['kind', this.kind.value], ['zone', this.zone.value], ...readOptionFields(this.optionsHost)])
+                : await window.h2sApi.postForm(this.urls.updateUrl, [['id', this.panel.id], ...readOptionFields(this.optionsHost)]);
             this.modal.hide();
             this.onSaved(panel, isNew);
         } catch (error) {

@@ -1,7 +1,5 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
-using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +63,7 @@ public class SettingsPageTests
                                .GetStringAsync (requestUri: SettingsPageTests.SettingsPath,
                                                 cancellationToken: TestContext.Current.CancellationToken);
 
-    foreach (string section in new[] { "general", "appearance", "integrations", "uptime-kuma", "backup" })
+    foreach (string section in new[] { "general", "appearance", "integrations", "integration-uptime-kuma", "backup" })
       Assert.Contains (expectedSubstring: $"""<section id="{section}" """, actualString: html);
 
     Assert.Contains (expectedSubstring: """value="Development""",              actualString: html);
@@ -186,150 +184,6 @@ public class SettingsPageTests
                                                                                ]),
                                          status: HttpStatusCode.BadRequest,
                                          detail: "Color mode must be Auto, Light or Dark.");
-  }
-
-  [Fact]
-  public async Task SaveUptimeKuma_SavesAndTurnsTheIntegrationOnAndOff ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-
-    JsonElement on = await SettingsPageTests.PostOkAsync (factory: factory,
-                                                          handler: "SaveUptimeKuma",
-                                                          fields:
-                                                          [
-                                                            new KeyValuePair<string, string> (key: "serverUrl",
-                                                                                              value: " https://status.home.arpa "),
-                                                            new KeyValuePair<string, string> (key: "statusPageSlug", value: "main"),
-                                                            new KeyValuePair<string, string> (key: "defaultDuration", value: "48"),
-                                                          ]);
-
-    Assert.True (on.GetProperty ("isConfigured").GetBoolean ());
-
-    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: "https://status.home.arpa",
-                                                    StatusPageSlug: "main",
-                                                    DefaultDuration: 48),
-                  actual: await TestConnections.ReadUptimeKumaAsync (factory));
-
-    JsonElement off = await SettingsPageTests.PostOkAsync (factory: factory,
-                                                           handler: "SaveUptimeKuma",
-                                                           fields:
-                                                           [
-                                                             new KeyValuePair<string, string> (key: "serverUrl",       value: ""),
-                                                             new KeyValuePair<string, string> (key: "statusPageSlug",  value: ""),
-                                                             new KeyValuePair<string, string> (key: "defaultDuration", value: "24"),
-                                                           ]);
-
-    Assert.False (off.GetProperty ("isConfigured").GetBoolean ());
-    Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
-  }
-
-  [Theory]
-  [InlineData ("https://status.home.arpa/dashboard",
-               "main",
-               "24",
-               "Uptime Kuma server URL must be a valid HTTP or HTTPS base URL with no path, query, or fragment.")]
-  [InlineData ("https://status.home.arpa", "not a slug!", "24", "Status page slug may only contain letters, numbers, and hyphens.")]
-  [InlineData ("ftp://status.home.arpa",   "main",        "24", "Server URL must be an HTTP or HTTPS URL.")]
-  [InlineData ("https://status.home.arpa", "main",        "0", "Default uptime duration (hours) must be at least 1.")]
-  [InlineData ("https://status.home.arpa", "main",        "1.5", "Default uptime duration (hours) must be a whole number.")]
-  [InlineData ("https://status.home.arpa", "main",        "", "Default uptime duration (hours) is required.")]
-  public async Task SaveUptimeKuma_RejectsInvalidValues (string serverUrl, string slug, string duration, string detail)
-  {
-    await using var factory = new DashboardApplicationFactory ();
-
-    await FormPoster.AssertProblemAsync (response: await FormPoster.PostAsync (client: factory.CreateClient (),
-                                                                               pagePath: SettingsPageTests.SettingsPath,
-                                                                               handler: "SaveUptimeKuma",
-                                                                               fields:
-                                                                               [
-                                                                                 new KeyValuePair<string, string> (key: "serverUrl",
-                                                                                                                   value:
-                                                                                                                   serverUrl),
-                                                                                 new KeyValuePair<string,
-                                                                                   string> (key: "statusPageSlug", value: slug),
-                                                                                 new KeyValuePair<string,
-                                                                                   string> (key: "defaultDuration",
-                                                                                            value: duration),
-                                                                               ]),
-                                         status: HttpStatusCode.BadRequest,
-                                         detail: detail);
-  }
-
-  [Fact]
-  public async Task TestUptimeKuma_ReportsTheStatusPagesMonitors ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-    factory.Outbound = request => request.RequestUri!.AbsolutePath switch
-                                  {
-                                    "/" => new HttpResponseMessage (HttpStatusCode.OK),
-                                    "/api/status-page/main" => new HttpResponseMessage (HttpStatusCode.OK)
-                                                               {
-                                                                 Content = new StringContent (content: """
-                                                                                                       { "publicGroupList": [
-                                                                                                         { "name": "Core", "monitorList": [ { "id": 1, "name": "A" }, { "id": 2, "name": "B" } ] }
-                                                                                                       ] }
-                                                                                                       """,
-                                                                                              encoding: Encoding.UTF8,
-                                                                                              mediaType: "application/json"),
-                                                               },
-                                    _ => new HttpResponseMessage (HttpStatusCode.NotFound),
-                                  };
-
-    JsonElement result = await SettingsPageTests.PostOkAsync (factory: factory,
-                                                              handler: "TestUptimeKuma",
-                                                              fields:
-                                                              [
-                                                                new KeyValuePair<string, string> (key: "serverUrl",
-                                                                                                  value:
-                                                                                                  "https://status.home.arpa"),
-                                                                new KeyValuePair<string, string> (key: "statusPageSlug",
-                                                                                                  value: "main"),
-                                                              ]);
-
-    Assert.Equal (expected: "success", actual: result.GetProperty ("level").GetString ());
-    Assert.Equal (expected: "Connected. The status page lists 2 monitors in 1 group.",
-                  actual: result.GetProperty ("message").GetString ());
-
-    // Testing doesn't save anything.
-    Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
-  }
-
-  [Fact]
-  public async Task TestUptimeKuma_ReportsAnUnreachableServer ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-    factory.Outbound = _ => throw new HttpRequestException ("Connection refused");
-
-    JsonElement result = await SettingsPageTests.PostOkAsync (factory: factory,
-                                                              handler: "TestUptimeKuma",
-                                                              fields:
-                                                              [
-                                                                new KeyValuePair<string, string> (key: "serverUrl",
-                                                                                                  value:
-                                                                                                  "https://status.home.arpa"),
-                                                                new KeyValuePair<string, string> (key: "statusPageSlug", value: ""),
-                                                              ]);
-
-    Assert.Equal (expected: "danger", actual: result.GetProperty ("level").GetString ());
-    Assert.Equal (expected: "Couldn't reach Uptime Kuma at https://status.home.arpa.",
-                  actual: result.GetProperty ("message").GetString ());
-  }
-
-  [Fact]
-  public async Task TestUptimeKuma_RequiresAServerUrl ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-
-    await FormPoster.AssertProblemAsync (response: await FormPoster.PostAsync (client: factory.CreateClient (),
-                                                                               pagePath: SettingsPageTests.SettingsPath,
-                                                                               handler: "TestUptimeKuma",
-                                                                               fields:
-                                                                               [
-                                                                                 new KeyValuePair<string, string> (key: "serverUrl",
-                                                                                                                   value: " "),
-                                                                               ]),
-                                         status: HttpStatusCode.BadRequest,
-                                         detail: "Enter the Uptime Kuma server URL to test.");
   }
 
   [Fact]

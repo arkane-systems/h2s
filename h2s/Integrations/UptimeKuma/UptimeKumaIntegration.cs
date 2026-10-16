@@ -56,16 +56,25 @@ public sealed class UptimeKumaIntegration : IIntegration
   public string DisplayName => "Uptime Kuma";
 
   /// <inheritdoc />
+  public string Description
+    => "Status badges for links, and a status bar of infrastructure groups. Monitors must be on the status page for their " +
+       "badges to show.";
+
+  /// <inheritdoc />
   public bool AllowsMultipleConnections => false;
 
   /// <inheritdoc />
   public IReadOnlyList<SchemaOption> ConnectionOptions { get; } =
     [
-      new (Key: UptimeKumaIntegration.ServerUrlOption, Label: "Server URL", Type: OptionType.Url) { IsRequired = true },
+      new (Key: UptimeKumaIntegration.ServerUrlOption, Label: "Server URL", Type: OptionType.Url)
+      {
+        IsRequired = true, Placeholder = "https://status.example.com",
+      },
       new (Key: UptimeKumaIntegration.StatusPageSlugOption, Label: "Status page slug", Type: OptionType.Text)
       {
-        Pattern            = "[A-Za-z0-9-]+",
+        Pattern            = @"[A-Za-z0-9\-]+",
         PatternDescription = "may only contain letters, numbers, and hyphens",
+        Placeholder        = "main",
         HelpText           = "The status bar links to this page, and the monitor picker lists its monitors.",
       },
       new (Key: UptimeKumaIntegration.DefaultDurationOption, Label: "Default uptime duration (hours)", Type: OptionType.Integer)

@@ -33,7 +33,7 @@ public partial class EditorModel
                                                                   k.Key,
                                                                   k.DisplayName,
                                                                   IsAvailable = !k.IsSingleInstance || !present.Contains (k.Key),
-                                                                  Options     = EditorModel.DescribeOptions (k.Options),
+                                                                  Options     = OptionDescriptions.Describe (k.Options),
                                                                 }));
   }
 
@@ -63,7 +63,7 @@ public partial class EditorModel
                              DisplayName = kind?.DisplayName ?? panel.Kind,
                              IsKnown     = kind != null,
                              Zone        = panel.Zone.ToString (),
-                             Options     = EditorModel.DescribeOptions (kind?.Options ?? []),
+                             Options     = OptionDescriptions.Describe (kind?.Options ?? []),
                              Values = kind == null
                                         ? new Dictionary<string, object?> ()
                                         : new OptionValues (schema: kind.Options, json: panel.OptionsJson).Values,
@@ -277,28 +277,6 @@ public partial class EditorModel
     => kind.IsSingleInstance && await this.context.Panels.AnyAsync (p => p.Kind == kind.Key)
          ? $"The dashboard already has a {kind.DisplayName.ToLowerInvariant ()} panel, and can only have one."
          : null;
-
-  /// <summary>
-  ///   Describes a kind's options for the panel dialog, which builds its form from them.
-  /// </summary>
-  /// <param name="options">The options.</param>
-  /// <returns>One object per option, its type as <c>text</c>, <c>integer</c> or <c>boolean</c>.</returns>
-  private static object[] DescribeOptions (IReadOnlyList<SchemaOption> options)
-    =>
-    [
-      .. options.Select (o => new
-                              {
-                                o.Key,
-                                o.Label,
-                                Type = o.Type.ToString ().ToLowerInvariant (),
-                                o.HelpText,
-                                o.IsRequired,
-                                o.DefaultValue,
-                                o.Minimum,
-                                o.Maximum,
-                                MaxLength = o.Type == OptionType.Text ? OptionForm.MaxTextLength : (int?)null,
-                              }),
-    ];
 
   /// <summary>
   ///   Describes a saved panel for the dialog's callers.

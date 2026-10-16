@@ -39,9 +39,15 @@ public sealed record SchemaOption (string Key, string Label, OptionType Type)
 
   /// <summary>
   ///   Gets a regular expression that a text option's value must match in full when it isn't blank, as an HTML
-  ///   <c>pattern</c> attribute does.
+  ///   <c>pattern</c> attribute does. The edit form uses it as one, so it must also be valid in a JavaScript <c>v</c>-flag
+  ///   regular expression: escape a hyphen in a character class (<c>[A-Za-z0-9\-]</c>).
   /// </summary>
   public string? Pattern { get; init; }
+
+  /// <summary>
+  ///   Gets an example value shown in the empty field, such as <c>https://status.example.com</c>.
+  /// </summary>
+  public string? Placeholder { get; init; }
 
   /// <summary>
   ///   Gets what a value that doesn't match <see cref="Pattern" /> should be instead, completing "<c>Label</c> may only
