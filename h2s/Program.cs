@@ -1,8 +1,11 @@
 using h2s.Authorization;
 using h2s.Data;
 using h2s.Data.Seeding;
+using h2s.Integrations;
+using h2s.Integrations.UptimeKuma;
 using h2s.Panels;
 using h2s.Services;
+using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -43,6 +46,13 @@ builder.Services.AddScoped<PageMetadataReader> ();
 builder.Services.AddScoped<UptimeKumaClient> ();
 builder.Services.AddScoped<DashboardBackupService> ();
 
+// Integrations are singletons; the catalog lists them, and ConnectionService reads and saves their connections, whose
+// secrets ConnectionSecrets encrypts.
+builder.Services.AddSingleton<IIntegration, UptimeKumaIntegration> ();
+builder.Services.AddSingleton<IntegrationCatalog> ();
+builder.Services.AddSingleton<ConnectionSecrets> ();
+builder.Services.AddScoped<ConnectionService> ();
+
 // Panel kinds are singletons; the catalog lists them, and PanelService builds each panel's content per request.
 builder.Services.AddSingleton<IPanelKind, StatusBarPanelKind> ();
 builder.Services.AddSingleton<IPanelKind, SearchPanelKind> ();
@@ -80,7 +90,7 @@ builder.Services.AddAuthorizationBuilder ()
                    configurePolicy: policy => policy.AddRequirements (new AdminRequirement ()));
 builder.Services.AddSingleton<IAuthorizationHandler, AllowAllAdminHandler> ();
 
-// Keep Data Protection keys beside the database, so antiforgery tokens (and later, stored secrets) survive restarts.
+// Keep Data Protection keys beside the database, so antiforgery tokens and connection secrets survive restarts.
 IDataProtectionBuilder dataProtection = builder.Services.AddDataProtection ()
                                                .SetApplicationName ("h2s");
 string? dataDirectory = SqliteConnectionStrings.GetDataDirectory (connectionString);

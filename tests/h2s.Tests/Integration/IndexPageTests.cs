@@ -132,20 +132,7 @@ public partial class IndexPageTests
   public async Task Index_RendersKumaBadgesWhenConfigured ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    var (scope, context) = factory.CreateContext ();
-
-    using (scope)
-    {
-      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s
-                                                                                .SetProperty (propertyExpression:
-                                                                                              x => x.UptimeKumaServerUrl,
-                                                                                              valueExpression:
-                                                                                              "https://status.home.arpa")
-                                                                                .SetProperty (propertyExpression:
-                                                                                              x => x.UptimeKumaStatusPageSlug,
-                                                                                              valueExpression: "main"),
-                                                          cancellationToken: TestContext.Current.CancellationToken);
-    }
+    await factory.AddUptimeKumaAsync (statusPageSlug: "main");
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
@@ -178,16 +165,7 @@ public partial class IndexPageTests
   public async Task Index_StatusBarIsStaticWithoutStatusPageSlug ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    var (scope, context) = factory.CreateContext ();
-
-    using (scope)
-    {
-      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression:
-                                                                                                x => x.UptimeKumaServerUrl,
-                                                                                                valueExpression:
-                                                                                                "https://status.home.arpa"),
-                                                          cancellationToken: TestContext.Current.CancellationToken);
-    }
+    await factory.AddUptimeKumaAsync ();
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);

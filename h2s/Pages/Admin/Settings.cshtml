@@ -1,6 +1,7 @@
 @page
 @model h2s.Pages.Admin.SettingsModel
 @using System.Text.Json
+@using h2s.Integrations.UptimeKuma
 @using h2s.Models
 @{
     ViewData["Title"] = "Settings";
@@ -120,7 +121,7 @@
                     <div class="mb-3">
                         <label for="settings-kuma-url" class="form-label">Server URL</label>
                         <input type="url" class="form-control" id="settings-kuma-url" name="serverUrl" pattern="https?://.+"
-                               value="@Model.Settings.UptimeKumaServerUrl" placeholder="https://status.example.com" autocomplete="off"
+                               value="@Model.UptimeKuma?.ServerUrl" placeholder="https://status.example.com" autocomplete="off"
                                aria-describedby="settings-kuma-url-help" />
                         <div class="invalid-feedback">Enter an address starting with http:// or https://.</div>
                         <div class="form-text" id="settings-kuma-url-help">Leave blank to turn Uptime Kuma off.</div>
@@ -130,13 +131,13 @@
                         <div class="col-sm-7">
                             <label for="settings-kuma-slug" class="form-label">Status page slug</label>
                             <input type="text" class="form-control" id="settings-kuma-slug" name="statusPageSlug" pattern="\s*[A-Za-z0-9\-]*\s*"
-                                   value="@Model.Settings.UptimeKumaStatusPageSlug" placeholder="main" autocomplete="off" />
+                                   value="@Model.UptimeKuma?.StatusPageSlug" placeholder="main" autocomplete="off" />
                             <div class="invalid-feedback">Use only letters, numbers and hyphens.</div>
                         </div>
                         <div class="col-sm-5">
                             <label for="settings-kuma-duration" class="form-label">Uptime period (hours)</label>
                             <input type="number" class="form-control" id="settings-kuma-duration" name="defaultDuration" required min="1"
-                                   step="1" value="@Model.Settings.UptimeKumaDefaultDuration" />
+                                   step="1" value="@(Model.UptimeKuma?.DefaultDuration ?? UptimeKumaIntegration.DefaultDuration)" />
                             <div class="invalid-feedback">Use a whole number of hours, at least 1.</div>
                         </div>
                     </div>

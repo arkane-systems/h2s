@@ -1,9 +1,11 @@
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 
 namespace h2s.Pages;
 
 /// <summary>
-///   Builds dashboard tiles (<see cref="LinkTile" />) for one set of dashboard settings. The dashboard uses it to render
+///   Builds dashboard tiles (<see cref="LinkTile" />) for one set of dashboard and Uptime Kuma settings. The dashboard uses it to
+///   render
 ///   its tiles, and the editor uses it to render previews and refreshed tiles that look the same.
 /// </summary>
 public sealed class LinkTileFactory
@@ -15,11 +17,12 @@ public sealed class LinkTileFactory
   /// <summary>
   ///   Initializes a new instance of the <see cref="LinkTileFactory" /> class.
   /// </summary>
-  /// <param name="settings">The dashboard settings that decide which links are external and where badges come from.</param>
-  public LinkTileFactory (DashboardSettings settings)
+  /// <param name="settings">The dashboard settings, whose local domains decide which links are external.</param>
+  /// <param name="uptimeKuma">The Uptime Kuma settings that badges come from, or <c>null</c> when Uptime Kuma is off.</param>
+  public LinkTileFactory (DashboardSettings settings, UptimeKumaSettings? uptimeKuma)
   {
     this.localDomains        = LinkTileFactory.ParseLocalDomains (settings.LocalDomains);
-    this.uptimeKumaServerUrl = settings.UptimeKumaServerUrl;
+    this.uptimeKumaServerUrl = uptimeKuma?.ServerUrl;
   }
 
   /// <summary>

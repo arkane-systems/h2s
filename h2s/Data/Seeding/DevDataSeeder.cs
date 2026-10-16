@@ -9,7 +9,8 @@ namespace h2s.Data.Seeding;
 /// <remarks>
 ///   The sample data exercises every rendering path on the dashboard: regular and admin categories, links with and
 ///   without icons and descriptions, internal and external hosts, and Uptime Kuma monitor IDs. Uptime Kuma itself is
-///   left disabled so that badges do not point at a nonexistent server; set a server URL in Settings to try it.
+///   left off (there's no connection) so that badges do not point at a nonexistent server; set a server URL in Settings
+///   to try it.
 /// </remarks>
 public static class DevDataSeeder
 {
@@ -56,13 +57,10 @@ public static class DevDataSeeder
   /// <param name="settings">The settings record to update.</param>
   private static void ApplySettings (DashboardSettings settings)
   {
-    settings.Title                     = "Development";
-    settings.Motto                     = "Seeded sample data";
-    settings.LocalDomains              = DevDataSeeder.LocalDomain;
-    settings.ColorMode                 = ColorMode.Auto;
-    settings.UptimeKumaServerUrl       = null;
-    settings.UptimeKumaStatusPageSlug  = null;
-    settings.UptimeKumaDefaultDuration = 24;
+    settings.Title        = "Development";
+    settings.Motto        = "Seeded sample data";
+    settings.LocalDomains = DevDataSeeder.LocalDomain;
+    settings.ColorMode    = ColorMode.Auto;
   }
 
   /// <summary>

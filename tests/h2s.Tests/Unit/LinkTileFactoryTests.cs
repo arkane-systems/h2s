@@ -1,3 +1,4 @@
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Pages;
 
@@ -11,7 +12,10 @@ public class LinkTileFactoryTests
   [Fact]
   public void BuildBadgeUrl_BuildsKumaUrls ()
   {
-    var tiles = new LinkTileFactory (new DashboardSettings { UptimeKumaServerUrl = "https://status.home.arpa/" });
+    var tiles = new LinkTileFactory (settings: new DashboardSettings (),
+                                     uptimeKuma: new UptimeKumaSettings (ServerUrl: "https://status.home.arpa/",
+                                                                         StatusPageSlug: null,
+                                                                         DefaultDuration: 24));
 
     Assert.Equal (expected: "https://status.home.arpa/api/badge/7/status?style=flat",
                   actual: tiles.BuildBadgeUrl (monitorId: 7, type: "status"));
@@ -24,5 +28,7 @@ public class LinkTileFactoryTests
   [Fact]
   public void BuildBadgeUrl_IsEmptyWithoutKumaServer ()
     => Assert.Equal (expected: "",
-                     actual: new LinkTileFactory (new DashboardSettings ()).BuildBadgeUrl (monitorId: 7, type: "status"));
+                     actual: new LinkTileFactory (settings: new DashboardSettings (), uptimeKuma: null).BuildBadgeUrl (monitorId: 7,
+                                                                                                                       type:
+                                                                                                                       "status"));
 }

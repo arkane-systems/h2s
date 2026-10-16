@@ -35,6 +35,11 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
   public DbSet<Panel> Panels => this.Set<Panel> ();
 
   /// <summary>
+  ///   Gets the set of connections to other services, each holding one integration's settings.
+  /// </summary>
+  public DbSet<Connection> Connections => this.Set<Connection> ();
+
+  /// <summary>
   ///   Gets the set of web search engines.
   /// </summary>
   public DbSet<SearchEngine> SearchEngines => this.Set<SearchEngine> ();

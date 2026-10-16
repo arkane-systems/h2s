@@ -37,6 +37,37 @@ namespace h2s.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("h2s.Models.Connection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IntegrationKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecretsJson")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntegrationKey", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Connections");
+                });
+
             modelBuilder.Entity("h2s.Models.DashboardSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -56,15 +87,6 @@ namespace h2s.Migrations
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UptimeKumaDefaultDuration")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UptimeKumaServerUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UptimeKumaStatusPageSlug")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

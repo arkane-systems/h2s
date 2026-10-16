@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The contracts an integration is written against: option schemas and their values, and the integration interface.
+       It references nothing of the app (no EF Core, no ASP.NET Core), so integrations can't reach past it, and it can be
+       loaded on its own when integrations are loaded at runtime. -->
+  <PropertyGroup>
+    <RootNamespace>h2s.Widgets.Abstractions</RootNamespace>
+  </PropertyGroup>
+
+</Project>

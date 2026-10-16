@@ -17,8 +17,6 @@ public class DashboardSettingsService
 {
   private const string CacheKey = "dashboard-settings";
 
-  private const int DefaultUptimeKumaDuration = 24;
-
   private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes (5);
 
   private readonly IMemoryCache cache;
@@ -74,7 +72,7 @@ public class DashboardSettingsService
   /// <summary>
   ///   Loads the settings record from the database, creating it with default values if it does not exist.
   /// </summary>
-  /// <returns>The settings, untracked and with an invalid uptime duration replaced by the default.</returns>
+  /// <returns>The settings, untracked.</returns>
   private async Task<DashboardSettings> LoadSettingsAsync ()
   {
     DashboardSettings? settings = await this.context.DashboardSettings
@@ -85,11 +83,7 @@ public class DashboardSettingsService
     {
       settings = new DashboardSettings
                  {
-                   Id                        = 1,
-                   Title                     = "Dashboard",
-                   Motto                     = "",
-                   LocalDomains              = "",
-                   UptimeKumaDefaultDuration = DashboardSettingsService.DefaultUptimeKumaDuration,
+                   Id = 1, Title = "Dashboard", Motto = "", LocalDomains = "",
                  };
       this.context.DashboardSettings.Add (settings);
       await this.context.SaveChangesAsync ();
@@ -97,10 +91,6 @@ public class DashboardSettingsService
       // Stop tracking the new row, so a later save of a copy doesn't conflict with it.
       this.context.Entry (settings).State = EntityState.Detached;
     }
-
-    // Settings validation keeps the stored duration positive; correct an invalid one in memory only.
-    if (settings.UptimeKumaDefaultDuration <= 0)
-      settings.UptimeKumaDefaultDuration = DashboardSettingsService.DefaultUptimeKumaDuration;
 
     return settings;
   }

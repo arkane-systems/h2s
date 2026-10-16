@@ -22,7 +22,7 @@ public class DevDataSeederTests
 
     Assert.Equal (expected: "Development",             actual: settings.Title);
     Assert.Equal (expected: DevDataSeeder.LocalDomain, actual: settings.LocalDomains);
-    Assert.Null (settings.UptimeKumaServerUrl);
+    Assert.Empty (await context.Connections.ToListAsync (cancellationToken));
     Assert.Contains (collection: await context.Categories.ToListAsync (cancellationToken), filter: c => c.IsAdminCategory);
     Assert.Contains (collection: await context.Categories.ToListAsync (cancellationToken), filter: c => !c.IsAdminCategory);
     Assert.Contains (collection: await context.Links.ToListAsync (cancellationToken),      filter: l => l.IconName == "");

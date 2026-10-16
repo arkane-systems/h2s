@@ -6,5 +6,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/h2s.Tests/h2s.Tests.csproj" />
   </Folder>
+  <Project Path="h2s.Widgets.Abstractions/h2s.Widgets.Abstractions.csproj" />
   <Project Path="h2s/h2s.csproj" />
 </Solution>

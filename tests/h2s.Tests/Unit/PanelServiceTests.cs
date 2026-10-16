@@ -3,6 +3,7 @@ using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
+using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -136,16 +137,11 @@ public class PanelServiceTests
   /// </summary>
   /// <param name="context">The database context.</param>
   /// <param name="slug">The status page slug, or <c>null</c> for none.</param>
-  private static Task ConfigureKumaAsync (DashboardContext context, string? slug)
-    => context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s
-                                                                           .SetProperty (propertyExpression:
-                                                                                         x => x.UptimeKumaServerUrl,
-                                                                                         valueExpression:
-                                                                                         "https://status.home.arpa")
-                                                                           .SetProperty (propertyExpression:
-                                                                                         x => x.UptimeKumaStatusPageSlug,
-                                                                                         valueExpression: slug),
-                                                     cancellationToken: TestContext.Current.CancellationToken);
+  private static async Task ConfigureKumaAsync (DashboardContext context, string? slug)
+  {
+    context.Connections.Add (TestConnections.UptimeKuma (statusPageSlug: slug ?? ""));
+    await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+  }
 
   /// <summary>
   ///   Loads the panels through a <see cref="PanelService" /> with the built-in kinds.
@@ -160,6 +156,8 @@ public class PanelServiceTests
     await using ServiceProvider services = new ServiceCollection ().AddSingleton (context)
                                                                    .AddSingleton (new DashboardSettingsService (context: context,
                                                                                                                 cache: cache))
+                                                                   .AddSingleton (TestConnections.CreateService (context: context,
+                                                                                                                 cache: cache))
                                                                    .BuildServiceProvider ();
 
     IPanelKind[] kinds = [new StatusBarPanelKind (), new SearchPanelKind (), .. extraKind is null ? [] : new[] { extraKind }];
@@ -191,7 +189,7 @@ public class PanelServiceTests
     public bool IsSingleInstance => false;
 
     /// <inheritdoc />
-    public IReadOnlyList<PanelOption> Options => [];
+    public IReadOnlyList<SchemaOption> Options => [];
 
     /// <inheritdoc />
     public Task<PanelContent> GetContentAsync (PanelContext context) => throw new InvalidOperationException ("Broken.");

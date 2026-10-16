@@ -146,6 +146,77 @@ public class MigrationTests
     Assert.Equal (expected: "https://www.bing.com/search?q={query}", actual: engines[0].UrlTemplate);
   }
 
+  [Theory]
+  [InlineData (" https://status.home.arpa ",
+               "main",
+               48,
+               """{"serverUrl":"https://status.home.arpa","statusPageSlug":"main","defaultDuration":48}""",
+               "https://status.home.arpa",
+               "main",
+               48)]
+  [InlineData ("https://status.home.arpa",
+               null,
+               0,
+               """{"serverUrl":"https://status.home.arpa","statusPageSlug":"","defaultDuration":24}""",
+               "https://status.home.arpa",
+               null,
+               24)]
+  [InlineData (" ",  "main", 12, null, null, null, 24)]
+  [InlineData (null, null,   24, null, null, null, 24)]
+  public async Task MoveUptimeKumaToConnection_MovesTheSettingsIntoAConnectionAndBack (string? serverUrl,
+                                                                                       string? slug,
+                                                                                       int     duration,
+                                                                                       string? expectedOptions,
+                                                                                       string? revertedServerUrl,
+                                                                                       string? revertedSlug,
+                                                                                       int     revertedDuration)
+  {
+    const string Before = "20261015222133_AddLinkOpenInNewTab";
+
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    // The AddDashboardSettings migration inserted the settings row.
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+    await context.Database.ExecuteSqlAsync (sql: $"""
+                                                  UPDATE "DashboardSettings"
+                                                  SET "UptimeKumaServerUrl" = {serverUrl}, "UptimeKumaStatusPageSlug" = {slug},
+                                                      "UptimeKumaDefaultDuration" = {duration}
+                                                  """,
+                                            cancellationToken: cancellationToken);
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    List<Connection> connections = await context.Connections.AsNoTracking ().ToListAsync (cancellationToken);
+
+    if (expectedOptions == null)
+      Assert.Empty (connections);
+    else
+    {
+      Connection kuma = Assert.Single (connections);
+
+      Assert.Equal (expected: ("uptime-kuma", "Uptime Kuma", expectedOptions, (string?)null),
+                    actual: (kuma.IntegrationKey, kuma.Name, kuma.OptionsJson, kuma.SecretsJson));
+    }
+
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+
+    await using SqliteCommand command = connection.CreateCommand ();
+    command.CommandText =
+      """SELECT "UptimeKumaServerUrl", "UptimeKumaStatusPageSlug", "UptimeKumaDefaultDuration" FROM "DashboardSettings" """;
+    await using SqliteDataReader reader = await command.ExecuteReaderAsync (cancellationToken);
+
+    Assert.True (await reader.ReadAsync (cancellationToken));
+    Assert.Equal (expected: (revertedServerUrl, revertedSlug, revertedDuration),
+                  actual: (reader.IsDBNull (0) ? null : reader.GetString (0), reader.IsDBNull (1) ? null : reader.GetString (1),
+                           reader.GetInt64 (2)));
+  }
+
   /// <summary>
   ///   Reads each row's name with its sort order.
   /// </summary>
