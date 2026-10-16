@@ -26,13 +26,15 @@
 }
 @if (Model.StatusPageUrl is not null)
 {
-    <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@Model.StatusPageUrl" target="_blank" rel="noopener noreferrer">
+    <a class="uptime-status-bar uptime-status-bar-link category-box border text-decoration-none" href="@Model.StatusPageUrl" target="_blank" rel="noopener noreferrer"
+       title="Open the Uptime Kuma status page">
         @{ RenderBadges(); }
+        <span class="visually-hidden">Open the Uptime Kuma status page</span>
     </a>
 }
 else
 {
-    <section class="uptime-status-bar uptime-status-bar-static category-box border">
+    <div class="uptime-status-bar uptime-status-bar-static category-box border">
         @{ RenderBadges(); }
-    </section>
+    </div>
 }

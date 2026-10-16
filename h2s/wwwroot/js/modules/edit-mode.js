@@ -7,6 +7,9 @@ import { PanelDialog } from './panel-dialog.js';
 import { showToast } from './toast.js';
 
 const config = document.getElementById('edit-mode');
+
+// SortableJS animates moves, unless the person asked for less motion.
+const sortAnimation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 150;
 const grid = document.querySelector('.category-grid.is-editing');
 
 if (config && grid) {
@@ -48,6 +51,14 @@ function initEditMode(config, grid) {
         return slot;
     };
     grid.querySelectorAll('.link-slot').forEach(prepareSlot);
+
+    // A tile is a button in edit mode, and buttons answer Space as well as Enter (which a link already does).
+    grid.addEventListener('keydown', event => {
+        if (event.key === ' ' && event.target.matches('.link-slot .link-block')) {
+            event.preventDefault();
+            event.target.click();
+        }
+    });
 
     // Records every container's children, so a failed save can put the page back exactly as it was.
     const takeSnapshot = () => [grid, ...linkLists(), ...panelZones].map(container => [container, [...container.children]]);
@@ -97,7 +108,7 @@ function initEditMode(config, grid) {
             group: 'panels',
             handle: '.panel-drag-handle',
             draggable: '.panel-slot',
-            animation: 150,
+            animation: sortAnimation,
             ghostClass: 'sortable-ghost',
             onStart: () => { snapshot = takeSnapshot(); },
             onEnd: event => {
@@ -214,7 +225,7 @@ function initEditMode(config, grid) {
     sortables.push(Sortable.create(grid, {
         handle: '.category-drag-handle',
         draggable: '.category-box',
-        animation: 150,
+        animation: sortAnimation,
         ghostClass: 'sortable-ghost',
         onStart: () => { snapshot = takeSnapshot(); },
         onMove: event => sectionOf(event.related) === sectionOf(event.dragged),
@@ -231,7 +242,7 @@ function initEditMode(config, grid) {
             group: 'links',
             handle: '.link-drag-handle',
             draggable: '.link-slot',
-            animation: 150,
+            animation: sortAnimation,
             ghostClass: 'sortable-ghost',
             onStart: () => { snapshot = takeSnapshot(); },
             onEnd: event => {

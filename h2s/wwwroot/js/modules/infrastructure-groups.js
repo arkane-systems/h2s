@@ -69,7 +69,8 @@ if (root) {
 
     Sortable.create(list, {
         handle: '.drag-handle',
-        animation: 150,
+        // No animation for people who asked for less motion.
+        animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 150,
         ghostClass: 'sortable-ghost',
         onEnd: event => {
             if (event.oldIndex !== event.newIndex) {

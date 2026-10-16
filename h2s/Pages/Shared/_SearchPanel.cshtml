@@ -3,7 +3,7 @@
 @* The search panel: a web search form. /Search picks the engine, so a !shortcut works without script. The ⌕ button opens
    a menu of the engines, in Settings order, that picks one for the next search only (wwwroot/js/modules/search-panel.js);
    a !shortcut in the query still wins. *@
-<section class="home-search-box category-box border">
+<div class="home-search-box category-box border">
     <div class="category-box-body">
         <form class="home-search-form" asp-page="/Search" method="get" role="search" data-role="search-panel"
               data-default-placeholder="@Model.Placeholder">
@@ -11,7 +11,7 @@
                 <button type="button" class="home-search-icon home-search-engine-button" data-bs-toggle="dropdown"
                         aria-expanded="false" aria-label="Choose a search engine for this search" title="Choose a search engine">⌕</button>
                 <ul class="dropdown-menu home-search-engine-menu" data-role="engine-menu">
-                    <li><h3 class="dropdown-header">Search this time with</h3></li>
+                    <li><span class="dropdown-header">Search this time with</span></li>
                     @foreach (var engine in Model.Engines)
                     {
                         <li>
@@ -45,4 +45,4 @@
                    required />
         </form>
     </div>
-</section>
+</div>

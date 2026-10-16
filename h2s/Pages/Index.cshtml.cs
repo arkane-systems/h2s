@@ -45,6 +45,11 @@ public class IndexModel : PageModel
   public List<Category> Categories { get; set; } = new ();
 
   /// <summary>
+  ///   Gets the dashboard's title, for the page's heading.
+  /// </summary>
+  public string DashboardTitle { get; private set; } = "";
+
+  /// <summary>
   ///   Gets a value indicating whether the dashboard is in edit mode, where categories and links can be rearranged.
   /// </summary>
   public bool IsEditMode { get; private set; }
@@ -94,7 +99,8 @@ public class IndexModel : PageModel
                                 .ToListAsync ();
 
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
-    this.tiles = new LinkTileFactory (settings);
+    this.tiles          = new LinkTileFactory (settings);
+    this.DashboardTitle = settings.Title;
 
     List<PanelView> panels = (await this.panelService.GetPanelsAsync (cancellationToken))
                             .Where (p => this.IsEditMode || !p.Content.IsEmpty)

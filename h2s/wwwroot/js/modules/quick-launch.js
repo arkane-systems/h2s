@@ -29,12 +29,16 @@ function initQuickLaunch(root) {
     const hideWhileFiltering = [...document.querySelectorAll('.panel-zone, .category-grid-break')];
 
     let matches = [];
+    let returnFocus = null;
     let selected = 0;
     let engineIndex = 0;
 
     const isOpen = () => !root.hidden;
 
     const open = text => {
+        returnFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+            ? document.activeElement
+            : null;
         root.hidden = false;
         document.body.classList.add('is-quick-launching');
         input.value = text;
@@ -42,11 +46,16 @@ function initQuickLaunch(root) {
         update();
     };
 
-    const close = () => {
+    // Esc returns focus to where it was; a click elsewhere leaves it where the click put it.
+    const close = ({ restoreFocus = false } = {}) => {
         root.hidden = true;
         document.body.classList.remove('is-quick-launching');
         input.value = '';
         update();
+        if (restoreFocus) {
+            returnFocus?.focus();
+        }
+        returnFocus = null;
     };
 
     // The engine a !shortcut word at the start or end of the query names, as /Search reads it.
@@ -150,7 +159,7 @@ function initQuickLaunch(root) {
 
         if (event.key === 'Escape') {
             event.preventDefault();
-            close();
+            close({ restoreFocus: true });
         } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             const step = event.key === 'ArrowDown' ? 1 : -1;
             if (matches.length > 0) {

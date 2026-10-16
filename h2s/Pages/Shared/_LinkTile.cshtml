@@ -4,7 +4,7 @@
    target="@(Model.Link.OpenInNewTab ? "_blank" : null)" rel="@(Model.Link.OpenInNewTab ? "noopener noreferrer" : null)">
     @if (Model.IsExternal)
     {
-        <span class="link-external-flag" title="External site" aria-label="External site">External</span>
+        <span class="link-external-flag" title="External site">External</span>
     }
     @if (Model.StatusBadgeUrl != null)
     {
@@ -14,7 +14,7 @@
         @* A selfh.st icon, else the link's own icon URL, else a dot. wwwroot/js/site.js swaps in the dot if the image fails. *@
         @if (!string.IsNullOrWhiteSpace(Model.Link.GetIconUrl()))
         {
-            <img class="link-block-icon" src="@Model.Link.GetIconUrl()" alt="@($"{Model.Link.Label} icon")" loading="lazy" />
+            <img class="link-block-icon" src="@Model.Link.GetIconUrl()" alt="" loading="lazy" />
         }
         else
         {
