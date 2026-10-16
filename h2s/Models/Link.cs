@@ -69,6 +69,11 @@ public class Link
   public Category? Category { get; set; }
 
   /// <summary>
+  ///   Gets or sets the widgets on the link's tile, in their order.
+  /// </summary>
+  public List<Widget> Widgets { get; set; } = [];
+
+  /// <summary>
   ///   Gets the URL of the link's icon: its selfh.st icon when it has an icon name, otherwise its <see cref="IconUrl" />.
   /// </summary>
   /// <param name="format">

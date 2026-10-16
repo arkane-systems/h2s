@@ -1,0 +1,24 @@
+@using h2s.Widgets
+@using h2s.Widgets.Abstractions
+@model IReadOnlyList<WidgetView>
+@* A tile's widget row: its app widget on the left, then its status pills, right-aligned. The pills are one group, so when
+   the row is too narrow they move to the next line together, still right-aligned, rather than splitting. *@
+@{
+    WidgetView? app = Model.FirstOrDefault(w => w.Role == WidgetRole.App);
+    List<WidgetView> statuses = Model.Where(w => w.Role == WidgetRole.Status).ToList();
+}
+<span class="link-widgets">
+    @if (app != null)
+    {
+        <partial name="_Widget" model="app" />
+    }
+    @if (statuses.Count > 0)
+    {
+        <span class="link-widgets-status">
+            @foreach (WidgetView status in statuses)
+            {
+                <partial name="_Widget" model="status" />
+            }
+        </span>
+    }
+</span>

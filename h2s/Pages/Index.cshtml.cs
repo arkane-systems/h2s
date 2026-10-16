@@ -5,6 +5,7 @@ using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
+using h2s.Widgets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -21,8 +22,11 @@ public class IndexModel : PageModel
   private readonly DashboardContext         context;
   private readonly PanelService             panelService;
   private readonly DashboardSettingsService settingsService;
+  private readonly WidgetService            widgetService;
 
   private LinkTileFactory tiles = new (settings: new DashboardSettings (), uptimeKuma: null);
+
+  private Dictionary<int, List<WidgetView>> widgets = [];
 
   /// <summary>
   ///   Initializes a new instance of the <see cref="IndexModel" /> class.
@@ -32,12 +36,15 @@ public class IndexModel : PageModel
   /// <param name="panelService">The service used to load the panels above and below the categories.</param>
   /// <param name="authorizationService">The service used to check whether the user may enter edit mode.</param>
   /// <param name="connections">The service holding the Uptime Kuma connection that link badges come from.</param>
+  /// <param name="widgetService">The service used to load the links' widgets.</param>
   public IndexModel (DashboardContext         context,
                      DashboardSettingsService settingsService,
                      PanelService             panelService,
                      IAuthorizationService    authorizationService,
-                     ConnectionService        connections)
+                     ConnectionService        connections,
+                     WidgetService            widgetService)
   {
+    this.widgetService        = widgetService;
     this.connections          = connections;
     this.panelService         = panelService;
     this.context              = context;
@@ -104,6 +111,10 @@ public class IndexModel : PageModel
                                 .ThenBy (c => c.Name)
                                 .ToListAsync ();
 
+    this.widgets =
+      await this.widgetService.GetForLinksAsync (linkIds: [.. this.Categories.SelectMany (c => c.Links).Select (l => l.Id)],
+                                                 cancellationToken: cancellationToken);
+
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
     this.tiles = new LinkTileFactory (settings: settings,
                                       uptimeKuma: await UptimeKumaSettings.LoadAsync (connections: this.connections,
@@ -144,7 +155,7 @@ public class IndexModel : PageModel
   /// </summary>
   /// <param name="link">The link to show.</param>
   /// <returns>The tile, with its external flag and, when Uptime Kuma is configured and the link has a monitor, its status badge.</returns>
-  public LinkTile CreateLinkTile (Link link) => this.tiles.Create (link);
+  public LinkTile CreateLinkTile (Link link) => this.tiles.Create (link: link, widgets: this.widgets.GetValueOrDefault (link.Id));
 
   /// <summary>
   ///   Determines whether a link target should be marked as external based on the configured local domains.

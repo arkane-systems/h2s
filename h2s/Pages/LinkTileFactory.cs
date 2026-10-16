@@ -1,5 +1,6 @@
 using h2s.Integrations.UptimeKuma;
 using h2s.Models;
+using h2s.Widgets;
 
 namespace h2s.Pages;
 
@@ -34,13 +35,17 @@ public sealed class LinkTileFactory
   ///   Builds the view model for a link's tile.
   /// </summary>
   /// <param name="link">The link to show.</param>
-  /// <returns>The tile, with its external flag and, when Uptime Kuma is configured and the link has a monitor, its status badge.</returns>
-  public LinkTile Create (Link link)
+  /// <param name="widgets">The link's widgets, in order; none when <c>null</c>.</param>
+  /// <returns>
+  ///   The tile, with its external flag, its widgets and, when Uptime Kuma is configured and the link has a monitor, its
+  ///   status badge.
+  /// </returns>
+  public LinkTile Create (Link link, IReadOnlyList<WidgetView>? widgets = null)
     => new (Link: link,
             IsExternal: this.IsExternalLink (link.Url),
             StatusBadgeUrl: this.IsUptimeKumaConfigured && link.MonitorId.HasValue
                               ? this.BuildBadgeUrl (monitorId: link.MonitorId.Value, type: "status", label: "")
-                              : null);
+                              : null) { Widgets = widgets ?? [] };
 
   /// <summary>
   ///   Builds the URL for an Uptime Kuma badge.

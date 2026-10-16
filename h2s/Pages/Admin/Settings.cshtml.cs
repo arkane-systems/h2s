@@ -107,6 +107,7 @@ public partial class SettingsModel : PageModel
                                          Panels               = await this.context.Panels.CountAsync (),
                                          SearchEngines        = await this.context.SearchEngines.CountAsync (),
                                          Connections          = await this.context.Connections.CountAsync (),
+                                         Widgets              = await this.context.Widgets.CountAsync (),
                                        },
                            });
   }

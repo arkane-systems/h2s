@@ -220,6 +220,42 @@ namespace h2s.Migrations
                     b.ToTable("SearchEngines");
                 });
 
+            modelBuilder.Entity("h2s.Models.Widget", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConnectionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LinkId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RefreshSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectionId");
+
+                    b.HasIndex("LinkId");
+
+                    b.ToTable("Widgets");
+                });
+
             modelBuilder.Entity("h2s.Models.Link", b =>
                 {
                     b.HasOne("h2s.Models.Category", "Category")
@@ -231,9 +267,33 @@ namespace h2s.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("h2s.Models.Widget", b =>
+                {
+                    b.HasOne("h2s.Models.Connection", "Connection")
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("h2s.Models.Link", "Link")
+                        .WithMany("Widgets")
+                        .HasForeignKey("LinkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Connection");
+
+                    b.Navigation("Link");
+                });
+
             modelBuilder.Entity("h2s.Models.Category", b =>
                 {
                     b.Navigation("Links");
+                });
+
+            modelBuilder.Entity("h2s.Models.Link", b =>
+                {
+                    b.Navigation("Widgets");
                 });
 #pragma warning restore 612, 618
         }

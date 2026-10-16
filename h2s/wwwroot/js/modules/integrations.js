@@ -25,6 +25,10 @@ const render = (form, card) => {
     form.querySelector('[data-role="state"]').classList.toggle('d-none', card.isConfigured);
     form.querySelector('[data-role="remove"]').classList.toggle('d-none', !card.isConfigured);
     form.querySelector('[data-role="remove-confirm"]').classList.add('d-none');
+    // Removing a connection deletes the widgets that use it, so the confirmation says how many.
+    form.querySelector('[data-role="remove-what"]').textContent = card.widgetCount > 0
+        ? `Its settings, any secrets and the ${card.widgetCount === 1 ? 'widget that uses' : `${card.widgetCount} widgets that use`} it are`
+        : 'Its settings and any secrets are';
     form.classList.remove('was-validated');
 
     for (const element of document.querySelectorAll(`[data-shown-with="${card.key}"]`)) {

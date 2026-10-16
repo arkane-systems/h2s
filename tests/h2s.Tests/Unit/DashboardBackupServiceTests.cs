@@ -428,8 +428,8 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 7 }""",
-               "The file is from a newer version of h2s (format version 7); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 8 }""",
+               "The file is from a newer version of h2s (format version 8); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
@@ -717,7 +717,8 @@ public class DashboardBackupServiceTests
                                                InfrastructureGroups: 1,
                                                Panels: 2,
                                                SearchEngines: 3,
-                                               Connections: 0),
+                                               Connections: 0,
+                                               Widgets: 0),
                   actual: DashboardBackupService.Summarize (backup));
   }
 

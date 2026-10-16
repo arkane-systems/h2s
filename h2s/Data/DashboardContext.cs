@@ -40,6 +40,11 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
   public DbSet<Connection> Connections => this.Set<Connection> ();
 
   /// <summary>
+  ///   Gets the set of widgets on links' tiles.
+  /// </summary>
+  public DbSet<Widget> Widgets => this.Set<Widget> ();
+
+  /// <summary>
   ///   Gets the set of web search engines.
   /// </summary>
   public DbSet<SearchEngine> SearchEngines => this.Set<SearchEngine> ();

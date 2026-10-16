@@ -5,11 +5,13 @@ using h2s.Data;
 using h2s.Integrations;
 using h2s.Integrations.UptimeKuma;
 using h2s.Models;
+using h2s.Widgets;
 using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace h2s.Tests.Infrastructure;
 
@@ -95,6 +97,24 @@ public static class TestConnections
             integrations: new IntegrationCatalog ([new UptimeKumaIntegration ()]),
             secrets: new ConnectionSecrets (new EphemeralDataProtectionProvider ()),
             cache: cache);
+
+  /// <summary>
+  ///   Creates a widget service with the built-in integrations' kinds, for unit tests that build their services by hand.
+  /// </summary>
+  /// <param name="context">The database context.</param>
+  /// <param name="connections">The connection service.</param>
+  /// <param name="cache">The cache the widget results are kept in.</param>
+  /// <param name="services">The services the kinds resolve what they need from.</param>
+  /// <returns>The service.</returns>
+  public static WidgetService CreateWidgetService (DashboardContext  context,
+                                                   ConnectionService connections,
+                                                   IMemoryCache      cache,
+                                                   IServiceProvider  services)
+    => new (context: context,
+            connections: connections,
+            catalog: new WidgetCatalog (new IntegrationCatalog ([new UptimeKumaIntegration ()])),
+            fetcher: new WidgetFetcher (cache: cache, logger: NullLogger<WidgetFetcher>.Instance),
+            services: services);
 
   /// <summary>
   ///   Adds an Uptime Kuma connection to an application's database. Call it before the first request, since the app caches

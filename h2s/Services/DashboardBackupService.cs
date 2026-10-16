@@ -9,6 +9,7 @@ using h2s.Models;
 using h2s.Options;
 using h2s.Panels;
 using h2s.Validation;
+using h2s.Widgets;
 using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -58,6 +59,7 @@ public class DashboardBackupService
     List<Category> categories = await this.context.Categories
                                           .AsNoTracking ()
                                           .Include (c => c.Links)
+                                          .ThenInclude (l => l.Widgets)
                                           .OrderBy (c => c.IsAdminCategory)
                                           .ThenBy (c => c.SortOrder)
                                           .ThenBy (c => c.Name)
@@ -89,6 +91,8 @@ public class DashboardBackupService
                                              .ThenBy (c => c.Id)
                                              .ToListAsync (cancellationToken);
 
+    Dictionary<int, Connection> connectionsById = connections.ToDictionary (c => c.Id);
+
     return new DashboardBackup (Format: DashboardBackup.FormatName,
                                 Version: DashboardBackup.CurrentVersion,
                                 ExportedAt: DateTimeOffset.UtcNow,
@@ -115,7 +119,13 @@ public class DashboardBackupService
                                                                                                                      MonitorId: l
                                                                                                                       .MonitorId,
                                                                                                                      OpenInNewTab: l
-                                                                                                                      .OpenInNewTab)),
+                                                                                                                      .OpenInNewTab,
+                                                                                                                     Widgets:
+                                                                                                                     DashboardBackupService
+                                                                                                                      .ExportWidgets (link
+                                                                                                                                      : l,
+                                                                                                                                      connections
+                                                                                                                                      : connectionsById))),
                                                                                  ])),
                                 ],
                                 InfrastructureGroups:
@@ -207,6 +217,16 @@ public class DashboardBackupService
     if (read.Version < DashboardBackup.UptimeWindowsVersion)
       read = DashboardBackupService.UseUptimeWindows (read);
 
+    if (read.Version < DashboardBackup.WidgetsVersion)
+    {
+      read = read with
+             {
+               Categories = read.Categories
+                               ?.Select (c => c with { Links = c.Links?.Select (l => l with { Widgets = null }).ToList () })
+                                .ToList (),
+             };
+    }
+
     DashboardBackupService.Validate (backup: read, kinds: kinds, integrations: integrations, errors: errors);
 
     if (errors.Count > 0)
@@ -225,13 +245,14 @@ public class DashboardBackupService
   public static BackupSummary Summarize (DashboardBackup backup)
     => new (Title: backup.Settings?.Title ?? "",
             ExportedAt: backup.ExportedAt,
-            Categories: backup.Categories?.Count                               ?? 0,
+            Categories: backup.Categories?.Count ?? 0,
             AdminCategories: backup.Categories?.Count (c => c.IsAdminCategory) ?? 0,
-            Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0)           ?? 0,
-            InfrastructureGroups: backup.InfrastructureGroups?.Count           ?? 0,
-            Panels: backup.Panels?.Count                                       ?? DefaultPanels.Create ().Count,
-            SearchEngines: backup.SearchEngines?.Count                         ?? DefaultSearchEngines.Create ().Count,
-            Connections: backup.Connections?.Count                             ?? 0);
+            Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0) ?? 0,
+            InfrastructureGroups: backup.InfrastructureGroups?.Count ?? 0,
+            Panels: backup.Panels?.Count ?? DefaultPanels.Create ().Count,
+            SearchEngines: backup.SearchEngines?.Count ?? DefaultSearchEngines.Create ().Count,
+            Connections: backup.Connections?.Count ?? 0,
+            Widgets: backup.Categories?.Sum (c => c.Links?.Sum (l => l.Widgets?.Count ?? 0) ?? 0) ?? 0);
 
   /// <summary>
   ///   Replaces the whole configuration with a valid dashboard file's, in one transaction.
@@ -258,6 +279,32 @@ public class DashboardBackupService
     _ = await this.context.SearchEngines.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Connections.ExecuteDeleteAsync (cancellationToken);
 
+    // Connections first, so the links' widgets can use them.
+    var importedConnections = new Dictionary<(string IntegrationKey, string Name), Connection> ();
+    var widgetCatalog       = new WidgetCatalog (this.integrations);
+
+    foreach (BackupConnection connection in backup.Connections ?? [])
+    {
+      IIntegration integration = this.integrations.Find (connection.Integration!.Trim ())!;
+      string       name        = connection.Name!.Trim ();
+
+      _ = DashboardBackupService.TryReadConnectionOptions (integration: integration,
+                                                           options: connection.Options,
+                                                           json: out string? json,
+                                                           error: out _);
+
+      var entity = new Connection
+                   {
+                     IntegrationKey = integration.Key,
+                     Name           = name,
+                     OptionsJson    = json!,
+                     SecretsJson    = secrets.GetValueOrDefault ((integration.Key, name)),
+                   };
+
+      importedConnections[(integration.Key, name)] = entity;
+      this.context.Connections.Add (entity);
+    }
+
     // Positions count within each section, as on the dashboard.
     int regular = 0, admin = 0;
 
@@ -281,6 +328,11 @@ public class DashboardBackupService
                                                                                      MonitorId    = l.MonitorId,
                                                                                      OpenInNewTab = l.OpenInNewTab,
                                                                                      SortOrder    = i,
+                                                                                     Widgets = DashboardBackupService
+                                                                                      .ImportWidgets (link: l,
+                                                                                                      connections:
+                                                                                                      importedConnections,
+                                                                                                      catalog: widgetCatalog),
                                                                                    }),
                                      ],
                                    });
@@ -336,25 +388,6 @@ public class DashboardBackupService
                                                                }));
     }
 
-    foreach (BackupConnection connection in backup.Connections ?? [])
-    {
-      IIntegration integration = this.integrations.Find (connection.Integration!.Trim ())!;
-      string       name        = connection.Name!.Trim ();
-
-      _ = DashboardBackupService.TryReadConnectionOptions (integration: integration,
-                                                           options: connection.Options,
-                                                           json: out string? json,
-                                                           error: out _);
-
-      this.context.Connections.Add (new Connection
-                                    {
-                                      IntegrationKey = integration.Key,
-                                      Name           = name,
-                                      OptionsJson    = json!,
-                                      SecretsJson    = secrets.GetValueOrDefault ((integration.Key, name)),
-                                    });
-    }
-
     await this.context.SaveChangesAsync (cancellationToken);
 
     BackupSettings    imported = backup.Settings!;
@@ -399,6 +432,13 @@ public class DashboardBackupService
     if (backup.Categories == null)
       Add ("The file has no categories list.");
 
+    var widgetCatalog = new WidgetCatalog (integrations);
+    HashSet<(string, string)> fileConnections =
+    [
+      .. (backup.Connections ?? []).Where (c => !string.IsNullOrWhiteSpace (c.Integration) && !string.IsNullOrWhiteSpace (c.Name))
+                                   .Select (c => (c.Integration!.Trim (), c.Name!.Trim ())),
+    ];
+
     for (var c = 0; c < (backup.Categories?.Count ?? 0); c++)
     {
       BackupCategory category = backup.Categories![c];
@@ -425,6 +465,11 @@ public class DashboardBackupService
 
         if (link.MonitorId is <= 0)
           Add ($"{linkName}: the monitor ID must be a positive integer.");
+
+        foreach (string error in DashboardBackupService.CheckWidgets (link: link,
+                                                                      catalog: widgetCatalog,
+                                                                      connections: fileConnections))
+          Add ($"{linkName}: {error}");
       }
     }
 
@@ -614,6 +659,116 @@ public class DashboardBackupService
   }
 
   /// <summary>
+  ///   Describes a link's widgets for a dashboard file, naming each one's connection.
+  /// </summary>
+  /// <param name="link">The link, with its widgets loaded.</param>
+  /// <param name="connections">The connections, by ID.</param>
+  /// <returns>The widgets, in order; <c>null</c> when the link has none.</returns>
+  private static List<BackupWidget>? ExportWidgets (Link link, IReadOnlyDictionary<int, Connection> connections)
+  {
+    List<BackupWidget> widgets =
+    [
+      .. link.Widgets
+             .OrderBy (w => w.SortOrder)
+             .ThenBy (w => w.Id)
+             .Where (w => connections.ContainsKey (w.ConnectionId))
+             .Select (w => new BackupWidget (Kind: WidgetKindEntry.ReferenceOf (integrationKey: connections[w.ConnectionId]
+                                                                                 .IntegrationKey,
+                                                                                kindKey: w.Kind),
+                                             Connection: connections[w.ConnectionId].Name,
+                                             Options: DashboardBackupService.ReadOptions (w.OptionsJson),
+                                             RefreshSeconds: w.RefreshSeconds)),
+    ];
+
+    return widgets.Count == 0 ? null : widgets;
+  }
+
+  /// <summary>
+  ///   Creates a link's widgets from a checked dashboard file.
+  /// </summary>
+  /// <param name="link">The link in the file.</param>
+  /// <param name="connections">The connections being imported, by integration and name.</param>
+  /// <param name="catalog">The known widget kinds.</param>
+  /// <returns>The widgets, in order.</returns>
+  private static List<Widget> ImportWidgets (BackupLink                                                            link,
+                                             IReadOnlyDictionary<(string IntegrationKey, string Name), Connection> connections,
+                                             WidgetCatalog                                                         catalog)
+    =>
+    [
+      .. (link.Widgets ?? []).Select ((w, i) =>
+                                      {
+                                        WidgetKindEntry entry = catalog.Find (w.Kind!)!;
+
+                                        _ = DashboardBackupService.TryReadOptions (schema: entry.Kind.Options,
+                                                                                   options: w.Options,
+                                                                                   json: out string? json,
+                                                                                   error: out _);
+
+                                        return new Widget
+                                               {
+                                                 Connection     = connections[(entry.Integration.Key, w.Connection!.Trim ())],
+                                                 Kind           = entry.Kind.Key,
+                                                 OptionsJson    = json!,
+                                                 RefreshSeconds = w.RefreshSeconds,
+                                                 SortOrder      = i,
+                                               };
+                                      }),
+    ];
+
+  /// <summary>
+  ///   Checks a link's widgets in a dashboard file.
+  /// </summary>
+  /// <param name="link">The link in the file.</param>
+  /// <param name="catalog">The known widget kinds.</param>
+  /// <param name="connections">The file's connections, by integration and name.</param>
+  /// <returns>What's wrong with them, one problem each.</returns>
+  private static IEnumerable<string> CheckWidgets (BackupLink                     link,
+                                                   WidgetCatalog                  catalog,
+                                                   IReadOnlySet<(string, string)> connections)
+  {
+    List<BackupWidget> widgets = link.Widgets ?? [];
+
+    if (widgets.Count > WidgetForm.MaxWidgetsPerLink)
+      yield return $"a link can have at most {WidgetForm.MaxWidgetsPerLink} widgets.";
+
+    var apps = 0;
+
+    for (var i = 0; i < widgets.Count; i++)
+    {
+      BackupWidget widget = widgets[i];
+      var          where  = $"widget {i + 1}";
+
+      if (catalog.Find (widget.Kind ?? "") is not { } entry)
+      {
+        yield return $"{where}: h2s has no “{widget.Kind}” kind of widget.";
+
+        continue;
+      }
+
+      if (string.IsNullOrWhiteSpace (widget.Connection) ||
+          !connections.Contains ((entry.Integration.Key, widget.Connection.Trim ())))
+        yield return $"{where}: the file has no {entry.Integration.DisplayName} connection called “{widget.Connection}”.";
+
+      if ((entry.Kind.Role == WidgetRole.App) && (++apps > 1))
+        yield return $"{where}: a link can have only one app widget.";
+
+      if (widget.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+        yield return $"{where}: the options must be a JSON object.";
+      else if (!DashboardBackupService.TryReadOptions (schema: entry.Kind.Options,
+                                                       options: widget.Options,
+                                                       json: out _,
+                                                       error: out string? error))
+        yield return $"{where}: {error}";
+
+      if (widget.RefreshSeconds is < Widget.MinRefreshSeconds or > Widget.MaxRefreshSeconds)
+      {
+        yield return
+          $"{where}: the refresh interval must be from {Widget.MinRefreshSeconds} to {Widget.MaxRefreshSeconds} seconds.";
+      }
+    }
+  }
+
+  /// <summary>
   ///   Checks an imported connection's settings against its integration's schema and rules, as Settings checks what it
   ///   posts. A setting the file leaves out takes its default.
   /// </summary>
@@ -627,9 +782,39 @@ public class DashboardBackupService
                                                 [NotNullWhen (true)] out  string? json,
                                                 [NotNullWhen (false)] out string? error)
   {
+    if (!DashboardBackupService.TryReadOptions (schema: integration.ConnectionOptions,
+                                                options: options,
+                                                json: out json,
+                                                error: out error))
+      return false;
+
+    error = integration.Validate (new OptionValues (schema: integration.ConnectionOptions, json: json));
+
+    if (error == null)
+      return true;
+
+    json = null;
+
+    return false;
+  }
+
+  /// <summary>
+  ///   Checks options from a dashboard file against a schema, as an edit form's values are checked. An option the file
+  ///   leaves out takes its default.
+  /// </summary>
+  /// <param name="schema">The options.</param>
+  /// <param name="options">The values in the file: a JSON object, or <c>null</c> for all defaults.</param>
+  /// <param name="json">The values as stored, when they're valid.</param>
+  /// <param name="error">What's wrong with them, when they aren't.</param>
+  /// <returns><c>true</c> when the values are valid.</returns>
+  private static bool TryReadOptions (IReadOnlyList<SchemaOption>       schema,
+                                      JsonElement?                      options,
+                                      [NotNullWhen (true)] out  string? json,
+                                      [NotNullWhen (false)] out string? error)
+  {
     var posted = new Dictionary<string, string?> (StringComparer.Ordinal);
 
-    foreach (SchemaOption option in integration.ConnectionOptions)
+    foreach (SchemaOption option in schema)
     {
       posted[option.Key] =
         options is { ValueKind: JsonValueKind.Object } values &&
@@ -650,17 +835,7 @@ public class DashboardBackupService
             };
     }
 
-    if (!OptionForm.TryParse (schema: integration.ConnectionOptions, posted: posted, json: out json, error: out error))
-      return false;
-
-    error = integration.Validate (new OptionValues (schema: integration.ConnectionOptions, json: json));
-
-    if (error == null)
-      return true;
-
-    json = null;
-
-    return false;
+    return OptionForm.TryParse (schema: schema, posted: posted, json: out json, error: out error);
   }
 
   /// <summary>

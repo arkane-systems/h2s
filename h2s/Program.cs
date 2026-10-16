@@ -5,6 +5,7 @@ using h2s.Integrations;
 using h2s.Integrations.UptimeKuma;
 using h2s.Panels;
 using h2s.Services;
+using h2s.Widgets;
 using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -58,6 +59,12 @@ builder.Services.AddSingleton<IPanelKind, StatusBarPanelKind> ();
 builder.Services.AddSingleton<IPanelKind, SearchPanelKind> ();
 builder.Services.AddSingleton<PanelCatalog> ();
 builder.Services.AddScoped<PanelService> ();
+
+// Widget kinds come from the integrations. The fetcher, a singleton, keeps results and shares reads in flight; the
+// service loads links' widgets per request.
+builder.Services.AddSingleton<WidgetCatalog> ();
+builder.Services.AddSingleton<WidgetFetcher> ();
+builder.Services.AddScoped<WidgetService> ();
 
 // Named clients for outbound HTTP. The accept-any-certificate client exists only so UrlProbe can tell an untrusted
 // certificate from an unreachable server; never use it to fetch content.

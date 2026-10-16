@@ -6,6 +6,7 @@ using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
 using h2s.Validation;
+using h2s.Widgets;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,8 @@ public partial class EditorModel : PageModel
   private readonly PanelService             panelService;
   private readonly DashboardSettingsService settingsService;
   private readonly UptimeKumaClient         uptimeKumaClient;
+  private readonly WidgetCatalog            widgetCatalog;
+  private readonly WidgetService            widgetService;
 
   /// <summary>
   ///   Initializes a new instance of the <see cref="EditorModel" /> class.
@@ -37,7 +40,9 @@ public partial class EditorModel : PageModel
   /// <param name="uptimeKumaClient">The client used to list Uptime Kuma's monitors.</param>
   /// <param name="panelCatalog">The panel kinds edit mode can add.</param>
   /// <param name="panelService">The service used to render panels as edit mode shows them.</param>
-  /// <param name="connections">The service holding the Uptime Kuma connection.</param>
+  /// <param name="connections">The service holding the connections, Uptime Kuma's among them.</param>
+  /// <param name="widgetCatalog">The widget kinds links may have.</param>
+  /// <param name="widgetService">The service used to load links' widgets.</param>
   public EditorModel (DashboardContext         context,
                       IconCatalog              iconCatalog,
                       DashboardSettingsService settingsService,
@@ -45,8 +50,12 @@ public partial class EditorModel : PageModel
                       UptimeKumaClient         uptimeKumaClient,
                       PanelCatalog             panelCatalog,
                       PanelService             panelService,
-                      ConnectionService        connections)
+                      ConnectionService        connections,
+                      WidgetCatalog            widgetCatalog,
+                      WidgetService            widgetService)
   {
+    this.widgetCatalog      = widgetCatalog;
+    this.widgetService      = widgetService;
     this.connections        = connections;
     this.panelCatalog       = panelCatalog;
     this.panelService       = panelService;
@@ -187,6 +196,7 @@ public partial class EditorModel : PageModel
   {
     Category? category = await this.context.Categories
                                    .Include (c => c.Links)
+                                   .ThenInclude (l => l.Widgets)
                                    .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
@@ -246,6 +256,9 @@ public partial class EditorModel : PageModel
                  OpenInNewTab = openInNewTab,
                  SortOrder    = await this.GetNextLinkSortOrderAsync (categoryId),
                };
+
+    if (await this.ApplyPostedWidgetsAsync (link) is { } widgetError)
+      return this.BadRequestProblem (widgetError);
 
     this.context.Links.Add (link);
     await this.context.SaveChangesAsync ();
@@ -308,6 +321,7 @@ public partial class EditorModel : PageModel
       return this.BadRequestProblem (invalid);
 
     Link? link = await this.context.Links
+                           .Include (l => l.Widgets)
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
@@ -340,6 +354,9 @@ public partial class EditorModel : PageModel
 
     if (this.Request.Form.ContainsKey (nameof (openInNewTab)))
       link.OpenInNewTab = openInNewTab;
+
+    if (await this.ApplyPostedWidgetsAsync (link) is { } widgetError)
+      return this.BadRequestProblem (widgetError);
 
     await this.context.SaveChangesAsync ();
 
@@ -374,6 +391,7 @@ public partial class EditorModel : PageModel
   public async Task<IActionResult> OnPostDeleteLinkAsync (int id)
   {
     Link? link = await this.context.Links
+                           .Include (l => l.Widgets)
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
@@ -418,6 +436,7 @@ public partial class EditorModel : PageModel
 
     Link link = EditorModel.CreateLink (snapshot: restore, sortOrder: position);
     link.CategoryId = restore.CategoryId;
+    EditorModel.RestoreWidgets (link: link, snapshot: restore, connectionIds: await this.GetConnectionIdsAsync ());
 
     this.context.Links.Add (link);
     await this.context.SaveChangesAsync ();
@@ -476,6 +495,11 @@ public partial class EditorModel : PageModel
                      Links           = [.. links.Select ((l, i) => EditorModel.CreateLink (snapshot: l, sortOrder: i))],
                    };
 
+    HashSet<int> connectionIds = await this.GetConnectionIdsAsync ();
+
+    for (var i = 0; i < links.Count; i++)
+      EditorModel.RestoreWidgets (link: category.Links[i], snapshot: links[i], connectionIds: connectionIds);
+
     this.context.Categories.Add (category);
     await this.context.SaveChangesAsync ();
 
@@ -489,24 +513,30 @@ public partial class EditorModel : PageModel
   /// <returns>A JSON payload describing the link, or a 404 problem response when it does not exist.</returns>
   public async Task<IActionResult> OnGetLinkAsync (int id)
   {
-    var link = await this.context.Links
-                         .AsNoTracking ()
-                         .Where (l => l.Id == id)
-                         .Select (l => new
-                                       {
-                                         l.Id,
-                                         l.CategoryId,
-                                         l.Label,
-                                         l.Description,
-                                         l.IconName,
-                                         l.IconUrl,
-                                         l.MonitorId,
-                                         l.Url,
-                                         l.OpenInNewTab,
-                                       })
-                         .FirstOrDefaultAsync ();
+    Link? link = await this.context.Links
+                           .AsNoTracking ()
+                           .Include (l => l.Widgets.OrderBy (w => w.SortOrder).ThenBy (w => w.Id))
+                           .FirstOrDefaultAsync (l => l.Id == id);
 
-    return link == null ? this.NotFoundProblem ("Link not found.") : new JsonResult (link);
+    if (link == null)
+      return this.NotFoundProblem ("Link not found.");
+
+    Dictionary<int, Connection> connections =
+      (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).ToDictionary (c => c.Id);
+
+    return new JsonResult (new
+                           {
+                             link.Id,
+                             link.CategoryId,
+                             link.Label,
+                             link.Description,
+                             link.IconName,
+                             link.IconUrl,
+                             link.MonitorId,
+                             link.Url,
+                             link.OpenInNewTab,
+                             Widgets = this.DescribeWidgets (widgets: link.Widgets, connections: connections),
+                           });
   }
 
   /// <summary>
@@ -741,6 +771,7 @@ public partial class EditorModel : PageModel
       return this.BadRequestProblem (error);
 
     List<Link> links = await this.context.Links
+                                 .Include (l => l.Widgets)
                                  .Where (l => linkIds.Contains (l.Id))
                                  .OrderBy (l => l.CategoryId)
                                  .ThenBy (l => l.SortOrder)
@@ -875,13 +906,25 @@ public partial class EditorModel : PageModel
   }
 
   /// <summary>
-  ///   Builds a link's tile with the current dashboard and Uptime Kuma settings.
+  ///   Gets the IDs of the connections that exist, for restoring widgets.
+  /// </summary>
+  /// <returns>The IDs.</returns>
+  private async Task<HashSet<int>> GetConnectionIdsAsync ()
+    => [.. (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).Select (c => c.Id)];
+
+  /// <summary>
+  ///   Builds a link's tile with the current dashboard and Uptime Kuma settings, and its widgets when it's saved.
   /// </summary>
   /// <param name="link">The link.</param>
   /// <returns>The tile.</returns>
   private async Task<LinkTile> CreateTileAsync (Link link)
-    => new LinkTileFactory (settings: await this.settingsService.GetSettingsAsync (),
-                            uptimeKuma: await UptimeKumaSettings.LoadAsync (this.connections)).Create (link);
+  {
+    Dictionary<int, List<WidgetView>> widgets = link.Id == 0 ? [] : await this.widgetService.GetForLinksAsync ([link.Id]);
+
+    return new LinkTileFactory (settings: await this.settingsService.GetSettingsAsync (),
+                                uptimeKuma: await UptimeKumaSettings.LoadAsync (this.connections))
+     .Create (link: link, widgets: widgets.GetValueOrDefault (link.Id));
+  }
 
   /// <summary>
   ///   Checks a link's required fields.

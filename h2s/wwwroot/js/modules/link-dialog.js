@@ -1,8 +1,10 @@
 /* The shared add/edit link dialog (Pages/Shared/_LinkDialog.cshtml). URL first: once a URL is entered, the server
    suggests a label, a selfh.st icon (or the site's own icon), and the preview shows the tile the server would render.
-   The icon and Uptime Kuma monitor fields have pickers. */
+   The icon and Uptime Kuma monitor fields have pickers, and widget-editor.js edits the link's widgets, which are saved
+   with it. */
 import { IconPicker } from './icon-picker.js';
 import { MonitorPicker } from './monitor-picker.js';
+import { WidgetEditor } from './widget-editor.js';
 
 const debounce = (action, wait) => {
     let timer = 0;
@@ -82,6 +84,9 @@ export class LinkDialog {
                 this.urls.monitorsUrl)
             : null;
 
+        const widgets = element.querySelector('[data-role="widgets"]');
+        this.widgetEditor = widgets ? new WidgetEditor(widgets) : null;
+
         const previewSoon = debounce(() => this.refreshPreview(), 250);
 
         // Look the page up once the URL is complete: when it's pasted, or when focus leaves the field. Looking up while
@@ -108,6 +113,7 @@ export class LinkDialog {
         this.fields.categoryId.value = String(categoryId);
         this.deleteButton.classList.add('d-none');
         this.monitorPicker?.setValue('');
+        this.widgetEditor?.load([]);
         this.refreshPreview();
         this.modal.show();
     }
@@ -132,6 +138,7 @@ export class LinkDialog {
         }
         this.fields.categoryId.value = String(link.categoryId);
         this.fields.openInNewTab.checked = link.openInNewTab;
+        this.widgetEditor?.load(link.widgets ?? []);
         this.refreshPreview();
         this.modal.show();
     }
@@ -243,6 +250,11 @@ export class LinkDialog {
     }
 
     async save() {
+        if (this.widgetEditor?.isEditing) {
+            this.showError('Finish or cancel the widget you are editing first.');
+            return;
+        }
+
         this.form.classList.add('was-validated');
         if (!this.form.checkValidity()) {
             this.form.querySelector(':invalid')?.focus();
@@ -255,6 +267,9 @@ export class LinkDialog {
 
         try {
             const data = isNew ? this.values() : { id: this.linkId, ...this.values() };
+            if (this.widgetEditor) {
+                data.widgets = this.widgetEditor.value();
+            }
             const link = await window.h2sApi.postForm(isNew ? this.urls.createUrl : this.urls.updateUrl, data);
             this.modal.hide();
             this.onSaved(link, isNew);

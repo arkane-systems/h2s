@@ -108,6 +108,9 @@ public sealed class UptimeKumaIntegration : IIntegration
     ];
 
   /// <inheritdoc />
+  public IReadOnlyList<IWidgetKind> WidgetKinds { get; } = [new KumaMonitorWidgetKind ()];
+
+  /// <inheritdoc />
   public string? Validate (OptionValues options)
     => new HttpBaseUrlAttribute ().IsValid (options.GetText (UptimeKumaIntegration.ServerUrlOption).Trim ())
          ? null

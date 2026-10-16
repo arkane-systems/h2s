@@ -3,6 +3,7 @@ using h2s.Models;
 using h2s.Options;
 using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Pages.Admin;
 
@@ -142,8 +143,8 @@ public partial class SettingsModel
   /// </summary>
   /// <param name="integration">The integration.</param>
   /// <returns>
-  ///   An object with the integration's key, name and description, its options, whether it has a connection, the
-  ///   connection's values (the defaults without one) and which secrets are set.
+  ///   An object with the integration's key, name and description, its options, whether it has a connection, how many
+  ///   widgets use it, the connection's values (the defaults without one) and which secrets are set.
   /// </returns>
   private async Task<object> DescribeIntegrationAsync (IIntegration integration)
   {
@@ -159,6 +160,10 @@ public partial class SettingsModel
              integration.Description,
              Options      = OptionDescriptions.Describe (integration.ConnectionOptions),
              IsConfigured = connection != null,
+             WidgetCount = connection == null
+                             ? 0
+                             : await this.context.Widgets.CountAsync (predicate: w => w.ConnectionId == connection.Id,
+                                                                      cancellationToken: this.HttpContext.RequestAborted),
              values.Values,
              SecretsSet = integration.ConnectionOptions
                                      .Where (o => o.Type == OptionType.Secret)

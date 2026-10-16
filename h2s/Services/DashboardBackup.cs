@@ -50,7 +50,7 @@ public sealed record DashboardBackup (
   /// <summary>
   ///   The format version this build of h2s writes. It also reads every earlier version.
   /// </summary>
-  public const int CurrentVersion = 6;
+  public const int CurrentVersion = 7;
 
   /// <summary>
   ///   The first format version with panels.
@@ -78,6 +78,11 @@ public sealed record DashboardBackup (
   ///   hours read as the shortest window that covers them.
   /// </summary>
   public const int UptimeWindowsVersion = 6;
+
+  /// <summary>
+  ///   The first format version with each link's widgets. Earlier files' links have none.
+  /// </summary>
+  public const int WidgetsVersion = 7;
 
   /// <summary>
   ///   The JSON options for dashboard files: camel-case names, enums as names, and indented so the file reads (and
