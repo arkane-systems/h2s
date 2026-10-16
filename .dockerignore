@@ -4,8 +4,11 @@
 !Directory.Build.props
 !.editorconfig
 !h2s/
+!h2s.Widgets.Abstractions/
 h2s/bin/
 h2s/obj/
+h2s.Widgets.Abstractions/bin/
+h2s.Widgets.Abstractions/obj/
 h2s/App_Data/
 **/*.user
 **/.vs/

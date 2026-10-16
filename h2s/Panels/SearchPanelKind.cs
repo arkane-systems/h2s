@@ -1,6 +1,7 @@
 using h2s.Data;
 using h2s.Models;
 using h2s.Services;
+using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Panels;
@@ -31,9 +32,9 @@ public sealed class SearchPanelKind : IPanelKind
   public bool IsSingleInstance => true;
 
   /// <inheritdoc />
-  public IReadOnlyList<PanelOption> Options { get; } =
+  public IReadOnlyList<SchemaOption> Options { get; } =
     [
-      new (Key: SearchPanelKind.PlaceholderOption, Label: "Placeholder text", Type: PanelOptionType.Text)
+      new (Key: SearchPanelKind.PlaceholderOption, Label: "Placeholder text", Type: OptionType.Text)
       {
         HelpText = "Shown in the search box until you type. Leave blank for “Search with” and the default engine's name.",
       },

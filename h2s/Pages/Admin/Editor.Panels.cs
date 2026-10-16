@@ -1,6 +1,8 @@
 using h2s.Models;
+using h2s.Options;
 using h2s.Panels;
 using h2s.Validation;
+using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,7 +66,7 @@ public partial class EditorModel
                              Options     = EditorModel.DescribeOptions (kind?.Options ?? []),
                              Values = kind == null
                                         ? new Dictionary<string, object?> ()
-                                        : new PanelOptionValues (schema: kind.Options, json: panel.OptionsJson).Values,
+                                        : new OptionValues (schema: kind.Options, json: panel.OptionsJson).Values,
                            });
   }
 
@@ -99,7 +101,7 @@ public partial class EditorModel
     if (await this.CheckSingleInstanceAsync (panelKind) is { } taken)
       return this.BadRequestProblem (taken);
 
-    if (!PanelOptionForm.TryParse (schema: panelKind.Options, posted: options, json: out string? json, error: out string? error))
+    if (!OptionForm.TryParse (schema: panelKind.Options, posted: options, json: out string? json, error: out string? error))
       return this.BadRequestProblem (error);
 
     int last = await this.context.Panels
@@ -134,7 +136,7 @@ public partial class EditorModel
     if (this.panelCatalog.Find (panel.Kind) is not { } kind)
       return this.BadRequestProblem ("This version of h2s doesn't know this panel's kind, so it can't change its options.");
 
-    if (!PanelOptionForm.TryParse (schema: kind.Options, posted: options, json: out string? json, error: out string? error))
+    if (!OptionForm.TryParse (schema: kind.Options, posted: options, json: out string? json, error: out string? error))
       return this.BadRequestProblem (error);
 
     panel.OptionsJson = json;
@@ -281,7 +283,7 @@ public partial class EditorModel
   /// </summary>
   /// <param name="options">The options.</param>
   /// <returns>One object per option, its type as <c>text</c>, <c>integer</c> or <c>boolean</c>.</returns>
-  private static object[] DescribeOptions (IReadOnlyList<PanelOption> options)
+  private static object[] DescribeOptions (IReadOnlyList<SchemaOption> options)
     =>
     [
       .. options.Select (o => new
@@ -294,7 +296,7 @@ public partial class EditorModel
                                 o.DefaultValue,
                                 o.Minimum,
                                 o.Maximum,
-                                MaxLength = o.Type == PanelOptionType.Text ? PanelOptionForm.MaxTextLength : (int?)null,
+                                MaxLength = o.Type == OptionType.Text ? OptionForm.MaxTextLength : (int?)null,
                               }),
     ];
 

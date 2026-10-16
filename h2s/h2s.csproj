@@ -20,4 +20,8 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\h2s.Widgets.Abstractions\h2s.Widgets.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

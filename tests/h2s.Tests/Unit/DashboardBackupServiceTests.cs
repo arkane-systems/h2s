@@ -1,5 +1,7 @@
 using System.Text.Json;
 using h2s.Data;
+using h2s.Integrations;
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
@@ -18,6 +20,11 @@ public class DashboardBackupServiceTests
   ///   The panel kinds h2s registers.
   /// </summary>
   private static readonly PanelCatalog Kinds = new ([new StatusBarPanelKind (), new SearchPanelKind ()]);
+
+  /// <summary>
+  ///   The integrations h2s registers.
+  /// </summary>
+  private static readonly IntegrationCatalog Integrations = new ([new UptimeKumaIntegration ()]);
 
   [Fact]
   public async Task ExportAsync_WritesTheConfigurationInDashboardOrder ()
@@ -64,6 +71,7 @@ public class DashboardBackupServiceTests
 
     Assert.True (DashboardBackupService.TryRead (json: json,
                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
                                                  backup: out DashboardBackup? backup,
                                                  errors: out _));
 
@@ -103,6 +111,7 @@ public class DashboardBackupServiceTests
 
     Assert.True (DashboardBackupService.TryRead (json: Json,
                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
                                                  backup: out DashboardBackup? backup,
                                                  errors: out _));
     Assert.Null (backup!.Panels);
@@ -138,6 +147,7 @@ public class DashboardBackupServiceTests
 
     Assert.False (DashboardBackupService.TryRead (json: Json,
                                                   kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
                                                   backup: out _,
                                                   errors: out List<string> errors));
     Assert.Equal (expected:
@@ -180,6 +190,7 @@ public class DashboardBackupServiceTests
 
     Assert.True (DashboardBackupService.TryRead (json: json,
                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
                                                  backup: out DashboardBackup? backup,
                                                  errors: out _));
 
@@ -212,6 +223,7 @@ public class DashboardBackupServiceTests
 
     Assert.True (DashboardBackupService.TryRead (json: Json,
                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
                                                  backup: out DashboardBackup? backup,
                                                  errors: out _));
     Assert.Null (backup!.SearchEngines);
@@ -239,6 +251,7 @@ public class DashboardBackupServiceTests
 
     Assert.True (DashboardBackupService.TryRead (json: json,
                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
                                                  backup: out DashboardBackup? backup,
                                                  errors: out _));
 
@@ -267,6 +280,7 @@ public class DashboardBackupServiceTests
 
     Assert.True (DashboardBackupService.TryRead (json: Json,
                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
                                                  backup: out DashboardBackup? backup,
                                                  errors: out _));
     Assert.False (backup!.Categories![0].Links![0].OpenInNewTab);
@@ -291,6 +305,7 @@ public class DashboardBackupServiceTests
 
     Assert.False (DashboardBackupService.TryRead (json: Json,
                                                   kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
                                                   backup: out _,
                                                   errors: out List<string> errors));
     Assert.Equal (expected:
@@ -318,6 +333,7 @@ public class DashboardBackupServiceTests
 
     Assert.False (DashboardBackupService.TryRead (json: Json,
                                                   kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
                                                   backup: out _,
                                                   errors: out List<string> errors));
     Assert.Equal (expected: ["The file has no panels list."], actual: errors);
@@ -338,6 +354,7 @@ public class DashboardBackupServiceTests
     }
 
     Assert.True (condition: DashboardBackupService.TryRead (kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
                                                             json: json,
                                                             backup: out DashboardBackup? backup,
                                                             errors: out List<string> errors),
@@ -364,16 +381,16 @@ public class DashboardBackupServiceTests
     await using var              database = await TestDatabase.CreateAsync (seed: true);
     await using DashboardContext context  = database.CreateContext ();
 
+    context.Connections.Add (TestConnections.UptimeKuma ());
+    await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+
     var backup = new DashboardBackup (Format: DashboardBackup.FormatName,
                                       Version: DashboardBackup.CurrentVersion,
                                       ExportedAt: null,
                                       Settings: new BackupSettings (Title: "Imported",
                                                                     Motto: null,
                                                                     LocalDomains: null,
-                                                                    ColorMode: ColorMode.Dark,
-                                                                    UptimeKumaServerUrl: " ",
-                                                                    UptimeKumaStatusPageSlug: null,
-                                                                    UptimeKumaDefaultDuration: 12),
+                                                                    ColorMode: ColorMode.Dark),
                                       Categories:
                                       [
                                         new BackupCategory (Name: "Only",
@@ -388,7 +405,8 @@ public class DashboardBackupServiceTests
                                                                               MonitorId: 5),
                                                             ]),
                                       ],
-                                      InfrastructureGroups: []);
+                                      InfrastructureGroups: [],
+                                      Connections: []);
 
     await DashboardBackupServiceTests.CreateService (context)
                                      .ImportAsync (backup: backup, cancellationToken: TestContext.Current.CancellationToken);
@@ -404,20 +422,20 @@ public class DashboardBackupServiceTests
     Assert.Empty (await context.InfrastructureGroups.ToListAsync (TestContext.Current.CancellationToken));
     Assert.Equal (expected: "Imported",     actual: settings.Title);
     Assert.Equal (expected: ColorMode.Dark, actual: settings.ColorMode);
-    Assert.Null (settings.UptimeKumaServerUrl);
-    Assert.Equal (expected: 12, actual: settings.UptimeKumaDefaultDuration);
+    Assert.Empty (await context.Connections.ToListAsync (TestContext.Current.CancellationToken));
   }
 
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 5 }""",
-               "The file is from a newer version of h2s (format version 5); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 6 }""",
+               "The file is from a newer version of h2s (format version 6); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
   {
     Assert.False (DashboardBackupService.TryRead (kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
                                                   json: json,
                                                   backup: out DashboardBackup? backup,
                                                   errors: out List<string> errors));
@@ -444,14 +462,13 @@ public class DashboardBackupServiceTests
                         """;
 
     Assert.False (DashboardBackupService.TryRead (kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
                                                   json: Json,
                                                   backup: out _,
                                                   errors: out List<string> errors));
     Assert.Equal (expected:
                   [
                     "Settings: the title is required.",
-                    "Settings: the Uptime Kuma server URL must be an HTTP or HTTPS URL.",
-                    "Settings: the default uptime duration must be a positive number of hours.",
                     "Category 1 (\"Media\"), link 1: the label is required.",
                     "Category 1 (\"Media\"), link 1: the URL must be an HTTP or HTTPS URL.",
                     "Category 1 (\"Media\"), link 2: the icon URL must be an HTTP or HTTPS URL.",
@@ -459,8 +476,166 @@ public class DashboardBackupServiceTests
                     "Category 2: the name is required.",
                     "Infrastructure group 1: the name is required.",
                     "Infrastructure group 1: the monitor ID must be a positive integer.",
+                    "Connection 1 (\"Uptime Kuma\"): Server URL must be an HTTP or HTTPS URL.",
                   ],
                   actual: errors);
+  }
+
+  [Fact]
+  public async Task ExportThenImport_ReproducesTheConnections_AndKeepsTheSecretsOfThoseTheyReplace ()
+  {
+    await using var source = await TestDatabase.CreateAsync (seed: true);
+    await using var target = await TestDatabase.CreateAsync ();
+    string          json;
+
+    await using (DashboardContext context = source.CreateContext ())
+    {
+      Connection kuma = TestConnections.UptimeKuma (statusPageSlug: "main", defaultDuration: 48);
+      kuma.SecretsJson = "never exported";
+      context.Connections.Add (kuma);
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+
+      json = JsonSerializer.Serialize (value: await DashboardBackupServiceTests.CreateService (context)
+                                                                               .ExportAsync (TestContext.Current.CancellationToken),
+                                       options: DashboardBackup.JsonOptions);
+    }
+
+    Assert.DoesNotContain (expectedSubstring: "never exported", actualString: json);
+    Assert.DoesNotContain (expectedSubstring: "uptimeKuma",     actualString: json);
+
+    await using DashboardContext targetContext = target.CreateContext ();
+
+    Connection replaced = TestConnections.UptimeKuma (serverUrl: "https://old.home.arpa");
+    replaced.SecretsJson = "kept";
+    targetContext.Connections.Add (replaced);
+    await targetContext.SaveChangesAsync (TestContext.Current.CancellationToken);
+    targetContext.ChangeTracker.Clear ();
+
+    Assert.True (DashboardBackupService.TryRead (json: json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    await DashboardBackupServiceTests.CreateService (targetContext)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    Connection imported = await targetContext.Connections.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
+                                                    StatusPageSlug: "main",
+                                                    DefaultDuration: 48),
+                  actual: await TestConnections.ReadUptimeKumaAsync (targetContext));
+    Assert.Equal (expected: "Uptime Kuma", actual: imported.Name);
+    Assert.Equal (expected: "kept",        actual: imported.SecretsJson);
+  }
+
+  [Theory]
+  [InlineData (""" "uptimeKumaServerUrl": " https://status.home.arpa ", "uptimeKumaStatusPageSlug": "main", "uptimeKumaDefaultDuration": 12 """,
+               "main",
+               12)]
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 24 """, null, 24)]
+  public async Task ImportAsync_MovesOldUptimeKumaSettingsIntoAConnection (string kuma, string? slug, int duration)
+  {
+    await using var              database = await TestDatabase.CreateAsync ();
+    await using DashboardContext context  = database.CreateContext ();
+
+    var json = $$"""
+                 {
+                   "format": "h2s-dashboard", "version": 4,
+                   "settings": { "title": "Old", "colorMode": "Auto", {{kuma}} },
+                   "categories": [], "panels": [], "searchEngines": []
+                 }
+                 """;
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out DashboardBackup? backup,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
+    Assert.Equal (expected: 1, actual: DashboardBackupService.Summarize (backup!).Connections);
+
+    await DashboardBackupServiceTests.CreateService (context)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
+                                                    StatusPageSlug: slug,
+                                                    DefaultDuration: duration),
+                  actual: await TestConnections.ReadUptimeKumaAsync (context));
+  }
+
+  [Fact]
+  public void TryRead_LeavesUptimeKumaOffForAFileFromBeforeConnectionsWithoutAServer ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 4,
+                          "settings": { "title": "Old", "colorMode": "Auto", "uptimeKumaServerUrl": " ", "uptimeKumaDefaultDuration": 24 },
+                          "categories": [], "panels": [], "searchEngines": []
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    Assert.Empty (backup!.Connections!);
+  }
+
+  [Fact]
+  public void TryRead_ChecksConnections ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 5,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "panels": [], "searchEngines": [],
+                          "connections": [
+                            { "integration": "uptime-kuma", "name": "Kuma", "options": { "serverUrl": "https://status.home.arpa/dashboard" } },
+                            { "integration": "uptime-kuma", "name": "Second", "options": { "serverUrl": "https://other.home.arpa" } },
+                            { "integration": "weather", "name": "Weather" },
+                            { "integration": "uptime-kuma", "name": " " },
+                            { "name": "Nothing" }
+                          ]
+                        }
+                        """;
+
+    Assert.False (DashboardBackupService.TryRead (json: Json,
+                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
+    Assert.Equal (expected:
+                  [
+                    "Connection 1 (\"Kuma\"): " + UptimeKumaIntegration.InvalidServerUrl,
+                    "Connection 2 (\"Second\"): the dashboard can only have one Uptime Kuma connection.",
+                    "Connection 3 (\"Weather\"): h2s has no “weather” integration.",
+                    "Connection 4: the name is required.",
+                    "Connection 4: the dashboard can only have one Uptime Kuma connection.",
+                    "Connection 4: Server URL is required.",
+                    "Connection 5 (\"Nothing\"): the integration is required.",
+                  ],
+                  actual: errors);
+  }
+
+  [Fact]
+  public void TryRead_RequiresConnectionsFromVersion5 ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 5,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "panels": [], "searchEngines": []
+                        }
+                        """;
+
+    Assert.False (DashboardBackupService.TryRead (json: Json,
+                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
+    Assert.Equal (expected: ["The file has no connections list."], actual: errors);
   }
 
   [Fact]
@@ -472,10 +647,7 @@ public class DashboardBackupServiceTests
                                       Settings: new BackupSettings (Title: "Home",
                                                                     Motto: null,
                                                                     LocalDomains: null,
-                                                                    ColorMode: ColorMode.Auto,
-                                                                    UptimeKumaServerUrl: null,
-                                                                    UptimeKumaStatusPageSlug: null,
-                                                                    UptimeKumaDefaultDuration: 24),
+                                                                    ColorMode: ColorMode.Auto),
                                       Categories:
                                       [
                                         new BackupCategory (Name: "A",
@@ -516,7 +688,8 @@ public class DashboardBackupServiceTests
                                                Links: 3,
                                                InfrastructureGroups: 1,
                                                Panels: 2,
-                                               SearchEngines: 3),
+                                               SearchEngines: 3,
+                                               Connections: 0),
                   actual: DashboardBackupService.Summarize (backup));
   }
 
@@ -526,8 +699,14 @@ public class DashboardBackupServiceTests
   /// <param name="context">The database context.</param>
   /// <returns>The service.</returns>
   private static DashboardBackupService CreateService (DashboardContext context)
-    => new (context: context,
-            settingsService: new DashboardSettingsService (context: context, cache: new MemoryCache (new MemoryCacheOptions ())));
+  {
+    var cache = new MemoryCache (new MemoryCacheOptions ());
+
+    return new DashboardBackupService (context: context,
+                                       settingsService: new DashboardSettingsService (context: context, cache: cache),
+                                       connections: TestConnections.CreateService (context: context, cache: cache),
+                                       integrations: DashboardBackupServiceTests.Integrations);
+  }
 
   /// <summary>
   ///   Describes a database's search engines, in order.

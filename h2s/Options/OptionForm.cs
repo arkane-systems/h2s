@@ -1,14 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
+using h2s.Widgets.Abstractions;
 
-namespace h2s.Panels;
+namespace h2s.Options;
 
 /// <summary>
-///   Checks the option values the panel dialog posts against a kind's schema, and turns them into the JSON a panel
-///   stores.
+///   Checks the option values an edit form posts against a schema, and turns them into the JSON that's stored.
 /// </summary>
-public static class PanelOptionForm
+public static class OptionForm
 {
   /// <summary>
   ///   The longest text value an option accepts.
@@ -16,17 +16,23 @@ public static class PanelOptionForm
   public const int MaxTextLength = 200;
 
   /// <summary>
+  ///   The longest URL an option accepts.
+  /// </summary>
+  public const int MaxUrlLength = 2048;
+
+  /// <summary>
   ///   Checks posted option values.
   /// </summary>
-  /// <param name="schema">The kind's options.</param>
+  /// <param name="schema">The options.</param>
   /// <param name="posted">
-  ///   The posted values, keyed by option name, as the dialog sends them: text as typed, integers as digits or blank, and
-  ///   booleans as <c>true</c> or <c>false</c>. Keys the schema doesn't declare are ignored, and a missing boolean is off.
+  ///   The posted values, keyed by option name, as the form sends them: text and URLs as typed, integers as digits or blank,
+  ///   and booleans as <c>true</c> or <c>false</c>. Keys the schema doesn't declare are ignored, and a missing boolean is
+  ///   off. Secret options are skipped, since secrets are stored apart from the other values.
   /// </param>
   /// <param name="json">The values as a JSON object in schema order, when they're valid.</param>
   /// <param name="error">What's wrong with the first value that isn't, when one isn't.</param>
   /// <returns><c>true</c> when every value fits its option.</returns>
-  public static bool TryParse (IReadOnlyList<PanelOption>            schema,
+  public static bool TryParse (IReadOnlyList<SchemaOption>           schema,
                                IReadOnlyDictionary<string, string?>? posted,
                                [NotNullWhen (true)] out  string?     json,
                                [NotNullWhen (false)] out string?     error)
@@ -36,11 +42,11 @@ public static class PanelOptionForm
 
     var values = new Dictionary<string, object?> (StringComparer.Ordinal);
 
-    foreach (PanelOption option in schema)
+    foreach (SchemaOption option in schema.Where (o => o.Type != OptionType.Secret))
     {
       string raw = (posted?.GetValueOrDefault (option.Key) ?? "").Trim ();
 
-      if (!PanelOptionForm.TryParseValue (option: option, raw: raw, value: out object? value, error: out error))
+      if (!OptionForm.TryParseValue (option: option, raw: raw, value: out object? value, error: out error))
         return false;
 
       values[option.Key] = value;
@@ -59,7 +65,7 @@ public static class PanelOptionForm
   /// <param name="value">The value, when it fits.</param>
   /// <param name="error">What's wrong with it, when it doesn't.</param>
   /// <returns><c>true</c> when it fits.</returns>
-  private static bool TryParseValue (PanelOption                       option,
+  private static bool TryParseValue (SchemaOption                      option,
                                      string                            raw,
                                      out                       object? value,
                                      [NotNullWhen (false)] out string? error)
@@ -69,32 +75,46 @@ public static class PanelOptionForm
 
     switch (option.Type)
     {
-      case PanelOptionType.Boolean:
+      case OptionType.Boolean:
         value = string.Equals (a: raw, b: "true", comparisonType: StringComparison.OrdinalIgnoreCase);
 
         return true;
 
-      case PanelOptionType.Text when option.IsRequired    && (raw.Length == 0):
-      case PanelOptionType.Integer when option.IsRequired && (raw.Length == 0):
+      case OptionType.Text or OptionType.Url or OptionType.Integer when option.IsRequired && (raw.Length == 0):
         error = $"{option.Label} is required.";
 
         return false;
 
-      case PanelOptionType.Text when raw.Length > PanelOptionForm.MaxTextLength:
-        error = $"{option.Label} must be at most {PanelOptionForm.MaxTextLength} characters.";
+      case OptionType.Text when raw.Length > OptionForm.MaxTextLength:
+        error = $"{option.Label} must be at most {OptionForm.MaxTextLength} characters.";
 
         return false;
 
-      case PanelOptionType.Text:
+      case OptionType.Text when !OptionValues.MatchesPattern (option: option, value: raw):
+        error = $"{option.Label} {option.PatternDescription ?? "isn't in the expected form"}.";
+
+        return false;
+
+      case OptionType.Text:
         value = raw;
 
         return true;
 
-      case PanelOptionType.Integer when raw.Length == 0:
+      case OptionType.Url when (raw.Length > OptionForm.MaxUrlLength) || ((raw.Length > 0) && !OptionValues.IsWebUrl (raw)):
+        error = $"{option.Label} must be an HTTP or HTTPS URL.";
+
+        return false;
+
+      case OptionType.Url:
+        value = raw;
+
         return true;
 
-      case PanelOptionType.Integer:
-        return PanelOptionForm.TryParseInteger (option: option, raw: raw, value: out value, error: out error);
+      case OptionType.Integer when raw.Length == 0:
+        return true;
+
+      case OptionType.Integer:
+        return OptionForm.TryParseInteger (option: option, raw: raw, value: out value, error: out error);
 
       default:
         error = $"{option.Label} has a type h2s can't edit.";
@@ -111,7 +131,7 @@ public static class PanelOptionForm
   /// <param name="value">The number, when it fits.</param>
   /// <param name="error">What's wrong with it, when it doesn't.</param>
   /// <returns><c>true</c> when it fits.</returns>
-  private static bool TryParseInteger (PanelOption                       option,
+  private static bool TryParseInteger (SchemaOption                      option,
                                        string                            raw,
                                        out                       object? value,
                                        [NotNullWhen (false)] out string? error)

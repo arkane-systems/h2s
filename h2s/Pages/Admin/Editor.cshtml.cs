@@ -1,5 +1,7 @@
 using System.Text.Json;
 using h2s.Data;
+using h2s.Integrations;
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
@@ -16,6 +18,7 @@ namespace h2s.Pages.Admin;
 /// </summary>
 public partial class EditorModel : PageModel
 {
+  private readonly ConnectionService        connections;
   private readonly DashboardContext         context;
   private readonly IconCatalog              iconCatalog;
   private readonly PageMetadataReader       pageMetadataReader;
@@ -34,14 +37,17 @@ public partial class EditorModel : PageModel
   /// <param name="uptimeKumaClient">The client used to list the monitors on the Uptime Kuma status page.</param>
   /// <param name="panelCatalog">The panel kinds edit mode can add.</param>
   /// <param name="panelService">The service used to render panels as edit mode shows them.</param>
+  /// <param name="connections">The service holding the Uptime Kuma connection.</param>
   public EditorModel (DashboardContext         context,
                       IconCatalog              iconCatalog,
                       DashboardSettingsService settingsService,
                       PageMetadataReader       pageMetadataReader,
                       UptimeKumaClient         uptimeKumaClient,
                       PanelCatalog             panelCatalog,
-                      PanelService             panelService)
+                      PanelService             panelService,
+                      ConnectionService        connections)
   {
+    this.connections        = connections;
     this.panelCatalog       = panelCatalog;
     this.panelService       = panelService;
     this.context            = context;
@@ -77,8 +83,7 @@ public partial class EditorModel : PageModel
 
     this.Links = await this.GetLinkRowsAsync ();
 
-    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
-    this.IsUptimeKumaConfigured = !string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl);
+    this.IsUptimeKumaConfigured = await UptimeKumaSettings.LoadAsync (this.connections) != null;
   }
 
   /// <summary>
@@ -543,16 +548,16 @@ public partial class EditorModel : PageModel
   /// </returns>
   public async Task<IActionResult> OnGetKumaMonitorsAsync ()
   {
-    DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
+    UptimeKumaSettings? uptimeKuma = await UptimeKumaSettings.LoadAsync (this.connections);
 
-    if (string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl))
+    if (uptimeKuma == null)
       return new JsonResult (KumaMonitorList.Failed ("Uptime Kuma isn't configured."));
 
-    if (string.IsNullOrWhiteSpace (settings.UptimeKumaStatusPageSlug))
+    if (uptimeKuma.StatusPageSlug == null)
       return new JsonResult (KumaMonitorList.Failed ("Set a status page slug in Settings to pick monitors from it."));
 
-    return new JsonResult (await this.uptimeKumaClient.GetStatusPageMonitorsAsync (serverUrl: settings.UptimeKumaServerUrl,
-                                                                                   slug: settings.UptimeKumaStatusPageSlug,
+    return new JsonResult (await this.uptimeKumaClient.GetStatusPageMonitorsAsync (serverUrl: uptimeKuma.ServerUrl,
+                                                                                   slug: uptimeKuma.StatusPageSlug,
                                                                                    cancellationToken: this.HttpContext
                                                                                                           .RequestAborted));
   }
@@ -869,12 +874,13 @@ public partial class EditorModel : PageModel
   }
 
   /// <summary>
-  ///   Builds a link's tile with the current dashboard settings.
+  ///   Builds a link's tile with the current dashboard and Uptime Kuma settings.
   /// </summary>
   /// <param name="link">The link.</param>
   /// <returns>The tile.</returns>
   private async Task<LinkTile> CreateTileAsync (Link link)
-    => new LinkTileFactory (await this.settingsService.GetSettingsAsync ()).Create (link);
+    => new LinkTileFactory (settings: await this.settingsService.GetSettingsAsync (),
+                            uptimeKuma: await UptimeKumaSettings.LoadAsync (this.connections)).Create (link);
 
   /// <summary>
   ///   Checks a link's required fields.

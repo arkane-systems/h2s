@@ -1,3 +1,5 @@
+using h2s.Widgets.Abstractions;
+
 namespace h2s.Panels;
 
 /// <summary>
@@ -28,7 +30,7 @@ public interface IPanelKind
   /// <summary>
   ///   Gets the kind's option schema.
   /// </summary>
-  IReadOnlyList<PanelOption> Options { get; }
+  IReadOnlyList<SchemaOption> Options { get; }
 
   /// <summary>
   ///   Builds a panel's content.

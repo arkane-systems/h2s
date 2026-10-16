@@ -1,8 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using h2s.Data;
+using h2s.Integrations;
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
+using h2s.Options;
 using h2s.Panels;
 using h2s.Validation;
+using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -16,7 +22,9 @@ public class DashboardBackupService
   // Enough to show what's wrong with a file without burying it.
   private const int MaxErrors = 10;
 
+  private readonly ConnectionService        connections;
   private readonly DashboardContext         context;
+  private readonly IntegrationCatalog       integrations;
   private readonly DashboardSettingsService settingsService;
 
   /// <summary>
@@ -24,10 +32,17 @@ public class DashboardBackupService
   /// </summary>
   /// <param name="context">The database context holding the configuration.</param>
   /// <param name="settingsService">The service through which settings are read and saved.</param>
-  public DashboardBackupService (DashboardContext context, DashboardSettingsService settingsService)
+  /// <param name="connections">The service whose cached connections an import replaces.</param>
+  /// <param name="integrations">The integrations whose schemas imported connections are stored against.</param>
+  public DashboardBackupService (DashboardContext         context,
+                                 DashboardSettingsService settingsService,
+                                 ConnectionService        connections,
+                                 IntegrationCatalog       integrations)
   {
     this.context         = context;
     this.settingsService = settingsService;
+    this.connections     = connections;
+    this.integrations    = integrations;
   }
 
   /// <summary>
@@ -66,16 +81,20 @@ public class DashboardBackupService
                                    .ThenBy (p => p.Id)
                                    .ToListAsync (cancellationToken);
 
+    List<Connection> connections = await this.context.Connections
+                                             .AsNoTracking ()
+                                             .OrderBy (c => c.IntegrationKey)
+                                             .ThenBy (c => c.Name)
+                                             .ThenBy (c => c.Id)
+                                             .ToListAsync (cancellationToken);
+
     return new DashboardBackup (Format: DashboardBackup.FormatName,
                                 Version: DashboardBackup.CurrentVersion,
                                 ExportedAt: DateTimeOffset.UtcNow,
                                 Settings: new BackupSettings (Title: settings.Title,
                                                               Motto: settings.Motto,
                                                               LocalDomains: settings.LocalDomains,
-                                                              ColorMode: settings.ColorMode,
-                                                              UptimeKumaServerUrl: settings.UptimeKumaServerUrl,
-                                                              UptimeKumaStatusPageSlug: settings.UptimeKumaStatusPageSlug,
-                                                              UptimeKumaDefaultDuration: settings.UptimeKumaDefaultDuration),
+                                                              ColorMode: settings.ColorMode),
                                 Categories:
                                 [
                                   .. categories.Select (c => new BackupCategory (Name: c.Name,
@@ -115,6 +134,13 @@ public class DashboardBackupService
                                                                                   UrlTemplate: e.UrlTemplate,
                                                                                   Shortcut: e.Shortcut,
                                                                                   IsDefault: e.IsDefault)),
+                                ],
+                                Connections:
+                                [
+                                  .. connections.Select (c => new BackupConnection (Integration: c.IntegrationKey,
+                                                                                    Name: c.Name,
+                                                                                    Options: DashboardBackupService
+                                                                                     .ReadOptions (c.OptionsJson))),
                                 ]);
   }
 
@@ -123,13 +149,18 @@ public class DashboardBackupService
   /// </summary>
   /// <param name="json">The file's contents.</param>
   /// <param name="kinds">The panel kinds the file's panels may use.</param>
+  /// <param name="integrations">The integrations the file's connections may use.</param>
   /// <param name="backup">
   ///   The configuration, when the file is valid. A file from before panels comes back with no panels list (and any it
-  ///   holds anyway ignored).
+  ///   holds anyway ignored), and a file from before connections with its Uptime Kuma settings as a connection.
   /// </param>
   /// <param name="errors">What's wrong with the file, when it isn't; at most ten problems.</param>
   /// <returns><c>true</c> when the file is a valid dashboard configuration that can be imported.</returns>
-  public static bool TryRead (string json, PanelCatalog kinds, out DashboardBackup? backup, out List<string> errors)
+  public static bool TryRead (string               json,
+                              PanelCatalog         kinds,
+                              IntegrationCatalog   integrations,
+                              out DashboardBackup? backup,
+                              out List<string>     errors)
   {
     errors = [];
     backup = null;
@@ -169,7 +200,10 @@ public class DashboardBackupService
     if (read.Version < DashboardBackup.SearchEnginesVersion)
       read = read with { SearchEngines = null };
 
-    DashboardBackupService.Validate (backup: read, kinds: kinds, errors: errors);
+    if (read.Version < DashboardBackup.ConnectionsVersion)
+      read = read with { Connections = DashboardBackupService.ConnectionsFromSettings (read.Settings) };
+
+    DashboardBackupService.Validate (backup: read, kinds: kinds, integrations: integrations, errors: errors);
 
     if (errors.Count > 0)
       return false;
@@ -192,7 +226,8 @@ public class DashboardBackupService
             Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0)           ?? 0,
             InfrastructureGroups: backup.InfrastructureGroups?.Count           ?? 0,
             Panels: backup.Panels?.Count                                       ?? DefaultPanels.Create ().Count,
-            SearchEngines: backup.SearchEngines?.Count                         ?? DefaultSearchEngines.Create ().Count);
+            SearchEngines: backup.SearchEngines?.Count                         ?? DefaultSearchEngines.Create ().Count,
+            Connections: backup.Connections?.Count                             ?? 0);
 
   /// <summary>
   ///   Replaces the whole configuration with a valid dashboard file's, in one transaction.
@@ -203,11 +238,21 @@ public class DashboardBackupService
   {
     await using IDbContextTransaction transaction = await this.context.Database.BeginTransactionAsync (cancellationToken);
 
+    // Secrets aren't in the file, so a connection keeps those of the one it replaces: same integration, same name.
+    Dictionary<(string IntegrationKey, string Name), string?> secrets =
+      await this.context.Connections
+                .AsNoTracking ()
+                .Where (c => c.SecretsJson != null)
+                .ToDictionaryAsync (keySelector: c => (c.IntegrationKey, c.Name),
+                                    elementSelector: c => c.SecretsJson,
+                                    cancellationToken: cancellationToken);
+
     _ = await this.context.Links.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Categories.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.InfrastructureGroups.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Panels.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.SearchEngines.ExecuteDeleteAsync (cancellationToken);
+    _ = await this.context.Connections.ExecuteDeleteAsync (cancellationToken);
 
     // Positions count within each section, as on the dashboard.
     int regular = 0, admin = 0;
@@ -287,6 +332,25 @@ public class DashboardBackupService
                                                                }));
     }
 
+    foreach (BackupConnection connection in backup.Connections ?? [])
+    {
+      IIntegration integration = this.integrations.Find (connection.Integration!.Trim ())!;
+      string       name        = connection.Name!.Trim ();
+
+      _ = DashboardBackupService.TryReadConnectionOptions (integration: integration,
+                                                           options: connection.Options,
+                                                           json: out string? json,
+                                                           error: out _);
+
+      this.context.Connections.Add (new Connection
+                                    {
+                                      IntegrationKey = integration.Key,
+                                      Name           = name,
+                                      OptionsJson    = json!,
+                                      SecretsJson    = secrets.GetValueOrDefault ((integration.Key, name)),
+                                    });
+    }
+
     await this.context.SaveChangesAsync (cancellationToken);
 
     BackupSettings    imported = backup.Settings!;
@@ -296,15 +360,10 @@ public class DashboardBackupService
     settings.Motto        = (imported.Motto        ?? "").Trim ();
     settings.LocalDomains = (imported.LocalDomains ?? "").Trim ();
     settings.ColorMode    = imported.ColorMode;
-    settings.UptimeKumaServerUrl =
-      string.IsNullOrWhiteSpace (imported.UptimeKumaServerUrl) ? null : imported.UptimeKumaServerUrl.Trim ();
-    settings.UptimeKumaStatusPageSlug = string.IsNullOrWhiteSpace (imported.UptimeKumaStatusPageSlug)
-                                          ? null
-                                          : imported.UptimeKumaStatusPageSlug.Trim ();
-    settings.UptimeKumaDefaultDuration = imported.UptimeKumaDefaultDuration;
 
     await this.settingsService.SaveSettingsAsync (settings);
     await transaction.CommitAsync (cancellationToken);
+    this.connections.ForgetCached ();
   }
 
   /// <summary>
@@ -312,8 +371,9 @@ public class DashboardBackupService
   /// </summary>
   /// <param name="backup">The configuration.</param>
   /// <param name="kinds">The panel kinds the file's panels may use.</param>
+  /// <param name="integrations">The integrations the file's connections may use.</param>
   /// <param name="errors">The list the problems are added to.</param>
-  private static void Validate (DashboardBackup backup, PanelCatalog kinds, List<string> errors)
+  private static void Validate (DashboardBackup backup, PanelCatalog kinds, IntegrationCatalog integrations, List<string> errors)
   {
     void Add (string error)
     {
@@ -330,16 +390,6 @@ public class DashboardBackupService
 
       if (!Enum.IsDefined (settings.ColorMode))
         Add ("Settings: the color mode isn't one of Auto, Light or Dark.");
-
-      if (!string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl) &&
-          !DashboardBackupService.IsWebUrl (settings.UptimeKumaServerUrl))
-        Add ("Settings: the Uptime Kuma server URL must be an HTTP or HTTPS URL.");
-
-      if (!StatusPageSlug.IsValid (settings.UptimeKumaStatusPageSlug))
-        Add ("Settings: the status page slug may only contain letters, numbers, and hyphens.");
-
-      if (settings.UptimeKumaDefaultDuration <= 0)
-        Add ("Settings: the default uptime duration must be a positive number of hours.");
     }
 
     if (backup.Categories == null)
@@ -435,6 +485,123 @@ public class DashboardBackupService
       if (panel.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
         Add ($"{where}: the options must be a JSON object.");
     }
+
+    if ((backup.Version >= DashboardBackup.ConnectionsVersion) && (backup.Connections == null))
+      Add ("The file has no connections list.");
+
+    var seenIntegrations = new HashSet<string> (StringComparer.Ordinal);
+    var seenNames        = new HashSet<(string, string)> ();
+
+    for (var c = 0; c < (backup.Connections?.Count ?? 0); c++)
+    {
+      BackupConnection connection = backup.Connections![c];
+      var              where      = $"Connection {c + 1}";
+      string           name       = (connection.Name ?? "").Trim ();
+
+      if (name.Length == 0)
+        Add ($"{where}: the name is required.");
+      else if (name.Length > Connection.MaxNameLength)
+        Add ($"{where}: the name must be at most {Connection.MaxNameLength} characters.");
+      else
+        where += $" (\"{name}\")";
+
+      if (string.IsNullOrWhiteSpace (connection.Integration))
+        Add ($"{where}: the integration is required.");
+      else if (integrations.Find (connection.Integration.Trim ()) is not { } integration)
+        Add ($"{where}: h2s has no “{connection.Integration.Trim ()}” integration.");
+      else
+      {
+        if (!seenIntegrations.Add (integration.Key) && !integration.AllowsMultipleConnections)
+          Add ($"{where}: the dashboard can only have one {integration.DisplayName} connection.");
+        else if ((name.Length > 0) && !seenNames.Add ((integration.Key, name)))
+          Add ($"{where}: another {integration.DisplayName} connection has that name.");
+
+        if (connection.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+          Add ($"{where}: the options must be a JSON object.");
+        else if (!DashboardBackupService.TryReadConnectionOptions (integration: integration,
+                                                                   options: connection.Options,
+                                                                   json: out _,
+                                                                   error: out string? error))
+          Add ($"{where}: {error}");
+      }
+    }
+  }
+
+  /// <summary>
+  ///   Turns the Uptime Kuma settings of a file from before connections into a connection.
+  /// </summary>
+  /// <param name="settings">The file's settings.</param>
+  /// <returns>The connections: one when the settings have an Uptime Kuma server, and none otherwise.</returns>
+  private static List<BackupConnection> ConnectionsFromSettings (BackupSettings? settings)
+  {
+    if (string.IsNullOrWhiteSpace (settings?.UptimeKumaServerUrl))
+      return [];
+
+    var options = new Dictionary<string, object?>
+                  {
+                    [UptimeKumaIntegration.ServerUrlOption]      = settings.UptimeKumaServerUrl.Trim (),
+                    [UptimeKumaIntegration.StatusPageSlugOption] = (settings.UptimeKumaStatusPageSlug ?? "").Trim (),
+                  };
+
+    if (settings.UptimeKumaDefaultDuration is { } duration)
+      options[UptimeKumaIntegration.DefaultDurationOption] = duration;
+
+    return
+    [
+      new BackupConnection (Integration: UptimeKumaIntegration.IntegrationKey,
+                            Name: "Uptime Kuma",
+                            Options: JsonSerializer.SerializeToElement (options)),
+    ];
+  }
+
+  /// <summary>
+  ///   Checks an imported connection's settings against its integration's schema and rules, as Settings checks what it
+  ///   posts. A setting the file leaves out takes its default.
+  /// </summary>
+  /// <param name="integration">The connection's integration.</param>
+  /// <param name="options">The settings in the file: a JSON object, or <c>null</c> for all defaults.</param>
+  /// <param name="json">The settings as the connection stores them, when they're valid.</param>
+  /// <param name="error">What's wrong with them, when they aren't.</param>
+  /// <returns><c>true</c> when the settings are valid.</returns>
+  private static bool TryReadConnectionOptions (IIntegration                      integration,
+                                                JsonElement?                      options,
+                                                [NotNullWhen (true)] out  string? json,
+                                                [NotNullWhen (false)] out string? error)
+  {
+    var posted = new Dictionary<string, string?> (StringComparer.Ordinal);
+
+    foreach (SchemaOption option in integration.ConnectionOptions)
+    {
+      posted[option.Key] =
+        options is { ValueKind: JsonValueKind.Object } values &&
+        values.TryGetProperty (propertyName: option.Key, value: out JsonElement value)
+          ? value.ValueKind switch
+            {
+              JsonValueKind.String => value.GetString (),
+              JsonValueKind.True   => "true",
+              JsonValueKind.False  => "false",
+              JsonValueKind.Null   => "",
+              _                    => value.GetRawText (),
+            }
+          : option.DefaultValue switch
+            {
+              bool flag  => flag ? "true" : "false",
+              int number => number.ToString (CultureInfo.InvariantCulture),
+              _          => option.DefaultValue as string,
+            };
+    }
+
+    if (!OptionForm.TryParse (schema: integration.ConnectionOptions, posted: posted, json: out json, error: out error))
+      return false;
+
+    error = integration.Validate (new OptionValues (schema: integration.ConnectionOptions, json: json));
+
+    if (error == null)
+      return true;
+
+    json = null;
+
+    return false;
   }
 
   /// <summary>

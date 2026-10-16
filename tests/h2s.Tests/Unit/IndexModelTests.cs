@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using h2s.Data;
+using h2s.Integrations;
 using h2s.Models;
 using h2s.Pages;
 using h2s.Panels;
@@ -80,19 +81,24 @@ public class IndexModelTests
     await using var              database = await TestDatabase.CreateAsync ();
     await using DashboardContext context  = database.CreateContext ();
 
-    await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s
-                                                                              .SetProperty (propertyExpression: x => x.LocalDomains,
-                                                                                            valueExpression: localDomains)
-                                                                              .SetProperty (propertyExpression:
-                                                                                            x => x.UptimeKumaServerUrl,
-                                                                                            valueExpression: kumaServerUrl),
+    await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression:
+                                                                                              x => x.LocalDomains,
+                                                                                              valueExpression: localDomains),
                                                         cancellationToken: TestContext.Current.CancellationToken);
 
-    using var cache           = new MemoryCache (new MemoryCacheOptions ());
-    var       settingsService = new DashboardSettingsService (context: context, cache: cache);
+    if (kumaServerUrl != null)
+    {
+      context.Connections.Add (TestConnections.UptimeKuma (serverUrl: kumaServerUrl));
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+    }
+
+    using var         cache           = new MemoryCache (new MemoryCacheOptions ());
+    var               settingsService = new DashboardSettingsService (context: context, cache: cache);
+    ConnectionService connections     = TestConnections.CreateService (context: context, cache: cache);
 
     await using ServiceProvider services = new ServiceCollection ().AddSingleton (context)
                                                                    .AddSingleton (settingsService)
+                                                                   .AddSingleton (connections)
                                                                    .BuildServiceProvider ();
 
     var model = new IndexModel (context: context,
@@ -104,7 +110,8 @@ public class IndexModelTests
                                                                                            ]),
                                                                 services: services,
                                                                 logger: NullLogger<PanelService>.Instance),
-                                authorizationService: new AllowAllAuthorizationService ())
+                                authorizationService: new AllowAllAuthorizationService (),
+                                connections: connections)
                 {
                   PageContext = new PageContext { HttpContext = new DefaultHttpContext () },
                 };

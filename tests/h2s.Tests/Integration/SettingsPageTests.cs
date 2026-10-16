@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -204,11 +205,10 @@ public class SettingsPageTests
 
     Assert.True (on.GetProperty ("isConfigured").GetBoolean ());
 
-    DashboardSettings settings = await SettingsPageTests.ReadSettingsAsync (factory);
-
-    Assert.Equal (expected: "https://status.home.arpa", actual: settings.UptimeKumaServerUrl);
-    Assert.Equal (expected: "main",                     actual: settings.UptimeKumaStatusPageSlug);
-    Assert.Equal (expected: 48,                         actual: settings.UptimeKumaDefaultDuration);
+    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: "https://status.home.arpa",
+                                                    StatusPageSlug: "main",
+                                                    DefaultDuration: 48),
+                  actual: await TestConnections.ReadUptimeKumaAsync (factory));
 
     JsonElement off = await SettingsPageTests.PostOkAsync (factory: factory,
                                                            handler: "SaveUptimeKuma",
@@ -220,7 +220,7 @@ public class SettingsPageTests
                                                            ]);
 
     Assert.False (off.GetProperty ("isConfigured").GetBoolean ());
-    Assert.Null ((await SettingsPageTests.ReadSettingsAsync (factory)).UptimeKumaServerUrl);
+    Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
   }
 
   [Theory]
@@ -229,8 +229,10 @@ public class SettingsPageTests
                "24",
                "Uptime Kuma server URL must be a valid HTTP or HTTPS base URL with no path, query, or fragment.")]
   [InlineData ("https://status.home.arpa", "not a slug!", "24", "Status page slug may only contain letters, numbers, and hyphens.")]
-  [InlineData ("https://status.home.arpa", "main", "0", "Default uptime duration must be a whole number of hours, at least 1.")]
-  [InlineData ("https://status.home.arpa", "main", "1.5", "Default uptime duration must be a whole number of hours, at least 1.")]
+  [InlineData ("ftp://status.home.arpa",   "main",        "24", "Server URL must be an HTTP or HTTPS URL.")]
+  [InlineData ("https://status.home.arpa", "main",        "0", "Default uptime duration (hours) must be at least 1.")]
+  [InlineData ("https://status.home.arpa", "main",        "1.5", "Default uptime duration (hours) must be a whole number.")]
+  [InlineData ("https://status.home.arpa", "main",        "", "Default uptime duration (hours) is required.")]
   public async Task SaveUptimeKuma_RejectsInvalidValues (string serverUrl, string slug, string duration, string detail)
   {
     await using var factory = new DashboardApplicationFactory ();
@@ -289,7 +291,7 @@ public class SettingsPageTests
                   actual: result.GetProperty ("message").GetString ());
 
     // Testing doesn't save anything.
-    Assert.Null ((await SettingsPageTests.ReadSettingsAsync (factory)).UptimeKumaServerUrl);
+    Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
   }
 
   [Fact]

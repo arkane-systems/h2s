@@ -1,5 +1,6 @@
 using h2s.Data;
 using h2s.Models;
+using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Panels;
@@ -91,7 +92,7 @@ public sealed partial class PanelService
     {
       content =
         await kind.GetContentAsync (new PanelContext (Options:
-                                                      new PanelOptionValues (schema: kind.Options, json: panel.OptionsJson),
+                                                      new OptionValues (schema: kind.Options, json: panel.OptionsJson),
                                                       Services: this.services,
                                                       CancellationToken: cancellationToken));
     }

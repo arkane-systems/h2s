@@ -56,42 +56,10 @@ public class DashboardSettingsServiceTests
       Assert.Equal (expected: "",             actual: settings.Motto);
       Assert.Equal (expected: "",             actual: settings.LocalDomains);
       Assert.Equal (expected: ColorMode.Auto, actual: settings.ColorMode);
-      Assert.Equal (expected: 24,             actual: settings.UptimeKumaDefaultDuration);
     }
 
     await using (DashboardContext context = database.CreateContext ())
       Assert.Equal (expected: 1, actual: await context.DashboardSettings.CountAsync (cancellationToken));
-  }
-
-  [Theory]
-  [InlineData (0)]
-  [InlineData (-5)]
-  public async Task GetSettingsAsync_NormalizesInvalidDurationWithoutWriting (int storedDuration)
-  {
-    await using var   database          = await TestDatabase.CreateAsync ();
-    using var         cache             = new MemoryCache (new MemoryCacheOptions ());
-    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-
-    await using (DashboardContext context = database.CreateContext ())
-    {
-      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls:
-                                                          s => s.SetProperty (propertyExpression: x => x.UptimeKumaDefaultDuration,
-                                                                              valueExpression: storedDuration),
-                                                          cancellationToken: cancellationToken);
-    }
-
-    await using (DashboardContext context = database.CreateContext ())
-    {
-      Assert.Equal (expected: 24,
-                    actual: (await new DashboardSettingsService (context: context, cache: cache).GetSettingsAsync ())
-                   .UptimeKumaDefaultDuration);
-    }
-
-    await using (DashboardContext context = database.CreateContext ())
-    {
-      Assert.Equal (expected: storedDuration,
-                    actual: (await context.DashboardSettings.SingleAsync (cancellationToken)).UptimeKumaDefaultDuration);
-    }
   }
 
   [Fact]

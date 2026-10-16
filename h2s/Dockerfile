@@ -5,6 +5,7 @@ ARG TARGETARCH
 WORKDIR /src
 # Build context is the repository root, so the shared build settings apply here as they do in development and CI.
 COPY Directory.Build.props .editorconfig ./
+COPY h2s.Widgets.Abstractions/ h2s.Widgets.Abstractions/
 COPY h2s/ h2s/
 RUN dotnet publish h2s/h2s.csproj -c Release -a $TARGETARCH -o /app/publish
 

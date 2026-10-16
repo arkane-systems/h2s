@@ -1,14 +1,17 @@
 using h2s.Data;
+using h2s.Integrations;
+using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Pages;
 using h2s.Services;
+using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Panels;
 
 /// <summary>
-///   The status bar panel: a status and uptime badge pair from Uptime Kuma for each infrastructure group. Until Phase 5
-///   makes it multi-source, it reads the Uptime Kuma settings and the infrastructure groups.
+///   The status bar panel: a status and uptime badge pair from Uptime Kuma for each infrastructure group. Until it becomes
+///   multi-source (Phase 5d), it reads the Uptime Kuma connection and the infrastructure groups.
 /// </summary>
 public sealed class StatusBarPanelKind : IPanelKind
 {
@@ -46,13 +49,13 @@ public sealed class StatusBarPanelKind : IPanelKind
   public bool IsSingleInstance => true;
 
   /// <inheritdoc />
-  public IReadOnlyList<PanelOption> Options { get; } =
+  public IReadOnlyList<SchemaOption> Options { get; } =
     [
-      new (Key: StatusBarPanelKind.ShowUptimeOption, Label: "Show uptime badges", Type: PanelOptionType.Boolean)
+      new (Key: StatusBarPanelKind.ShowUptimeOption, Label: "Show uptime badges", Type: OptionType.Boolean)
       {
         DefaultValue = true, HelpText = "Shows each group's uptime beside its status.",
       },
-      new (Key: StatusBarPanelKind.UptimeHoursOption, Label: "Uptime period (hours)", Type: PanelOptionType.Integer)
+      new (Key: StatusBarPanelKind.UptimeHoursOption, Label: "Uptime period (hours)", Type: OptionType.Integer)
       {
         Minimum = 1, HelpText = "Leave blank to use the default period from the Uptime Kuma settings.",
       },
@@ -61,9 +64,11 @@ public sealed class StatusBarPanelKind : IPanelKind
   /// <inheritdoc />
   public async Task<PanelContent> GetContentAsync (PanelContext context)
   {
-    DashboardSettings settings = await context.Services.GetRequiredService<DashboardSettingsService> ().GetSettingsAsync ();
+    UptimeKumaSettings? uptimeKuma =
+      await UptimeKumaSettings.LoadAsync (connections: context.Services.GetRequiredService<ConnectionService> (),
+                                          cancellationToken: context.CancellationToken);
 
-    if (string.IsNullOrWhiteSpace (settings.UptimeKumaServerUrl))
+    if (uptimeKuma == null)
       return PanelContent.Empty ("Uptime Kuma isn't set up. Add its server in Settings → Integrations.");
 
     List<InfrastructureGroup> groups = await context.Services.GetRequiredService<DashboardContext> ()
@@ -76,16 +81,17 @@ public sealed class StatusBarPanelKind : IPanelKind
     if (groups.Count == 0)
       return PanelContent.Empty ("No infrastructure groups yet. Add them under Uptime Kuma in Settings → Integrations.");
 
-    var  badges      = new LinkTileFactory (settings);
+    DashboardSettings settings = await context.Services.GetRequiredService<DashboardSettingsService> ().GetSettingsAsync ();
+
+    var  badges      = new LinkTileFactory (settings: settings, uptimeKuma: uptimeKuma);
     bool showUptime  = context.Options.GetBoolean (StatusBarPanelKind.ShowUptimeOption);
-    int  uptimeHours = context.Options.GetInteger (StatusBarPanelKind.UptimeHoursOption) ?? settings.UptimeKumaDefaultDuration;
+    int  uptimeHours = context.Options.GetInteger (StatusBarPanelKind.UptimeHoursOption) ?? uptimeKuma.DefaultDuration;
 
     return PanelContent.Show (partialName: "_UptimeStatusBar",
                               model: new StatusBarPanelModel (StatusPageUrl:
-                                                              StatusBarPanelKind.BuildStatusPageUrl (serverUrl: settings
-                                                                                                      .UptimeKumaServerUrl,
-                                                                                                     slug: settings
-                                                                                                      .UptimeKumaStatusPageSlug),
+                                                              StatusBarPanelKind
+                                                               .BuildStatusPageUrl (serverUrl: uptimeKuma.ServerUrl,
+                                                                                    slug: uptimeKuma.StatusPageSlug),
                                                               Items:
                                                               [
                                                                 .. groups.Select (g => new StatusBarItem (Name: g.Name,

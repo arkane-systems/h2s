@@ -200,23 +200,8 @@ public class LinkPickerHandlerTests
   /// </summary>
   /// <param name="factory">The application factory.</param>
   /// <param name="slug">The status page slug, or <c>null</c> for none.</param>
-  private static async Task ConfigureKumaAsync (DashboardApplicationFactory factory, string? slug)
-  {
-    var (scope, context) = factory.CreateContext ();
-
-    using (scope)
-    {
-      await context.DashboardSettings.ExecuteUpdateAsync (setPropertyCalls: s => s
-                                                                                .SetProperty (propertyExpression:
-                                                                                              x => x.UptimeKumaServerUrl,
-                                                                                              valueExpression:
-                                                                                              "https://status.home.arpa")
-                                                                                .SetProperty (propertyExpression:
-                                                                                              x => x.UptimeKumaStatusPageSlug,
-                                                                                              valueExpression: slug),
-                                                          cancellationToken: TestContext.Current.CancellationToken);
-    }
-  }
+  private static Task ConfigureKumaAsync (DashboardApplicationFactory factory, string? slug)
+    => factory.AddUptimeKumaAsync (statusPageSlug: slug ?? "");
 
   /// <summary>
   ///   Creates a link in Media with the given icon URL.
