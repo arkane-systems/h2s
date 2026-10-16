@@ -59,6 +59,8 @@
     <link rel="stylesheet" href="~/h2s.styles.css" asp-append-version="true" />
 </head>
 <body>
+    @* The first stop for keyboard users: past the navbar to the page itself. *@
+    <a class="skip-link visually-hidden-focusable" href="#main-content">Skip to main content</a>
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-body-tertiary border-bottom box-shadow">
             <div class="container">
@@ -71,13 +73,12 @@
                                data-role="site-motto">@settings.Motto</small>
                     </span>
                 </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbar-content"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav me-auto">
-                    </ul>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between" id="navbar-content">
+                    <div class="me-auto"></div>
                     @* Edit/Done is the primary action, so it sits at the far right. The list view is reached from edit mode. *@
                     <ul class="navbar-nav align-items-center">
                         <li class="nav-item">
@@ -117,13 +118,13 @@
     <div class="app-background" aria-hidden="true"></div>
 
     <div class="container app-content">
-        <main role="main" class="py-3">
+        <main role="main" class="py-3" id="main-content" tabindex="-1">
             @RenderBody()
         </main>
     </div>
 
     @* wwwroot/js/modules/toast.js shows its toasts here. *@
-    <div id="toast-host" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+    <div id="toast-host" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite" aria-atomic="false"></div>
 
     @* Modal dialogs render here, outside .app-content: its z-index makes a stacking context that would trap a modal
        beneath Bootstrap's backdrop. *@

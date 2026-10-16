@@ -228,7 +228,7 @@ footer,
   gap: 0.75rem;
   width: 100%;
   padding: 0.7rem 0.8rem;
-  border: 1px solid rgba(var(--bs-border-color-rgb), 0.55);
+  border: 1px solid color-mix(in srgb, var(--bs-border-color) 55%, transparent);
   border-radius: 0.55rem;
   background-color: rgba(var(--bs-body-bg-rgb), 0.44);
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -237,7 +237,14 @@ footer,
 .link-block:hover,
 .link-block:focus-visible {
   background-color: rgba(var(--bs-body-bg-rgb), 0.62);
-  border-color: rgba(var(--bs-border-color-rgb), 0.9);
+  border-color: color-mix(in srgb, var(--bs-border-color) 90%, transparent);
+}
+
+/* Keyboard focus needs more than the hover tint to stand out: a solid ring, clear in both themes. */
+.link-block:focus-visible,
+.uptime-status-bar-link:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
 }
 
 .link-external-flag {
@@ -663,7 +670,7 @@ th[aria-sort="descending"] .list-view-sort::after {
 .uptime-status-bar-link:hover,
 .uptime-status-bar-link:focus-visible {
   background-color: rgba(var(--bs-body-bg-rgb), 0.72);
-  border-color: rgba(var(--bs-border-color-rgb), 0.9);
+  border-color: color-mix(in srgb, var(--bs-border-color) 90%, transparent);
 }
 
 .uptime-status-bar-static {
@@ -725,7 +732,7 @@ th[aria-sort="descending"] .list-view-sort::after {
   align-items: center;
   gap: 0;
   padding: 0.2rem 0.8rem;
-  border: 1px solid rgba(var(--bs-border-color-rgb), 0.7);
+  border: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
   border-radius: 999px;
   background-color: rgba(var(--bs-body-bg-rgb), 0.72);
 }
@@ -974,5 +981,35 @@ th[aria-sort="descending"] .list-view-sort::after {
 
   .uptime-badge-pair {
     flex-direction: column;
+  }
+}
+
+/* The skip link (_Layout.cshtml): hidden until focused, then pinned above the navbar. */
+.skip-link:focus {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1100;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-emphasis-color);
+  box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+
+/* Main is a skip-link target only, so it doesn't need a focus ring of its own. */
+#main-content:focus {
+  outline: 0;
+}
+
+/* People who ask for less motion get none: no transitions, and SortableJS skips its animation too. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }

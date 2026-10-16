@@ -24,3 +24,39 @@
         }
     }
 })();
+
+// Closing a dialog returns focus to what opened it. Bootstrap does that only for data-bs-toggle triggers, and every dialog
+// here opens from script. When a save has replaced the opener (a tile swapped for its re-rendered slot, say), focus goes to
+// the same control in the item's new markup, found by the item's data-*-id.
+(() => {
+    const itemSelector = '[data-link-id], [data-panel-id], [data-category-id], [data-id]';
+    let opener = null;
+
+    document.addEventListener('show.bs.modal', () => {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement) || active === document.body) {
+            opener = null;
+            return;
+        }
+        const item = active.closest(itemSelector);
+        const attribute = item ? [...item.attributes].find(a => /^data-(link|panel|category)?-?id$/.test(a.name)) : null;
+        opener = {
+            element: active,
+            item: attribute ? `[${attribute.name}="${CSS.escape(attribute.value)}"]` : null,
+            control: active.classList.length ? `.${CSS.escape(active.classList[0])}` : null
+        };
+    });
+
+    document.addEventListener('hidden.bs.modal', () => {
+        if (!opener) {
+            return;
+        }
+        let target = opener.element.isConnected ? opener.element : null;
+        if (!target && opener.item) {
+            const item = document.querySelector(opener.item);
+            target = (opener.control && item?.querySelector(opener.control)) || null;
+        }
+        target?.focus();
+        opener = null;
+    });
+})();

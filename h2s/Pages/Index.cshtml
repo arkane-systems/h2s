@@ -29,6 +29,9 @@
     </div>
 }
 
+@* The navbar shows the title; screen readers get it as the page's heading, above the categories' headings. *@
+<h1 class="visually-hidden">@Model.DashboardTitle</h1>
+
 <partial name="_PanelZone" model="new PanelZoneModel(PanelZone.Top, Model.TopPanels, Model.IsEditMode)" />
 
 <div class="category-grid @(Model.IsEditMode ? "is-editing" : "")" data-collapse-cookie="@ViewerPreferences.CollapsedCategoriesCookie">
@@ -44,28 +47,29 @@
 
     <section class="category-box border @(category.IsAdminCategory ? "category-box-admin" : "") @(isCollapsed ? "is-collapsed" : "")"
              data-category-id="@category.Id"
-             data-admin-category="@(category.IsAdminCategory ? "true" : "false")">
-        <header class="category-box-header">
+             data-admin-category="@(category.IsAdminCategory ? "true" : "false")"
+             aria-labelledby="category-title-@category.Id">
+        <div class="category-box-header">
             @if (Model.IsEditMode)
             {
                 <button type="button" class="drag-handle category-drag-handle" title="Drag to move" aria-label="Move category @category.Name">⠿</button>
-                <h2 class="h5 mb-0">@category.Name</h2>
+                <h2 class="h5 mb-0" id="category-title-@category.Id">@category.Name</h2>
                 <button type="button" class="category-edit-button ms-auto" title="Edit category" aria-label="Edit category @category.Name"
                         data-role="edit-category">✎</button>
             }
             else
             {
                 @* The title is the collapse toggle (category-collapse.js); a collapsed category shows how many links it hides. *@
-                <h2 class="h5 mb-0 category-title">
+                <h2 class="h5 mb-0 category-title" id="category-title-@category.Id">
                     <button type="button" class="category-collapse-button" aria-expanded="@(isCollapsed ? "false" : "true")"
                             aria-controls="category-body-@category.Id">
                         <span class="category-name">@category.Name</span>
-                        <span class="category-count" title="@category.Links.Count links">@category.Links.Count</span>
+                        <span class="category-count" title="@category.Links.Count links">@category.Links.Count<span class="visually-hidden"> links</span></span>
                         <span class="category-chevron" aria-hidden="true">▾</span>
                     </button>
                 </h2>
             }
-        </header>
+        </div>
         <div class="category-box-body" id="category-body-@category.Id">
             <div class="link-block-list" data-category-id="@category.Id">
                 @foreach (var link in category.Links)

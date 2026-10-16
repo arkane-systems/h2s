@@ -175,7 +175,7 @@ public class LinkPickerHandlerTests
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Contains (expectedSubstring:
-                     """<img class="link-block-icon" src="https://hub.docker.com/favicon.ico" alt="Docker Hub icon""",
+                     "<img class=\"link-block-icon\" src=\"https://hub.docker.com/favicon.ico\" alt=\"\"",
                      actualString: html);
   }
 

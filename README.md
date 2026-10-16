@@ -171,6 +171,10 @@ When you open the app, the home page shows link categories and their links. You 
 - Browse categories and open links directly from each card. Click a category's name to collapse it to its header (showing how many links it holds), and again to open it; your browser remembers which are collapsed. Edit mode always shows every category open.
 - Use the search box for quick web searches. It uses the default engine from **Settings → Search**. To use another for one search, click the ⌕ and pick it (the menu also shows each engine's shortcut), or start or end the search with the engine's shortcut, such as `!g`. A shortcut wins if you do both.
 
+### Keyboard and accessibility
+
+Everything works from the keyboard. **Tab** first reaches a **Skip to main content** link. Tiles, category titles and the search box's engine menu take focus with a clear ring, dialogs return focus to whatever opened them, and edit mode's tiles open with **Enter** or **Space**. Drag handles also move with the arrow keys, and each move is announced. Screen readers get a heading for the dashboard and each category, and toasts are announced. With **reduce motion** turned on in the operating system, transitions and drag animations are switched off.
+
 ### Installing as an app
 
 h2s can be installed as an app, to use as a start page in its own window: in Edge or Chrome, use **Install** in the address bar (or the browser menu's **Apps** / **Cast, save and share** entry); on a phone, **Add to Home screen**. The app is named after the dashboard's title in **Settings → General**. It needs the network to do anything useful, so there's no offline mode.

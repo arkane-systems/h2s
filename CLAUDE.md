@@ -119,6 +119,14 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
 
 ## Conventions
 
+- Accessibility (kept by the Phase 4d2 pass; keep new UI in line):
+  - The layout's first focusable element is a skip link to `#main-content` (`main`, `tabindex="-1"`). Each page has one `<h1>`; the dashboard's is visually hidden. Category `<section>`s are named by their heading (`aria-labelledby="category-title-{id}"`); panels are plain `<div>`s, not unnamed regions.
+  - Keyboard focus must be visible: tiles and the status bar link get a solid primary outline on `:focus-visible`. Don't rely on `--bs-border-color-rgb`, which Bootstrap doesn't define; use `color-mix(in srgb, var(--bs-border-color) N%, transparent)`.
+  - Decorative images (tile icons beside their label) have `alt=""`; don't put `aria-label` on plain `<span>`s.
+  - `site.js` returns focus to a dialog's opener when it closes (Bootstrap only does that for `data-bs-toggle` triggers), falling back to the same control in an item re-rendered with the same `data-link-id`/`data-panel-id`/`data-category-id`/`data-id`. Give new list items such an attribute.
+  - `#toast-host` is a polite live region. Moves by keyboard are announced through each page's visually hidden live region.
+  - `prefers-reduced-motion` turns transitions off in CSS, and SortableJS's `animation` is 0 then; new Sortable lists should do the same.
+
 - Keep edits minimal and local.
 - Stay within Razor Pages: no MVC controllers, no Blazor, no new frontend frameworks. Site styling goes in `h2s/wwwroot/css/site.css`.
 - Client libraries are committed under `h2s/wwwroot/lib/`; don't load scripts from a CDN at runtime. h2s is MIT, so check a library's licence before vendoring it (no GPL).
