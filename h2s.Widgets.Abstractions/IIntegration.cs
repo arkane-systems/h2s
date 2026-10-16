@@ -19,6 +19,11 @@ public interface IIntegration
   string DisplayName { get; }
 
   /// <summary>
+  ///   Gets a sentence or two saying what the integration adds to the dashboard, shown at the top of its Settings card.
+  /// </summary>
+  string Description { get; }
+
+  /// <summary>
   ///   Gets a value indicating whether the dashboard can hold more than one connection to the integration's service, such
   ///   as two Home Assistant instances.
   /// </summary>

@@ -3,6 +3,7 @@
 @using System.Text.Json
 @using h2s.Integrations.UptimeKuma
 @using h2s.Models
+@using h2s.Widgets.Abstractions
 @{
     ViewData["Title"] = "Settings";
 }
@@ -102,75 +103,73 @@
         </div>
     </section>
 
-    @* Integrations is a heading over one card per integration; Uptime Kuma is the only one so far. *@
-    <section id="integrations" class="settings-group" aria-labelledby="integrations-title">
+    @* Integrations is a heading over one card per integration. integrations.js builds each card's fields from the
+       integration's schema (the integrations-data JSON below) and drives Save, Test connection and Remove. *@
+    <section id="integrations" class="settings-group" aria-labelledby="integrations-title"
+             data-save-url="@Url.Page("/Admin/Settings", "SaveConnection")"
+             data-test-url="@Url.Page("/Admin/Settings", "TestConnection")"
+             data-remove-url="@Url.Page("/Admin/Settings", "RemoveConnection")">
         <h2 class="h5 settings-group-title" id="integrations-title">Integrations</h2>
 
-        <section id="uptime-kuma" class="category-box border settings-card" aria-labelledby="uptime-kuma-title">
-            <div class="category-box-body">
-                <form novalidate data-role="settings-form" data-section="uptime-kuma"
-                      data-save-url="@Url.Page("/Admin/Settings", "SaveUptimeKuma")"
-                      data-test-url="@Url.Page("/Admin/Settings", "TestUptimeKuma")">
-                    <h3 class="h5" id="uptime-kuma-title">Uptime Kuma</h3>
-                    <p class="text-muted small">
-                        Status badges for links, and a status bar of infrastructure groups. Monitors must be on the status page for their
-                        badges to show.
-                    </p>
-                    <div class="alert alert-danger d-none" role="alert" data-role="error"></div>
+        @foreach (IIntegration integration in Model.Integrations)
+        {
+            string cardId = $"integration-{integration.Key}";
 
-                    <div class="mb-3">
-                        <label for="settings-kuma-url" class="form-label">Server URL</label>
-                        <input type="url" class="form-control" id="settings-kuma-url" name="serverUrl" pattern="https?://.+"
-                               value="@Model.UptimeKuma?.ServerUrl" placeholder="https://status.example.com" autocomplete="off"
-                               aria-describedby="settings-kuma-url-help" />
-                        <div class="invalid-feedback">Enter an address starting with http:// or https://.</div>
-                        <div class="form-text" id="settings-kuma-url-help">Leave blank to turn Uptime Kuma off.</div>
-                    </div>
+            <section id="@cardId" class="category-box border settings-card" aria-labelledby="@(cardId)-title">
+                <div class="category-box-body">
+                    <form novalidate data-role="integration-form" data-integration="@integration.Key">
+                        <h3 class="h5" id="@(cardId)-title">@integration.DisplayName</h3>
+                        <p class="text-muted small">@integration.Description</p>
+                        <p class="small d-none" data-role="state">Not set up yet. Fill in the settings and save to turn it on.</p>
+                        <div class="alert alert-danger d-none" role="alert" data-role="error"></div>
 
-                    <div class="row g-3 mb-3">
-                        <div class="col-sm-7">
-                            <label for="settings-kuma-slug" class="form-label">Status page slug</label>
-                            <input type="text" class="form-control" id="settings-kuma-slug" name="statusPageSlug" pattern="\s*[A-Za-z0-9\-]*\s*"
-                                   value="@Model.UptimeKuma?.StatusPageSlug" placeholder="main" autocomplete="off" />
-                            <div class="invalid-feedback">Use only letters, numbers and hyphens.</div>
+                        <div data-role="fields"></div>
+
+                        <div class="alert d-none" role="status" data-role="test-result"></div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary">Save</button>
+                            <button type="button" class="btn btn-outline-secondary" data-role="test">Test connection</button>
+                            <button type="button" class="btn btn-outline-danger ms-auto d-none" data-role="remove">Remove</button>
                         </div>
-                        <div class="col-sm-5">
-                            <label for="settings-kuma-duration" class="form-label">Uptime period (hours)</label>
-                            <input type="number" class="form-control" id="settings-kuma-duration" name="defaultDuration" required min="1"
-                                   step="1" value="@(Model.UptimeKuma?.DefaultDuration ?? UptimeKumaIntegration.DefaultDuration)" />
-                            <div class="invalid-feedback">Use a whole number of hours, at least 1.</div>
+
+                        <div class="alert alert-warning mt-3 mb-0 d-none" role="alert" data-role="remove-confirm">
+                            <p class="mb-2">
+                                Remove the @integration.DisplayName connection? Its settings, and any secrets, are deleted, and
+                                @integration.DisplayName is turned off.
+                            </p>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-danger" data-role="remove-yes">Remove</button>
+                                <button type="button" class="btn btn-sm btn-secondary" data-role="remove-no">Cancel</button>
+                            </div>
                         </div>
-                    </div>
+                    </form>
 
-                    <div class="alert d-none" role="status" data-role="test-result"></div>
-
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="submit" class="btn btn-primary">Save</button>
-                        <button type="button" class="btn btn-outline-secondary" data-role="test">Test connection</button>
-                    </div>
-                </form>
-
-                @* The groups save as they change, apart from the settings and Save above, so a divider sets them off. It's inside
-                   the block, so it hides with the groups when Uptime Kuma is off. *@
-                <div id="infrastructure-groups" class="@(Model.IsUptimeKumaConfigured ? "" : "d-none")"
-                     data-groups-url="@Url.Page("/Admin/Settings", "InfrastructureGroups")"
-                     data-create-url="@Url.Page("/Admin/Settings", "CreateInfrastructureGroup")"
-                     data-update-url="@Url.Page("/Admin/Settings", "UpdateInfrastructureGroup")"
-                     data-delete-url="@Url.Page("/Admin/Settings", "DeleteInfrastructureGroup")"
-                     data-restore-url="@Url.Page("/Admin/Settings", "RestoreInfrastructureGroup")"
-                     data-reorder-url="@Url.Page("/Admin/Settings", "ReorderInfrastructureGroups")">
-                    <hr class="settings-divider" />
-                    <h4 class="h6">Infrastructure groups</h4>
-                    <p class="text-muted small">
-                        Each group shows a status and an uptime badge in the bar across the top of the dashboard. Drag the
-                        <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to reorder them.
-                    </p>
-                    <ul class="list-group mb-2 group-list" data-role="group-list"></ul>
-                    <p class="text-muted small d-none" data-role="group-empty">No infrastructure groups yet.</p>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-group">+ Add group</button>
+                    @if (integration.Key == UptimeKumaIntegration.IntegrationKey)
+                    {
+                        @* The groups save as they change, apart from the settings and Save above, so a divider sets them off.
+                           data-shown-with hides them while Uptime Kuma has no connection. 5d retires them. *@
+                        <div id="infrastructure-groups" class="@(Model.IsUptimeKumaConfigured ? "" : "d-none")" data-shown-with="@integration.Key"
+                             data-groups-url="@Url.Page("/Admin/Settings", "InfrastructureGroups")"
+                             data-create-url="@Url.Page("/Admin/Settings", "CreateInfrastructureGroup")"
+                             data-update-url="@Url.Page("/Admin/Settings", "UpdateInfrastructureGroup")"
+                             data-delete-url="@Url.Page("/Admin/Settings", "DeleteInfrastructureGroup")"
+                             data-restore-url="@Url.Page("/Admin/Settings", "RestoreInfrastructureGroup")"
+                             data-reorder-url="@Url.Page("/Admin/Settings", "ReorderInfrastructureGroups")">
+                            <hr class="settings-divider" />
+                            <h4 class="h6">Infrastructure groups</h4>
+                            <p class="text-muted small">
+                                Each group shows a status and an uptime badge in the bar across the top of the dashboard. Drag the
+                                <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to reorder them.
+                            </p>
+                            <ul class="list-group mb-2 group-list" data-role="group-list"></ul>
+                            <p class="text-muted small d-none" data-role="group-empty">No infrastructure groups yet.</p>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-group">+ Add group</button>
+                        </div>
+                    }
                 </div>
-            </div>
-        </section>
+            </section>
+        }
     </section>
 
     @* Driven by wwwroot/js/modules/backup.js: upload, preview what the file holds, then confirm the replacement. *@
@@ -180,8 +179,8 @@
         <div class="category-box-body">
             <h2 class="h5" id="backup-title">Backup</h2>
             <p class="text-muted">
-                Export the whole configuration (settings, categories, links, infrastructure groups, panels and search engines) as a
-                JSON file, or import one to replace it.
+                Export the whole configuration (settings, categories, links, infrastructure groups, panels, search engines and
+                integrations, without their secrets) as a JSON file, or import one to replace it.
             </p>
 
             <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -212,6 +211,10 @@
                                        JsonSerializerOptions.Web))
 </script>
 
+<script type="application/json" id="integrations-data">
+    @Html.Raw(JsonSerializer.Serialize(Model.IntegrationCards, JsonSerializerOptions.Web))
+</script>
+
 <script type="application/json" id="search-engines-data">
     @Html.Raw(JsonSerializer.Serialize(Model.SearchEngines.Select(e => new { e.Id, e.Name, e.UrlTemplate, e.Shortcut, e.IsDefault, e.SortOrder }),
                                        JsonSerializerOptions.Web))
@@ -224,6 +227,7 @@
 
 @section Scripts {
     <script type="module" src="~/js/modules/settings.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/modules/integrations.js" asp-append-version="true"></script>
     <script type="module" src="~/js/modules/infrastructure-groups.js" asp-append-version="true"></script>
     <script type="module" src="~/js/modules/search-engines.js" asp-append-version="true"></script>
     <script type="module" src="~/js/modules/backup.js" asp-append-version="true"></script>

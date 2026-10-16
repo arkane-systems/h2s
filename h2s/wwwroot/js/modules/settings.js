@@ -1,5 +1,5 @@
-/* The Settings page's section cards: each form saves on its own through its JSON handler, showing problems inline and
-   success as a toast. The Uptime Kuma form can also test its values before saving them. */
+/* The Settings page's General and Appearance cards: each form saves on its own through its JSON handler, showing
+   problems inline and success as a toast. Integrations, Search and Backup have modules of their own. */
 import { ChipInput } from './chip-input.js';
 import { showToast } from './toast.js';
 
@@ -27,11 +27,7 @@ const afterSave = {
         }
         document.title = document.title.replace(/^h2s - .*? - Settings$/, `h2s - ${result.title} - Settings`);
     },
-    appearance: result => window.h2sColorMode?.setSiteDefault(result.colorMode),
-    'uptime-kuma': result => {
-        // Infrastructure groups only matter when Uptime Kuma is on.
-        document.getElementById('infrastructure-groups')?.classList.toggle('d-none', !result.isConfigured);
-    }
+    appearance: result => window.h2sColorMode?.setSiteDefault(result.colorMode)
 };
 
 for (const form of document.querySelectorAll('[data-role="settings-form"]')) {
@@ -62,29 +58,4 @@ for (const form of document.querySelectorAll('[data-role="settings-form"]')) {
             button.disabled = false;
         }
     });
-
-    const test = form.querySelector('[data-role="test"]');
-    if (test) {
-        const result = form.querySelector('[data-role="test-result"]');
-
-        test.addEventListener('click', async () => {
-            test.disabled = true;
-            result.className = 'alert alert-secondary';
-            result.textContent = 'Testing…';
-
-            try {
-                const outcome = await window.h2sApi.postForm(form.dataset.testUrl, {
-                    serverUrl: form.elements.serverUrl.value,
-                    statusPageSlug: form.elements.statusPageSlug.value
-                });
-                result.className = `alert alert-${outcome.level}`;
-                result.textContent = outcome.message;
-            } catch (error) {
-                result.className = 'alert alert-danger';
-                result.textContent = error.message;
-            } finally {
-                test.disabled = false;
-            }
-        });
-    }
 }

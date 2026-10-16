@@ -126,4 +126,61 @@ public class OptionFormTests
     if (parsed)
       Assert.Equal (expected: $$"""{"server":"{{server}}","slug":"{{slug}}"}""", actual: json);
   }
+
+  [Theory]
+  [InlineData ("new", false, "old", "new")]
+  [InlineData ("",    false, "old", "old")]
+  [InlineData (" ",   false, null,  null)]
+  [InlineData ("",    true,  "old", null)]
+  [InlineData ("new", true,  "old", "new")]
+  public void TryResolveSecrets_KeepsBlankSecrets_UnlessCleared (string typed, bool clear, string? stored, string? expected)
+  {
+    SchemaOption[] schema = [new (Key: "token", Label: "Token", Type: OptionType.Secret)];
+
+    Assert.True (OptionForm.TryResolveSecrets (schema: schema,
+                                               posted: new Dictionary<string, string?> { ["token"] = typed },
+                                               clear: clear ? ["token"] : null,
+                                               stored: stored == null
+                                                         ? new Dictionary<string, string> ()
+                                                         : new Dictionary<string, string> { ["token"] = stored },
+                                               secrets: out Dictionary<string, string>? secrets,
+                                               error: out _));
+    Assert.Equal (expected: expected, actual: secrets.GetValueOrDefault ("token"));
+  }
+
+  [Theory]
+  [InlineData ("",    null,  "Token is required.")]
+  [InlineData ("",    "old", null)]
+  [InlineData ("new", null,  null)]
+  public void TryResolveSecrets_RequiresARequiredSecret_StoredOrTyped (string typed, string? stored, string? error)
+  {
+    SchemaOption[] schema = [new (Key: "token", Label: "Token", Type: OptionType.Secret) { IsRequired = true }];
+
+    bool resolved = OptionForm.TryResolveSecrets (schema: schema,
+                                                  posted: new Dictionary<string, string?> { ["token"] = typed },
+                                                  clear: null,
+                                                  stored: stored == null
+                                                            ? new Dictionary<string, string> ()
+                                                            : new Dictionary<string, string> { ["token"] = stored },
+                                                  secrets: out _,
+                                                  error: out string? actual);
+
+    Assert.Equal (expected: error == null, actual: resolved);
+    Assert.Equal (expected: error,         actual: actual);
+  }
+
+  [Fact]
+  public void TryResolveSecrets_LimitsTheLength ()
+    => Assert.False (OptionForm.TryResolveSecrets (schema:
+                                                   [
+                                                     new SchemaOption (Key: "token", Label: "Token", Type: OptionType.Secret),
+                                                   ],
+                                                   posted: new Dictionary<string, string?>
+                                                           {
+                                                             ["token"] = new (c: 'x', count: OptionForm.MaxSecretLength + 1),
+                                                           },
+                                                   clear: null,
+                                                   stored: new Dictionary<string, string> (),
+                                                   secrets: out _,
+                                                   error: out _));
 }
