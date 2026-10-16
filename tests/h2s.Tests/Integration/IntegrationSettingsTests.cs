@@ -40,7 +40,7 @@ public class IntegrationSettingsTests
     Assert.Equal (expected: TestConnections.KumaServerUrl,
                   actual: card.GetProperty ("values").GetProperty ("serverUrl").GetString ());
     Assert.Equal (expected: "main", actual: card.GetProperty ("values").GetProperty ("statusPageSlug").GetString ());
-    Assert.Equal (expected: ["serverUrl", "statusPageSlug", "defaultDuration"],
+    Assert.Equal (expected: ["serverUrl", "apiKey", "statusPageSlug", "defaultUptimeWindow"],
                   actual: card.GetProperty ("options").EnumerateArray ().Select (o => o.GetProperty ("key").GetString ()));
   }
 
@@ -55,12 +55,12 @@ public class IntegrationSettingsTests
                                                                       fields: IntegrationSettingsTests
                                                                        .KumaFields (serverUrl: " https://status.home.arpa ",
                                                                                     slug: "main",
-                                                                                    duration: "48"));
+                                                                                    window: "30d"));
 
     Assert.True (created.GetProperty ("isConfigured").GetBoolean ());
     Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
                                                     StatusPageSlug: "main",
-                                                    DefaultDuration: 48),
+                                                    DefaultUptimeWindow: "30d"),
                   actual: await TestConnections.ReadUptimeKumaAsync (factory));
 
     _ = await IntegrationSettingsTests.PostOkAsync (client: client,
@@ -68,7 +68,7 @@ public class IntegrationSettingsTests
                                                     fields:
                                                     IntegrationSettingsTests.KumaFields (serverUrl: "https://kuma.home.arpa",
                                                                                          slug: "",
-                                                                                         duration: "24"));
+                                                                                         window: "1d"));
 
     var (scope, context) = factory.CreateContext ();
 
@@ -78,21 +78,20 @@ public class IntegrationSettingsTests
 
       Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: "https://kuma.home.arpa",
                                                       StatusPageSlug: null,
-                                                      DefaultDuration: 24),
+                                                      DefaultUptimeWindow: "1d"),
                     actual: await TestConnections.ReadUptimeKumaAsync (context));
       Assert.Equal (expected: "Uptime Kuma", actual: connection.Name);
     }
   }
 
   [Theory]
-  [InlineData ("", "main", "24", "Server URL is required.")]
-  [InlineData ("ftp://status.home.arpa", "main", "24", "Server URL must be an HTTP or HTTPS URL.")]
-  [InlineData ("https://status.home.arpa/dashboard", "main", "24", UptimeKumaIntegration.InvalidServerUrl)]
-  [InlineData ("https://status.home.arpa", "not a slug!", "24", "Status page slug may only contain letters, numbers, and hyphens.")]
-  [InlineData ("https://status.home.arpa", "main", "0", "Default uptime duration (hours) must be at least 1.")]
-  [InlineData ("https://status.home.arpa", "main", "1.5", "Default uptime duration (hours) must be a whole number.")]
-  [InlineData ("https://status.home.arpa", "main", "", "Default uptime duration (hours) is required.")]
-  public async Task SaveConnection_RejectsInvalidValues (string serverUrl, string slug, string duration, string detail)
+  [InlineData ("", "main", "1d", "Server URL is required.")]
+  [InlineData ("ftp://status.home.arpa", "main", "1d", "Server URL must be an HTTP or HTTPS URL.")]
+  [InlineData ("https://status.home.arpa/dashboard", "main", "1d", UptimeKumaIntegration.InvalidServerUrl)]
+  [InlineData ("https://status.home.arpa", "not a slug!", "1d", "Status page slug may only contain letters, numbers, and hyphens.")]
+  [InlineData ("https://status.home.arpa", "main", "7d", "Default uptime period must be one of 1 day, 30 days, 365 days.")]
+  [InlineData ("https://status.home.arpa", "main", "", "Default uptime period is required.")]
+  public async Task SaveConnection_RejectsInvalidValues (string serverUrl, string slug, string window, string detail)
   {
     await using var factory = new DashboardApplicationFactory ();
 
@@ -102,7 +101,7 @@ public class IntegrationSettingsTests
                                                                                fields: IntegrationSettingsTests
                                                                                 .KumaFields (serverUrl: serverUrl,
                                                                                              slug: slug,
-                                                                                             duration: duration)),
+                                                                                             window: window)),
                                          status: HttpStatusCode.BadRequest,
                                          detail: detail);
     Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
@@ -144,41 +143,70 @@ public class IntegrationSettingsTests
 
     Assert.False (card.GetProperty ("isConfigured").GetBoolean ());
     Assert.Equal (expected: JsonValueKind.Null, actual: card.GetProperty ("values").GetProperty ("serverUrl").ValueKind);
-    Assert.Equal (expected: 24,                 actual: card.GetProperty ("values").GetProperty ("defaultDuration").GetInt32 ());
+    Assert.Equal (expected: "1d", actual: card.GetProperty ("values").GetProperty ("defaultUptimeWindow").GetString ());
     Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
   }
 
-  [Fact]
-  public async Task TestConnection_ReportsTheStatusPagesMonitors_WithoutSaving ()
+  [Theory]
+  [InlineData ("main", "Connected. Uptime Kuma reports 2 monitors and 1 group. The status page exists.")]
+  [InlineData ("",     "Connected. Uptime Kuma reports 2 monitors and 1 group.")]
+  public async Task TestConnection_ReadsTheMetrics_WithoutSaving (string slug, string message)
   {
     await using var factory = new DashboardApplicationFactory ();
-    factory.Outbound = request => request.RequestUri!.AbsolutePath switch
-                                  {
-                                    "/" => new HttpResponseMessage (HttpStatusCode.OK),
-                                    "/api/status-page/main" => new HttpResponseMessage (HttpStatusCode.OK)
-                                                               {
-                                                                 Content = new StringContent (content: """
-                                                                                                       { "publicGroupList": [
-                                                                                                         { "name": "Core", "monitorList": [ { "id": 1, "name": "A" }, { "id": 2, "name": "B" } ] }
-                                                                                                       ] }
-                                                                                                       """,
-                                                                                              encoding: Encoding.UTF8,
-                                                                                              mediaType: "application/json"),
-                                                               },
-                                    _ => new HttpResponseMessage (HttpStatusCode.NotFound),
-                                  };
+    factory.Outbound = request => request.RequestUri!.AbsolutePath == "/api/status-page/main"
+                                    ? new HttpResponseMessage (HttpStatusCode.OK)
+                                      {
+                                        Content = new StringContent (content: """{ "publicGroupList": [] }""",
+                                                                     encoding: Encoding.UTF8,
+                                                                     mediaType: "application/json"),
+                                      }
+                                    : TestConnections.ServeKuma (request);
 
     JsonElement result = await IntegrationSettingsTests.PostOkAsync (client: factory.CreateClient (),
                                                                      handler: "TestConnection",
                                                                      fields: IntegrationSettingsTests
                                                                       .KumaFields (serverUrl: "https://status.home.arpa",
-                                                                                   slug: "main",
-                                                                                   duration: "24"));
+                                                                                   slug: slug,
+                                                                                   window: "1d"));
 
     Assert.Equal (expected: "success", actual: result.GetProperty ("level").GetString ());
-    Assert.Equal (expected: "Connected. The status page lists 2 monitors in 1 group.",
-                  actual: result.GetProperty ("message").GetString ());
+    Assert.Equal (expected: message,   actual: result.GetProperty ("message").GetString ());
     Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
+  }
+
+  [Fact]
+  public async Task TestConnection_SaysWhenTheApiKeyIsRefused ()
+  {
+    await using var factory = new DashboardApplicationFactory { Outbound = TestConnections.ServeKuma };
+
+    JsonElement result = await IntegrationSettingsTests.PostOkAsync (client: factory.CreateClient (),
+                                                                     handler: "TestConnection",
+                                                                     fields: IntegrationSettingsTests
+                                                                      .KumaFields (serverUrl: "https://status.home.arpa",
+                                                                                   slug: "",
+                                                                                   window: "1d",
+                                                                                   apiKey: "wrong"));
+
+    Assert.Equal (expected: "danger", actual: result.GetProperty ("level").GetString ());
+    Assert.Equal (expected: "Connected to Uptime Kuma, but: Uptime Kuma refused the API key.",
+                  actual: result.GetProperty ("message").GetString ());
+  }
+
+  [Fact]
+  public async Task SaveConnection_RequiresAnApiKey ()
+  {
+    await using var factory = new DashboardApplicationFactory ();
+
+    await FormPoster.AssertProblemAsync (response: await FormPoster.PostAsync (client: factory.CreateClient (),
+                                                                               pagePath: IntegrationSettingsTests.SettingsPath,
+                                                                               handler: "SaveConnection",
+                                                                               fields: IntegrationSettingsTests
+                                                                                .KumaFields (serverUrl: "https://status.home.arpa",
+                                                                                             slug: "",
+                                                                                             window: "1d",
+                                                                                             apiKey: null)),
+                                         status: HttpStatusCode.BadRequest,
+                                         detail: "API key is required.");
   }
 
   [Fact]
@@ -192,7 +220,7 @@ public class IntegrationSettingsTests
                                                                      fields: IntegrationSettingsTests
                                                                       .KumaFields (serverUrl: "https://status.home.arpa",
                                                                                    slug: "",
-                                                                                   duration: "24"));
+                                                                                   window: "1d"));
 
     Assert.Equal (expected: "danger", actual: result.GetProperty ("level").GetString ());
     Assert.Equal (expected: "Couldn't reach Uptime Kuma at https://status.home.arpa.",
@@ -280,15 +308,20 @@ public class IntegrationSettingsTests
   /// </summary>
   /// <param name="serverUrl">The server URL.</param>
   /// <param name="slug">The status page slug.</param>
-  /// <param name="duration">The default uptime duration.</param>
+  /// <param name="window">The default uptime window.</param>
+  /// <param name="apiKey">A newly typed API key, if any.</param>
   /// <returns>The fields.</returns>
-  private static KeyValuePair<string, string>[] KumaFields (string serverUrl, string slug, string duration)
+  private static KeyValuePair<string, string>[] KumaFields (string  serverUrl,
+                                                            string  slug,
+                                                            string  window,
+                                                            string? apiKey = TestConnections.KumaApiKey)
     =>
     [
       new (key: "integration", value: UptimeKumaIntegration.IntegrationKey),
       new (key: "options[serverUrl]", value: serverUrl),
       new (key: "options[statusPageSlug]", value: slug),
-      new (key: "options[defaultDuration]", value: duration),
+      new (key: "options[defaultUptimeWindow]", value: window),
+      .. apiKey == null ? [] : new[] { new KeyValuePair<string, string> (key: "secrets[apiKey]", value: apiKey) },
     ];
 
   /// <summary>

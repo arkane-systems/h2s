@@ -45,6 +45,12 @@ public sealed record SchemaOption (string Key, string Label, OptionType Type)
   public string? Pattern { get; init; }
 
   /// <summary>
+  ///   Gets the values a select option offers, in order. An optional select may also be blank; the edit form labels that
+  ///   choice with <see cref="Placeholder" />.
+  /// </summary>
+  public IReadOnlyList<OptionChoice> Choices { get; init; } = [];
+
+  /// <summary>
   ///   Gets an example value shown in the empty field, such as <c>https://status.example.com</c>.
   /// </summary>
   public string? Placeholder { get; init; }

@@ -26,9 +26,16 @@ public sealed class StatusBarPanelKind : IPanelKind
   public const string ShowUptimeOption = "showUptime";
 
   /// <summary>
-  ///   The key of the option holding the uptime badges' period in hours; blank uses the Uptime Kuma default.
+  ///   The key of the option holding the uptime badges' window (<see cref="UptimeKumaWindows" />); blank uses the Uptime
+  ///   Kuma default.
   /// </summary>
-  public const string UptimeHoursOption = "uptimeHours";
+  public const string UptimeWindowOption = "uptimeWindow";
+
+  /// <summary>
+  ///   The key of the option that held the uptime period in hours, before windows replaced it. Older backups still carry
+  ///   it.
+  /// </summary>
+  public const string LegacyUptimeHoursOption = "uptimeHours";
 
   /// <summary>
   ///   Builds the URL of the Uptime Kuma status page the status bar links to.
@@ -55,9 +62,11 @@ public sealed class StatusBarPanelKind : IPanelKind
       {
         DefaultValue = true, HelpText = "Shows each group's uptime beside its status.",
       },
-      new (Key: StatusBarPanelKind.UptimeHoursOption, Label: "Uptime period (hours)", Type: OptionType.Integer)
+      new (Key: StatusBarPanelKind.UptimeWindowOption, Label: "Uptime period", Type: OptionType.Select)
       {
-        Minimum = 1, HelpText = "Leave blank to use the default period from the Uptime Kuma settings.",
+        Choices     = UptimeKumaWindows.Choices,
+        Placeholder = "The Uptime Kuma default",
+        HelpText    = "The period the uptime badges cover.",
       },
     ];
 
@@ -83,9 +92,10 @@ public sealed class StatusBarPanelKind : IPanelKind
 
     DashboardSettings settings = await context.Services.GetRequiredService<DashboardSettingsService> ().GetSettingsAsync ();
 
-    var  badges      = new LinkTileFactory (settings: settings, uptimeKuma: uptimeKuma);
-    bool showUptime  = context.Options.GetBoolean (StatusBarPanelKind.ShowUptimeOption);
-    int  uptimeHours = context.Options.GetInteger (StatusBarPanelKind.UptimeHoursOption) ?? uptimeKuma.DefaultDuration;
+    var    badges      = new LinkTileFactory (settings: settings, uptimeKuma: uptimeKuma);
+    bool   showUptime  = context.Options.GetBoolean (StatusBarPanelKind.ShowUptimeOption);
+    string window      = context.Options.GetText (StatusBarPanelKind.UptimeWindowOption);
+    int    uptimeHours = UptimeKumaWindows.ToHours (window.Length == 0 ? uptimeKuma.DefaultUptimeWindow : window);
 
     return PanelContent.Show (partialName: "_UptimeStatusBar",
                               model: new StatusBarPanelModel (StatusPageUrl:

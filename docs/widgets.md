@@ -10,7 +10,7 @@ The core disposes, integrations propose. An integration declares what it needs, 
 
 Integrations are written against `h2s.Widgets.Abstractions`, a class library that references nothing of the app: no EF Core, no Razor.
 
-- **`SchemaOption`** is one setting. It has a key, a label, a type (`Text`, `Url`, `Integer`, `Boolean` or `Secret`), and optionally help text, a placeholder, a default, a required flag, integer bounds, and a regular expression `Pattern` for text, with a `PatternDescription` for its error ("may only contain letters, numbers, and hyphens"). The browser checks the pattern too, as an HTML `pattern` with the `v` flag, so write it to work there as well: escape a hyphen in a character class (`[A-Za-z0-9\-]+`).
+- **`SchemaOption`** is one setting. It has a key, a label, a type (`Text`, `Url`, `Integer`, `Boolean`, `Secret` or `Select`, with its `Choices`), and optionally help text, a placeholder, a default, a required flag, integer bounds, and a regular expression `Pattern` for text, with a `PatternDescription` for its error ("may only contain letters, numbers, and hyphens"). The browser checks the pattern too, as an HTML `pattern` with the `v` flag, so write it to work there as well: escape a hyphen in a character class (`[A-Za-z0-9\-]+`).
 - **`OptionValues`** reads stored settings against a schema. A value that's missing or doesn't fit takes the option's default, so an integration never sees bad data. Read values with `GetText`, `GetInteger`, `GetBoolean` and `GetSecret`.
 - **`IIntegration`** is the integration:
   - `Key` is stored with every connection, so never change it.
@@ -38,7 +38,7 @@ Integrations are compiled in for now. Register one as a singleton in `Program.cs
 builder.Services.AddSingleton<IIntegration, UptimeKumaIntegration> ();
 ```
 
-`UptimeKumaIntegration` (`h2s/Integrations/UptimeKuma/`) is the reference: a base-URL check in `Validate`, and a `TestAsync` that probes the server and its status page.
+`UptimeKumaIntegration` (`h2s/Integrations/UptimeKuma/`) is the reference: a required API key secret, a select for the uptime window, a base-URL check in `Validate`, and a `TestAsync` that probes the server, reads its `/metrics` with the key, and checks the status page.
 
 ## Outbound requests
 

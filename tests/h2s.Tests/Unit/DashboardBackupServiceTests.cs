@@ -428,8 +428,8 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 6 }""",
-               "The file is from a newer version of h2s (format version 6); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 7 }""",
+               "The file is from a newer version of h2s (format version 7); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
@@ -490,7 +490,7 @@ public class DashboardBackupServiceTests
 
     await using (DashboardContext context = source.CreateContext ())
     {
-      Connection kuma = TestConnections.UptimeKuma (statusPageSlug: "main", defaultDuration: 48);
+      Connection kuma = TestConnections.UptimeKuma (statusPageSlug: "main", defaultUptimeWindow: "30d");
       kuma.SecretsJson = "never exported";
       context.Connections.Add (kuma);
       await context.SaveChangesAsync (TestContext.Current.CancellationToken);
@@ -523,7 +523,7 @@ public class DashboardBackupServiceTests
 
     Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
                                                     StatusPageSlug: "main",
-                                                    DefaultDuration: 48),
+                                                    DefaultUptimeWindow: "30d"),
                   actual: await TestConnections.ReadUptimeKumaAsync (targetContext));
     Assert.Equal (expected: "Uptime Kuma", actual: imported.Name);
     Assert.Equal (expected: "kept",        actual: imported.SecretsJson);
@@ -532,9 +532,11 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData (""" "uptimeKumaServerUrl": " https://status.home.arpa ", "uptimeKumaStatusPageSlug": "main", "uptimeKumaDefaultDuration": 12 """,
                "main",
-               12)]
-  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 24 """, null, 24)]
-  public async Task ImportAsync_MovesOldUptimeKumaSettingsIntoAConnection (string kuma, string? slug, int duration)
+               "1d")]
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 24 """,   null, "1d")]
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 168 """,  null, "30d")]
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 1000 """, null, "365d")]
+  public async Task ImportAsync_MovesOldUptimeKumaSettingsIntoAConnection (string kuma, string? slug, string window)
   {
     await using var              database = await TestDatabase.CreateAsync ();
     await using DashboardContext context  = database.CreateContext ();
@@ -560,8 +562,34 @@ public class DashboardBackupServiceTests
 
     Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
                                                     StatusPageSlug: slug,
-                                                    DefaultDuration: duration),
+                                                    DefaultUptimeWindow: window),
                   actual: await TestConnections.ReadUptimeKumaAsync (context));
+  }
+
+  [Fact]
+  public void TryRead_TurnsTheHoursOfAFileFromBeforeUptimeWindowsIntoWindows ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 5,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "searchEngines": [],
+                          "panels": [ { "kind": "status-bar", "zone": "Top", "options": { "showUptime": true, "uptimeHours": 48 } } ],
+                          "connections": [ { "integration": "uptime-kuma", "name": "Uptime Kuma",
+                                             "options": { "serverUrl": "https://status.home.arpa", "defaultDuration": 9000 } } ]
+                        }
+                        """;
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: Json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out DashboardBackup? backup,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
+    Assert.Equal (expected: """{"showUptime":true,"uptimeWindow":"30d"}""",
+                  actual: backup!.Panels![0].Options!.Value.GetRawText ());
+    Assert.Equal (expected: """{"serverUrl":"https://status.home.arpa","defaultUptimeWindow":"365d"}""",
+                  actual: backup.Connections![0].Options!.Value.GetRawText ());
   }
 
   [Fact]

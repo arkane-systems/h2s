@@ -68,8 +68,8 @@
 
                 @if (Model.IsUptimeKumaConfigured)
                 {
-                    @* The select picks from the status page's monitors; the text field, which is what's posted, is shown for an
-                       ID that isn't on it, or when the monitors can't be listed. *@
+                    @* The select picks from every monitor Kuma reports; the text field, which is what's posted, is shown for
+                       an ID Kuma doesn't report, or when the monitors can't be listed. *@
                     <div class="mb-3">
                         <label for="link-dialog-monitor-select" class="form-label">Uptime Kuma monitor <span class="text-muted">(optional)</span></label>
                         <select class="form-select" id="link-dialog-monitor-select" data-role="monitor-select">

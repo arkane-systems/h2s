@@ -53,10 +53,11 @@ public class PanelServiceTests
   }
 
   [Theory]
-  [InlineData ("{}",                                           "main", "https://status.home.arpa/status/main", 24)]
-  [InlineData ("""{ "uptimeHours": 168 }""",                   null,   null,                                   168)]
-  [InlineData ("""{ "showUptime": false }""",                  "main", "https://status.home.arpa/status/main", null)]
-  [InlineData ("""{ "showUptime": true, "uptimeHours": 0 }""", null,   null,                                   24)]
+  [InlineData ("{}",                                               "main", "https://status.home.arpa/status/main", 24)]
+  [InlineData ("""{ "uptimeWindow": "30d" }""",                    null,   null,                                   720)]
+  [InlineData ("""{ "uptimeWindow": "365d" }""",                   null,   null,                                   8760)]
+  [InlineData ("""{ "showUptime": false }""",                      "main", "https://status.home.arpa/status/main", null)]
+  [InlineData ("""{ "showUptime": true, "uptimeWindow": "7d" }""", null,   null,                                   24)]
   public async Task StatusBar_AppliesItsOptions (string optionsJson, string? slug, string? statusPageUrl, int? uptimeHours)
   {
     await using var              database = await TestDatabase.CreateAsync (seed: true);

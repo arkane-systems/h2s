@@ -214,18 +214,19 @@ Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is th
 You can optionally enable service-health badges powered by Uptime Kuma:
 
 - **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`).
-- **Status page slug**: the slug of the public status page that the top status bar links to, and that the monitor pickers list monitors from.
-- **Default uptime duration (hours)**: the period for the uptime badges in the top status bar.
+- **API key**: a key created in Uptime Kuma under **Settings → API Keys** (Kuma 1.21 or later). h2s uses it only to read Kuma's `/metrics`, which lists every monitor; it's stored encrypted and never shown again.
+- **Status page slug** (optional): the public status page the top status bar links to.
+- **Default uptime period**: 1 day, 30 days or 365 days, the windows Kuma reports; the status bar can choose its own.
 
 **Save** turns the integration on. **Remove** turns it off again, after asking, and forgets its settings.
 
-**Test connection** checks the values in the form before you save them. It tells you whether the server answers, whether h2s trusts its certificate, and whether the status page exists and how many monitors it lists.
+**Test connection** checks the values in the form before you save them. It tells you whether the server answers, whether h2s trusts its certificate, whether Kuma accepts the API key and how many monitors and groups it reports, and, with a slug, whether the status page exists.
 
 ##### Infrastructure groups (top status bar)
 
-With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor from the status page, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
+With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor (or a Kuma group monitor) from the list, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
 
-> Important: For badges to work in h2s, the monitor must be included on a Uptime Kuma **status page** (published/public). If the monitor exists but is not published to a status page, the badge response will show `N/A`.
+> Important: Until h2s draws its own status widgets, the badges are Kuma's images, so a monitor must be included on a published Uptime Kuma **status page** for its badge to work. Otherwise the badge shows `N/A`.
 
 ### Edit mode
 
@@ -235,7 +236,7 @@ Click **Edit** at the right of the navbar to edit the dashboard in place; **Done
 - Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
   - **Browse…** searches the selfh.st icons with thumbnails.
   - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
-  - With Uptime Kuma configured and a status page slug set, the **monitor** list shows the monitors on that status page by group. Pick **Another monitor ID…** to type one that isn't on it.
+  - With Uptime Kuma configured, the **monitor** list shows every monitor Kuma reports, group monitors first. Pick **Another monitor ID…** to type one that isn't listed.
   - **Open in a new tab** makes the tile open its link in a new browser tab. The list view marks such links with ↗.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
 - Use a panel's ✎ to change its options or delete it, and **+ Add panel** to add one above or below the categories. The status bar's options choose whether it shows uptime badges and over what period; the search box's, its placeholder text. Each kind of panel can appear only once for now, so **+ Add panel** offers only kinds that aren't on the dashboard.
