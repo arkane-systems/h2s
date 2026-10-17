@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace h2s.Models;
 
@@ -45,13 +44,6 @@ public class Link
   ///   Gets or sets the destination URL for the link.
   /// </summary>
   public string Url { get; set; } = "";
-
-  /// <summary>
-  ///   Gets or sets the optional Uptime Kuma monitor ID for this link.
-  ///   Must be a positive integer when specified.
-  /// </summary>
-  [Range (minimum: 1, maximum: int.MaxValue, ErrorMessage = "Monitor ID must be a positive integer.")]
-  public int? MonitorId { get; set; }
 
   /// <summary>
   ///   Gets or sets a value indicating whether the link opens in a new browser tab rather than the dashboard's.

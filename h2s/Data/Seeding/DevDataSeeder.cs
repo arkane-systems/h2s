@@ -8,9 +8,8 @@ namespace h2s.Data.Seeding;
 /// </summary>
 /// <remarks>
 ///   The sample data exercises every rendering path on the dashboard: regular and admin categories, links with and
-///   without icons and descriptions, internal and external hosts, and Uptime Kuma monitor IDs. Uptime Kuma itself is
-///   left off (there's no connection) so that badges do not point at a nonexistent server; set a server URL in Settings
-///   to try it.
+///   without icons and descriptions, and internal and external hosts. Uptime Kuma itself is left off (there's no
+///   connection), so there are no widgets and the status bar is empty; set Kuma up in Settings to try them.
 /// </remarks>
 public static class DevDataSeeder
 {
@@ -80,18 +79,15 @@ public static class DevDataSeeder
                                                DevDataSeeder.LocalLink (label: "Jellyfin",
                                                                         host: "jellyfin",
                                                                         description: "Movies, TV and music",
-                                                                        iconName: "jellyfin",
-                                                                        monitorId: 11),
+                                                                        iconName: "jellyfin"),
                                                DevDataSeeder.LocalLink (label: "Sonarr",
                                                                         host: "sonarr",
                                                                         description: "TV series manager",
-                                                                        iconName: "sonarr",
-                                                                        monitorId: 12),
+                                                                        iconName: "sonarr"),
                                                DevDataSeeder.LocalLink (label: "Radarr",
                                                                         host: "radarr",
                                                                         description: "Movie manager",
-                                                                        iconName: "radarr",
-                                                                        monitorId: 13),
+                                                                        iconName: "radarr"),
                                                DevDataSeeder.LocalLink (label: "Audiobookshelf",
                                                                         host: "audiobooks",
                                                                         description: "",
@@ -103,8 +99,7 @@ public static class DevDataSeeder
                                                DevDataSeeder.LocalLink (label: "Home Assistant",
                                                                         host: "homeassistant",
                                                                         description: "Home automation",
-                                                                        iconName: "home-assistant",
-                                                                        monitorId: 21),
+                                                                        iconName: "home-assistant"),
                                                DevDataSeeder.LocalLink (label: "Frigate",
                                                                         host: "frigate",
                                                                         description: "Camera NVR",
@@ -142,18 +137,15 @@ public static class DevDataSeeder
                                                DevDataSeeder.LocalLink (label: "Proxmox",
                                                                         host: "proxmox",
                                                                         description: "Hypervisor cluster",
-                                                                        iconName: "proxmox",
-                                                                        monitorId: 1),
+                                                                        iconName: "proxmox"),
                                                DevDataSeeder.LocalLink (label: "TrueNAS",
                                                                         host: "truenas",
                                                                         description: "Storage",
-                                                                        iconName: "truenas-scale",
-                                                                        monitorId: 2),
+                                                                        iconName: "truenas-scale"),
                                                DevDataSeeder.LocalLink (label: "Traefik",
                                                                         host: "traefik",
                                                                         description: "Ingress dashboard",
-                                                                        iconName: "traefik",
-                                                                        monitorId: 3),
+                                                                        iconName: "traefik"),
                                                DevDataSeeder.LocalLink (label: "Uptime Kuma",
                                                                         host: "status",
                                                                         description: "Service monitoring",
@@ -165,8 +157,7 @@ public static class DevDataSeeder
                                                DevDataSeeder.LocalLink (label: "UniFi",
                                                                         host: "unifi",
                                                                         description: "Network controller",
-                                                                        iconName: "ubiquiti-unifi",
-                                                                        monitorId: 4),
+                                                                        iconName: "ubiquiti-unifi"),
                                                DevDataSeeder.LocalLink (label: "Pi-hole",
                                                                         host: "pihole",
                                                                         description: "DNS filtering",
@@ -209,14 +200,12 @@ public static class DevDataSeeder
   /// <param name="host">The host name, without the local domain.</param>
   /// <param name="description">The link description.</param>
   /// <param name="iconName">The selfh.st icon name, or an empty string for none.</param>
-  /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
   /// <returns>The link.</returns>
-  private static Link LocalLink (string label, string host, string description, string iconName, int? monitorId = null)
+  private static Link LocalLink (string label, string host, string description, string iconName)
     => DevDataSeeder.ExternalLink (label: label,
                                    url: $"https://{host}.{DevDataSeeder.LocalDomain}/",
                                    description: description,
-                                   iconName: iconName,
-                                   monitorId: monitorId);
+                                   iconName: iconName);
 
   /// <summary>
   ///   Creates a link to an arbitrary URL.
@@ -225,7 +214,6 @@ public static class DevDataSeeder
   /// <param name="url">The link URL.</param>
   /// <param name="description">The link description.</param>
   /// <param name="iconName">The selfh.st icon name, or an empty string for none.</param>
-  /// <param name="monitorId">The optional Uptime Kuma monitor ID.</param>
   /// <param name="iconUrl">The icon image URL used when there is no icon name, or an empty string for none.</param>
   /// <param name="openInNewTab">Whether the link opens in a new browser tab.</param>
   /// <returns>The link.</returns>
@@ -233,7 +221,6 @@ public static class DevDataSeeder
                                     string url,
                                     string description,
                                     string iconName,
-                                    int?   monitorId    = null,
                                     string iconUrl      = "",
                                     bool   openInNewTab = false)
     => new ()
@@ -243,7 +230,6 @@ public static class DevDataSeeder
          Description  = description,
          IconName     = iconName,
          IconUrl      = iconUrl,
-         MonitorId    = monitorId,
          OpenInNewTab = openInNewTab,
        };
 }

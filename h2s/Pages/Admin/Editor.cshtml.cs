@@ -77,11 +77,6 @@ public partial class EditorModel : PageModel
   public List<LinkRow> Links { get; private set; } = new ();
 
   /// <summary>
-  ///   Gets a value indicating whether Uptime Kuma integration is configured.
-  /// </summary>
-  public bool IsUptimeKumaConfigured { get; private set; }
-
-  /// <summary>
   ///   Loads the initial category and link data required by the editor page.
   /// </summary>
   public async Task OnGetAsync ()
@@ -91,8 +86,6 @@ public partial class EditorModel : PageModel
                                 .ToListAsync ();
 
     this.Links = await this.GetLinkRowsAsync ();
-
-    this.IsUptimeKumaConfigured = await UptimeKumaSettings.LoadAsync (this.connections) != null;
   }
 
   /// <summary>
@@ -228,7 +221,6 @@ public partial class EditorModel : PageModel
   /// <param name="description">Optional descriptive text for the link.</param>
   /// <param name="iconName">Optional icon name to normalize and store.</param>
   /// <param name="iconUrl">Optional absolute image URL used as the icon when there is no icon name.</param>
-  /// <param name="monitorId">Optional Uptime Kuma monitor ID; blank for none.</param>
   /// <param name="url">The destination URL for the link.</param>
   /// <param name="openInNewTab">Whether the link opens in a new browser tab.</param>
   /// <returns>A JSON payload describing the created link, or a 400 problem response when validation fails.</returns>
@@ -237,7 +229,6 @@ public partial class EditorModel : PageModel
                                                           string? description,
                                                           string? iconName,
                                                           string? iconUrl,
-                                                          string? monitorId,
                                                           string? url,
                                                           bool    openInNewTab)
   {
@@ -255,11 +246,6 @@ public partial class EditorModel : PageModel
       return this.BadRequestProblem ("Selected category does not exist.");
     }
 
-    if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
-    {
-      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
-    }
-
     var link = new Link
                {
                  CategoryId   = categoryId,
@@ -267,7 +253,6 @@ public partial class EditorModel : PageModel
                  Description  = (description ?? string.Empty).Trim (),
                  IconName     = Link.NormalizeIconName (iconName ?? string.Empty),
                  IconUrl      = normalizedIconUrl,
-                 MonitorId    = parsedMonitorId,
                  Url          = normalizedUrl,
                  OpenInNewTab = openInNewTab,
                  SortOrder    = await this.GetNextLinkSortOrderAsync (categoryId),
@@ -295,7 +280,6 @@ public partial class EditorModel : PageModel
                              link.Description,
                              link.IconName,
                              link.IconUrl,
-                             link.MonitorId,
                              link.Url,
                              link.OpenInNewTab,
                            });
@@ -312,10 +296,6 @@ public partial class EditorModel : PageModel
   /// <param name="iconUrl">
   ///   The updated icon image URL; blank to remove it. When the field is not posted at all, the stored URL is kept.
   /// </param>
-  /// <param name="monitorId">
-  ///   The updated Uptime Kuma monitor ID; blank to remove it. When the field is not posted at all, the stored monitor ID
-  ///   is kept.
-  /// </param>
   /// <param name="url">The updated destination URL.</param>
   /// <param name="openInNewTab">
   ///   Whether the link opens in a new browser tab. When the field is not posted at all, the stored setting is kept.
@@ -327,7 +307,6 @@ public partial class EditorModel : PageModel
                                                           string? description,
                                                           string? iconName,
                                                           string? iconUrl,
-                                                          string? monitorId,
                                                           string? url,
                                                           bool    openInNewTab)
   {
@@ -354,11 +333,6 @@ public partial class EditorModel : PageModel
       return this.BadRequestProblem ("Selected category does not exist.");
     }
 
-    if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
-    {
-      return this.BadRequestProblem ("Monitor ID must be a positive integer.");
-    }
-
     // A link that moves to another category goes to the end of it.
     if (link.CategoryId != categoryId)
     {
@@ -371,14 +345,8 @@ public partial class EditorModel : PageModel
     link.IconName    = Link.NormalizeIconName (iconName ?? string.Empty);
     link.Url         = normalizedUrl;
 
-    // Without Uptime Kuma the editor has no monitor ID field and omits it, which leaves the stored monitor ID alone;
-    // only a posted (possibly blank) value replaces it.
-    if (this.Request.Form.ContainsKey (nameof (monitorId)))
-    {
-      link.MonitorId = parsedMonitorId;
-    }
-
-    // Likewise the older Editor page has no icon URL field.
+    // The older Editor page has no icon URL field, which leaves the stored one alone; only a posted (possibly blank)
+    // value replaces it.
     if (this.Request.Form.ContainsKey (nameof (iconUrl)))
     {
       link.IconUrl = normalizedIconUrl;
@@ -410,7 +378,6 @@ public partial class EditorModel : PageModel
                              link.Description,
                              link.IconName,
                              link.IconUrl,
-                             link.MonitorId,
                              link.Url,
                              link.OpenInNewTab,
                            });
@@ -493,7 +460,6 @@ public partial class EditorModel : PageModel
                              link.Description,
                              link.IconName,
                              link.IconUrl,
-                             link.MonitorId,
                              link.Url,
                              link.OpenInNewTab,
                              link.SortOrder,
@@ -586,7 +552,6 @@ public partial class EditorModel : PageModel
                              link.Description,
                              link.IconName,
                              link.IconUrl,
-                             link.MonitorId,
                              link.Url,
                              link.OpenInNewTab,
                              Widgets = this.DescribeWidgets (widgets: link.Widgets, connections: connections),
@@ -673,7 +638,6 @@ public partial class EditorModel : PageModel
   /// <param name="description">The link description.</param>
   /// <param name="iconName">The selfh.st icon name.</param>
   /// <param name="iconUrl">The icon image URL; ignored when not an HTTP or HTTPS URL.</param>
-  /// <param name="monitorId">The Uptime Kuma monitor ID; ignored when blank or invalid.</param>
   /// <param name="widgets">
   ///   The link's widgets, saved or not, as the link handlers take them. They show with the results already read for
   ///   widgets of the same settings, the rest as placeholders the dialog reads through <see cref="OnGetWidgetPreviewAsync" />;
@@ -685,11 +649,8 @@ public partial class EditorModel : PageModel
                                                           string? description,
                                                           string? iconName,
                                                           string? iconUrl,
-                                                          string? monitorId,
                                                           string? widgets)
   {
-    _ = MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId);
-
     var link = new Link
                {
                  Label       = (label       ?? string.Empty).Trim (),
@@ -697,7 +658,6 @@ public partial class EditorModel : PageModel
                  Description = (description ?? string.Empty).Trim (),
                  IconName    = Link.NormalizeIconName (iconName ?? string.Empty),
                  IconUrl     = EditorModel.IsValidWebUrl ((iconUrl ?? string.Empty).Trim ()) ? iconUrl!.Trim () : "",
-                 MonitorId   = parsedMonitorId,
                };
 
     List<WidgetView> drafts = await this.ReadPreviewWidgetsAsync (widgets) is { } plan
@@ -892,6 +852,7 @@ public partial class EditorModel : PageModel
   /// <returns>The links, each with its category's name and the icon it shows.</returns>
   private async Task<List<LinkRow>> GetLinkRowsAsync ()
     => (await this.GetOrderedLinksQuery ()
+                  .Include (l => l.Widgets)
                   .AsNoTracking ()
                   .ToListAsync ())
       .Select (l => new LinkRow (Id: l.Id,
@@ -903,7 +864,7 @@ public partial class EditorModel : PageModel
                                  IconName: l.IconName,
                                  IconUrl: l.IconUrl,
                                  IconSrc: l.GetIconUrl (),
-                                 MonitorId: l.MonitorId,
+                                 WidgetCount: l.Widgets.Count,
                                  Url: l.Url,
                                  OpenInNewTab: l.OpenInNewTab,
                                  SortOrder: l.SortOrder))
@@ -1062,16 +1023,9 @@ public partial class EditorModel : PageModel
   /// <param name="snapshot">The snapshot.</param>
   /// <returns>The problem with the snapshot, or <c>null</c> when it is valid.</returns>
   private static string? ValidateSnapshot (LinkSnapshot snapshot)
-  {
-    if (snapshot.MonitorId is <= 0)
-    {
-      return "Monitor ID must be a positive integer.";
-    }
-
-    return EditorModel.ValidateLink (label: (snapshot.Label     ?? string.Empty).Trim (),
-                                     url: (snapshot.Url         ?? string.Empty).Trim (),
-                                     iconUrl: (snapshot.IconUrl ?? string.Empty).Trim ());
-  }
+    => EditorModel.ValidateLink (label: (snapshot.Label     ?? string.Empty).Trim (),
+                                 url: (snapshot.Url         ?? string.Empty).Trim (),
+                                 iconUrl: (snapshot.IconUrl ?? string.Empty).Trim ());
 
   /// <summary>
   ///   Creates a link from a validated snapshot. The caller sets its category.
@@ -1086,8 +1040,7 @@ public partial class EditorModel : PageModel
          Description  = (snapshot.Description ?? string.Empty).Trim (),
          IconName     = Link.NormalizeIconName (snapshot.IconName ?? string.Empty),
          IconUrl      = (snapshot.IconUrl ?? string.Empty).Trim (),
-         MonitorId    = snapshot.MonitorId,
-         Url          = (snapshot.Url ?? string.Empty).Trim (),
+         Url          = (snapshot.Url     ?? string.Empty).Trim (),
          OpenInNewTab = snapshot.OpenInNewTab,
          SortOrder    = sortOrder,
        };

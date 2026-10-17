@@ -10,8 +10,7 @@
      data-update-url="@Url.Page("/Admin/Editor", "UpdateLink")"
      data-delete-url="@Url.Page("/Admin/Editor", "DeleteLink")"
      data-restore-url="@Url.Page("/Admin/Editor", "RestoreLink")"
-     data-search-icons-url="@Url.Page("/Admin/Editor", "SearchIcons")"
-     data-monitors-url="@(Model.IsUptimeKumaConfigured ? Url.Page("/Admin/Editor", "KumaMonitors") : "")">
+     data-search-icons-url="@Url.Page("/Admin/Editor", "SearchIcons")">
     <div class="modal-dialog modal-dialog-scrollable">
         <form class="modal-content" novalidate>
             <div class="modal-header">
@@ -66,23 +65,6 @@
                     <div class="invalid-feedback">Enter an address starting with http:// or https://.</div>
                     <div class="form-text" id="link-dialog-icon-url-help">Used when there's no selfh.st icon, such as the site's own favicon.</div>
                 </div>
-
-                @if (Model.IsUptimeKumaConfigured)
-                {
-                    @* The select picks from every monitor Kuma reports; the text field, which is what's posted, is shown for
-                       an ID Kuma doesn't report, or when the monitors can't be listed. *@
-                    <div class="mb-3">
-                        <label for="link-dialog-monitor-select" class="form-label">Uptime Kuma monitor <span class="text-muted">(optional)</span></label>
-                        <select class="form-select" id="link-dialog-monitor-select" data-role="monitor-select">
-                            <option value="">None</option>
-                            <option value="other">Another monitor ID…</option>
-                        </select>
-                        <input type="text" class="form-control mt-2 d-none" id="link-dialog-monitor" name="monitorId" inputmode="numeric"
-                               pattern="\s*[0-9]*\s*" autocomplete="off" aria-label="Uptime Kuma monitor ID" />
-                        <div class="invalid-feedback">Use a positive whole number, or leave it blank.</div>
-                        <div class="form-text" data-role="monitor-status"></div>
-                    </div>
-                }
 
                 <div class="mb-3">
                     <label for="link-dialog-category" class="form-label">Category</label>

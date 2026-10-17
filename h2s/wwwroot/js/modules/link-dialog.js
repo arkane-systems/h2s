@@ -1,10 +1,8 @@
 /* The shared add/edit link dialog (Pages/Shared/_LinkDialog.cshtml). URL first: once a URL is entered, the server
    suggests a label, a selfh.st icon (or the site's own icon), and the preview shows the tile the server would render.
-   The icon and Uptime Kuma monitor fields have pickers, and widget-editor.js edits the link's widgets, which are saved
-   with it. The preview shows the widgets too, the one being edited included: it renders with the results already read,
+   The icon field has a picker, and widget-editor.js edits the link's widgets, which are saved with it. The preview shows the widgets too, the one being edited included: it renders with the results already read,
    then reads the rest one by one through the WidgetPreview handler, so a slow service never holds up the tile. */
 import { IconPicker } from './icon-picker.js';
-import { MonitorPicker } from './monitor-picker.js';
 import { WidgetEditor } from './widget-editor.js';
 
 const debounce = (action, wait) => {
@@ -45,7 +43,6 @@ export class LinkDialog {
             description: this.form.elements.description,
             iconName: this.form.elements.iconName,
             iconUrl: this.form.elements.iconUrl,
-            monitorId: this.form.elements.monitorId ?? null,
             categoryId: this.form.elements.categoryId,
             openInNewTab: this.form.elements.openInNewTab
         };
@@ -78,12 +75,6 @@ export class LinkDialog {
                 this.iconPicker.open(this.fields.iconName.value || this.fields.label.value);
             }
         });
-
-        const monitorSelect = element.querySelector('[data-role="monitor-select"]');
-        this.monitorPicker = monitorSelect && this.urls.monitorsUrl
-            ? new MonitorPicker(monitorSelect, this.fields.monitorId, element.querySelector('[data-role="monitor-status"]'),
-                this.urls.monitorsUrl)
-            : null;
 
         const widgets = element.querySelector('[data-role="widgets"]');
         // While a widget is open, the link can't be saved or deleted: Done or Cancel finishes the widget first.
@@ -122,7 +113,6 @@ export class LinkDialog {
         this.title.textContent = 'Add link';
         this.fields.categoryId.value = String(categoryId);
         this.deleteButton.classList.add('d-none');
-        this.monitorPicker?.setValue('');
         this.widgetEditor?.load([]);
         this.refreshPreview();
         this.modal.show();
@@ -141,11 +131,6 @@ export class LinkDialog {
         this.fields.description.value = link.description;
         this.fields.iconName.value = link.iconName;
         this.fields.iconUrl.value = link.iconUrl;
-        if (this.monitorPicker) {
-            await this.monitorPicker.setValue(link.monitorId);
-        } else if (this.fields.monitorId) {
-            this.fields.monitorId.value = link.monitorId ?? '';
-        }
         this.fields.categoryId.value = String(link.categoryId);
         this.fields.openInNewTab.checked = link.openInNewTab;
         this.widgetEditor?.load(link.widgets ?? []);
@@ -235,9 +220,6 @@ export class LinkDialog {
             categoryId: this.fields.categoryId.value,
             openInNewTab: this.fields.openInNewTab.checked ? 'true' : 'false'
         };
-        if (this.fields.monitorId) {
-            values.monitorId = this.fields.monitorId.value.trim();
-        }
         return values;
     }
 

@@ -96,7 +96,7 @@
 @section Dialogs {
     @if (Model.IsEditMode)
     {
-        <partial name="_LinkDialog" model="new LinkDialogModel(Model.Categories, Model.IsUptimeKumaConfigured)" />
+        <partial name="_LinkDialog" model="new LinkDialogModel(Model.Categories)" />
         <partial name="_CategoryDialog" />
         <partial name="_PanelDialog" />
     }

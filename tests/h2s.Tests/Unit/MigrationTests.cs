@@ -40,7 +40,8 @@ public class MigrationTests
                                                     """,
                                                cancellationToken: cancellationToken);
 
-    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+    // Links' monitor IDs last until they become widgets.
+    await migrator.MigrateAsync (targetMigration: "20261016141249_AddWidgets", cancellationToken: cancellationToken);
 
     Assert.Equal (expected:
                   [
@@ -295,6 +296,132 @@ public class MigrationTests
                   actual: (await context.Panels.AsNoTracking ()
                                         .SingleAsync (predicate: p => p.Kind == "status-bar",
                                                       cancellationToken: cancellationToken)).OptionsJson);
+  }
+
+  [Fact]
+  public async Task ConvertLinkMonitorsToWidgets_MakesEachMonitorAWidget_UnlessTheLinkHasOneForIt ()
+  {
+    const string Before = "20261016141249_AddWidgets";
+
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+
+    // A plain command, since the widgets' JSON braces would read as format placeholders in ExecuteSqlRawAsync.
+    await using (SqliteCommand seed = connection.CreateCommand ())
+    {
+      seed.CommandText = """
+                         INSERT INTO "Connections" ("Id", "IntegrationKey", "Name", "OptionsJson") VALUES
+                           (1, 'other', 'Other', '{}'),
+                           (2, 'uptime-kuma', 'Uptime Kuma', '{"serverUrl":"https://status.home.arpa"}');
+                         INSERT INTO "Categories" ("Id", "Name", "IsAdminCategory", "SortOrder") VALUES (1, 'Apps', 0, 0);
+                         INSERT INTO "Links" ("Id", "CategoryId", "Label", "Description", "IconName", "IconUrl", "Url", "SortOrder", "MonitorId") VALUES
+                           (1, 1, 'Plain',     '', '', '', 'https://a.home.arpa', 0, 11),
+                           (2, 1, 'Widgeted',  '', '', '', 'https://b.home.arpa', 1, 12),
+                           (3, 1, 'Number',    '', '', '', 'https://c.home.arpa', 2, 13),
+                           (4, 1, 'Text',      '', '', '', 'https://d.home.arpa', 3, 14),
+                           (5, 1, 'Elsewhere', '', '', '', 'https://e.home.arpa', 4, 15),
+                           (6, 1, 'Full',      '', '', '', 'https://f.home.arpa', 5, 16),
+                           (7, 1, 'None',      '', '', '', 'https://g.home.arpa', 6, NULL);
+                         INSERT INTO "Widgets" ("LinkId", "ConnectionId", "Kind", "OptionsJson", "RefreshSeconds", "SortOrder") VALUES
+                           (2, 2, 'monitor', '{"monitorId":99}', 30, 0),
+                           (2, 2, 'monitor', '{"monitorId":98}', NULL, 1),
+                           (3, 2, 'monitor', '{"monitorId":13}', NULL, 0),
+                           (4, 2, 'monitor', '{"monitorId":"14"}', NULL, 0),
+                           (5, 1, 'monitor', '{"monitorId":15}', NULL, 0),
+                           (6, 2, 'monitor', '{"monitorId":1}', NULL, 0), (6, 2, 'monitor', '{"monitorId":2}', NULL, 1),
+                           (6, 2, 'monitor', '{"monitorId":3}', NULL, 2), (6, 2, 'monitor', '{"monitorId":4}', NULL, 3),
+                           (6, 2, 'monitor', '{"monitorId":5}', NULL, 4), (6, 2, 'monitor', '{"monitorId":6}', NULL, 5),
+                           (6, 2, 'monitor', '{"monitorId":7}', NULL, 6), (6, 2, 'monitor', '{"monitorId":8}', NULL, 7),
+                           (6, 2, 'monitor', '{"monitorId":9}', NULL, 8), (6, 2, 'monitor', '{"monitorId":10}', NULL, 9);
+                         """;
+      _ = await seed.ExecuteNonQueryAsync (cancellationToken);
+    }
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    List<Widget> widgets = await context.Widgets
+                                        .AsNoTracking ()
+                                        .Where (w => w.LinkId != 6)
+                                        .OrderBy (w => w.LinkId)
+                                        .ThenBy (w => w.SortOrder)
+                                        .ToListAsync (cancellationToken);
+
+    static string Converted (int monitorId)
+    {
+      return $$"""{"monitorId":{{monitorId}},"showResponseTime":true,"showUptime":true,"uptimeWindow":""}""";
+    }
+
+    Assert.Equal (expected:
+                  [
+                    // A plain link gets its widget; one with others gets it first, ahead of the rest.
+                    (1, 2, "monitor", Converted (11), (int?)null, 0),
+                    (2, 2, "monitor", Converted (12), null, 0),
+                    (2, 2, "monitor", """{"monitorId":99}""", 30, 1),
+                    (2, 2, "monitor", """{"monitorId":98}""", null, 2),
+
+                    // One already there for the monitor, as a number or as text, isn't doubled.
+                    (3, 2, "monitor", """{"monitorId":13}""", null, 0),
+                    (4, 2, "monitor", """{"monitorId":"14"}""", null, 0),
+
+                    // A widget of another integration doesn't count.
+                    (5, 2, "monitor", Converted (15), null, 0),
+                    (5, 1, "monitor", """{"monitorId":15}""", null, 1),
+                  ],
+                  actual: widgets.Select (w => (w.LinkId, w.ConnectionId, w.Kind, w.OptionsJson, w.RefreshSeconds, w.SortOrder)));
+
+    // A link with ten widgets already gets no more.
+    Assert.Equal (expected: 10,
+                  actual: await context.Widgets.CountAsync (predicate: w => w.LinkId == 6, cancellationToken: cancellationToken));
+
+    // Going back restores each link's first monitor, and keeps the widgets.
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+
+    Assert.Equal (expected:
+                  [
+                    ("Elsewhere", "integer", 15L),
+                    ("Full", "integer", 1L),
+                    ("None", "null", null),
+                    ("Number", "integer", 13L),
+                    ("Plain", "integer", 11L),
+                    ("Text", "integer", 14L),
+                    ("Widgeted", "integer", 12L),
+                  ],
+                  actual: await MigrationTests.ReadMonitorIdsAsync (connection: connection,
+                                                                    table: "Links",
+                                                                    nameColumn: "Label",
+                                                                    cancellationToken: cancellationToken));
+  }
+
+  [Fact]
+  public async Task ConvertLinkMonitorsToWidgets_DropsMonitorsWithoutAKumaConnection ()
+  {
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    await migrator.MigrateAsync (targetMigration: "20261016141249_AddWidgets", cancellationToken: cancellationToken);
+    await context.Database.ExecuteSqlRawAsync (sql: """
+                                                    INSERT INTO "Categories" ("Id", "Name", "IsAdminCategory", "SortOrder") VALUES (1, 'Apps', 0, 0);
+                                                    INSERT INTO "Links" ("CategoryId", "Label", "Description", "IconName", "IconUrl", "Url", "SortOrder", "MonitorId") VALUES
+                                                      (1, 'Plain', '', '', '', 'https://a.home.arpa', 0, 11);
+                                                    """,
+                                               cancellationToken: cancellationToken);
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    Assert.Equal (expected: "Plain", actual: (await context.Links.AsNoTracking ().SingleAsync (cancellationToken)).Label);
+    Assert.False (await context.Widgets.AnyAsync (cancellationToken));
   }
 
   /// <summary>

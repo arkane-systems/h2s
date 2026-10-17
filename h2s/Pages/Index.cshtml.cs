@@ -89,11 +89,6 @@ public class IndexModel : PageModel
   public IReadOnlySet<int> CollapsedCategoryIds { get; private set; } = new HashSet<int> ();
 
   /// <summary>
-  ///   Gets a value indicating whether Uptime Kuma integration is configured.
-  /// </summary>
-  public bool IsUptimeKumaConfigured => this.tiles.IsUptimeKumaConfigured;
-
-  /// <summary>
   ///   Loads the dashboard's categories, settings and panels.
   /// </summary>
   /// <param name="edit">Whether edit mode is requested. It is granted only to users who satisfy the Admin policy.</param>

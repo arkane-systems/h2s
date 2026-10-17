@@ -87,8 +87,8 @@ public sealed class UptimeKumaIntegration : IIntegration
 
   /// <inheritdoc />
   public string Description
-    => "Status badges for links, and a status bar of infrastructure groups. Until the badges move to h2s's own widgets, a " +
-       "monitor must also be on a published status page for its badge to show.";
+    => "Monitor widgets for links' tiles, and a status bar of infrastructure groups. The status bar's badges are still " +
+       "Kuma's own, so a group's monitor must also be on a published status page for its badge to show.";
 
   /// <inheritdoc />
   public bool AllowsMultipleConnections => false;

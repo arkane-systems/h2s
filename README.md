@@ -211,7 +211,7 @@ Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is th
 
 #### Uptime Kuma integration
 
-You can optionally enable service-health badges powered by Uptime Kuma:
+You can optionally connect Uptime Kuma, for monitor widgets on links' tiles (see the link dialog's **Widgets**) and the status bar:
 
 - **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`).
 - **API key**: a key created in Uptime Kuma under **Settings → API Keys** (Kuma 1.21 or later). h2s uses it only to read Kuma's `/metrics`, which lists every monitor; it's stored encrypted and never shown again.
@@ -226,7 +226,9 @@ You can optionally enable service-health badges powered by Uptime Kuma:
 
 With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor (or a Kuma group monitor) from the list, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
 
-> Important: Until h2s draws its own status widgets, the badges are Kuma's images, so a monitor must be included on a published Uptime Kuma **status page** for its badge to work. Otherwise the badge shows `N/A`.
+> Important: The status bar's badges are still Kuma's images, so a group's monitor must be included on a published Uptime Kuma **status page** for its badge to work. Otherwise the badge shows `N/A`. Links' monitor widgets read Kuma directly and don't need a status page.
+>
+> Links used to have an Uptime Kuma monitor of their own, shown as Kuma's badge. Upgrading turns each into a monitor widget on the link (unless it already had one for that monitor), and importing an older backup does the same.
 
 ### Edit mode
 
@@ -236,7 +238,6 @@ Click **Edit** at the right of the navbar to edit the dashboard in place; **Done
 - Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
   - **Browse…** searches the selfh.st icons with thumbnails.
   - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
-  - With Uptime Kuma configured, the **monitor** list shows every monitor Kuma reports, group monitors first. Pick **Another monitor ID…** to type one that isn't listed.
   - **Widgets** add live figures to the tile from an integration you've set up, such as an Uptime Kuma monitor's status, response time and uptime. **+ Add widget** picks a kind and fills in its settings, such as a monitor picked by name from the ones Kuma reports (or **Another value…** to type an ID); the ↑ ↓ buttons order them, ✎ edits one and × removes it. The dialog's preview shows the widgets live as you edit them, and the widget being edited says what it reads, so you can check it before saving. They're saved with the link. Status widgets show as small coloured pills on the right of the tile (green up, red down, amber pending, blue maintenance, grey unknown), with the details as a tooltip, and refresh on their own (every minute by default).
   - **Open in a new tab** makes the tile open its link in a new browser tab. The list view marks such links with ↗.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
@@ -247,7 +248,7 @@ Click **Edit** at the right of the navbar to edit the dashboard in place; **Done
 
 **List view** in the edit-mode banner opens every link in one table:
 
-- Filter by text (label, URL, description or icon) and by category. Click a column heading to sort by it.
+- Filter by text (label, URL, description or icon) and by category. Click a column heading to sort by it; **Widgets** counts each link's widgets.
 - Click a row to edit the link in the same dialog as edit mode, or use **+ Add link**.
 - Tick links (or the heading's box, for everything shown) to move them to another category, or to delete them. Deletes have **Undo**.
 

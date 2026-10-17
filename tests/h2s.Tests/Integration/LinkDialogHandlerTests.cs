@@ -100,7 +100,7 @@ public class LinkDialogHandlerTests
 
     Assert.Equal (expected: "Jellyfin",                    actual: json.GetProperty ("label").GetString ());
     Assert.Equal (expected: "https://jellyfin.home.arpa/", actual: json.GetProperty ("url").GetString ());
-    Assert.Equal (expected: 11,                            actual: json.GetProperty ("monitorId").GetInt32 ());
+    Assert.False (json.TryGetProperty (propertyName: "monitorId", value: out _));
   }
 
   [Fact]
@@ -143,7 +143,6 @@ public class LinkDialogHandlerTests
       Link sonarr = await context.Links.SingleAsync (predicate: l => l.Label == "Sonarr",
                                                      cancellationToken: TestContext.Current.CancellationToken);
 
-      Assert.Equal (expected: 12,                          actual: sonarr.MonitorId);
       Assert.Equal (expected: "TV series manager",         actual: sonarr.Description);
       Assert.Equal (expected: "https://sonarr.home.arpa/", actual: sonarr.Url);
     }
@@ -174,8 +173,6 @@ public class LinkDialogHandlerTests
   [InlineData ("{not json", "The link to restore is missing or malformed.")]
   [InlineData ("""{"categoryId":CATEGORY,"label":"","url":"https://x.home.arpa/"}""", "Link label is required.")]
   [InlineData ("""{"categoryId":CATEGORY,"label":"X","url":"ftp://x.home.arpa/"}""", "Link URL must be a valid HTTP or HTTPS URL.")]
-  [InlineData ("""{"categoryId":CATEGORY,"label":"X","url":"https://x.home.arpa/","monitorId":0}""",
-               "Monitor ID must be a positive integer.")]
   public async Task RestoreLink_RejectsInvalidSnapshots (string snapshot, string detail)
   {
     await using var factory    = new DashboardApplicationFactory ();

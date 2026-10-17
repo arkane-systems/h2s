@@ -129,7 +129,7 @@ public partial class IndexPageTests
   }
 
   [Fact]
-  public async Task Index_RendersKumaBadgesWhenConfigured ()
+  public async Task Index_RendersTheStatusBarsBadgesButNoLinkBadgesWhenConfigured ()
   {
     await using var factory = new DashboardApplicationFactory ();
     await factory.AddUptimeKumaAsync (statusPageSlug: "main");
@@ -137,9 +137,12 @@ public partial class IndexPageTests
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains (expectedSubstring: """href="https://status.home.arpa/status/main""",                     actualString: html);
-    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/1/uptime/24?style=flat",          actualString: html);
-    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/11/status?style=flat&amp;label=", actualString: html);
+    Assert.Contains (expectedSubstring: """href="https://status.home.arpa/status/main""",            actualString: html);
+    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/1/uptime/24?style=flat", actualString: html);
+
+    // Links' monitors are widgets now, not Kuma's badge images.
+    Assert.DoesNotContain (expectedSubstring: "/api/badge/11/",    actualString: html);
+    Assert.DoesNotContain (expectedSubstring: "link-status-badge", actualString: html);
   }
 
   [Fact]

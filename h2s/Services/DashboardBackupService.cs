@@ -108,24 +108,10 @@ public class DashboardBackupService
                                                                                  [
                                                                                    .. c.Links.OrderBy (l => l.SortOrder)
                                                                                        .ThenBy (l => l.Label)
-                                                                                       .Select (l => new BackupLink (Label: l.Label,
-                                                                                                                     Url: l.Url,
-                                                                                                                     Description: l
-                                                                                                                      .Description,
-                                                                                                                     IconName: l
-                                                                                                                      .IconName,
-                                                                                                                     IconUrl: l
-                                                                                                                      .IconUrl,
-                                                                                                                     MonitorId: l
-                                                                                                                      .MonitorId,
-                                                                                                                     OpenInNewTab: l
-                                                                                                                      .OpenInNewTab,
-                                                                                                                     Widgets:
-                                                                                                                     DashboardBackupService
-                                                                                                                      .ExportWidgets (link
-                                                                                                                                      : l,
-                                                                                                                                      connections
-                                                                                                                                      : connectionsById))),
+                                                                                       .Select (l => DashboardBackupService
+                                                                                                 .ExportLink (link: l,
+                                                                                                              connections:
+                                                                                                              connectionsById)),
                                                                                  ])),
                                 ],
                                 InfrastructureGroups:
@@ -235,6 +221,11 @@ public class DashboardBackupService
              };
     }
 
+    if (read.Version < DashboardBackup.MonitorWidgetsVersion)
+    {
+      read = DashboardBackupService.UseMonitorWidgets (read);
+    }
+
     DashboardBackupService.Validate (backup: read, kinds: kinds, integrations: integrations, errors: errors);
 
     if (errors.Count > 0)
@@ -335,7 +326,6 @@ public class DashboardBackupService
                                                                                      IconName =
                                                                                        Link.NormalizeIconName (l.IconName ?? ""),
                                                                                      IconUrl      = (l.IconUrl ?? "").Trim (),
-                                                                                     MonitorId    = l.MonitorId,
                                                                                      OpenInNewTab = l.OpenInNewTab,
                                                                                      SortOrder    = i,
                                                                                      Widgets = DashboardBackupService
@@ -731,6 +721,96 @@ public class DashboardBackupService
        };
 
   /// <summary>
+  ///   Turns the links' Uptime Kuma monitor IDs of a file from before monitor widgets into monitor widgets, as the
+  ///   ConvertLinkMonitorsToWidgets migration does: first among the link's widgets, with the kind's defaults, using the
+  ///   file's first Uptime Kuma connection. A link that already has a monitor widget for that monitor, or a full set of
+  ///   widgets, gets none, and without an Uptime Kuma connection the monitor IDs are dropped. A monitor ID that isn't
+  ///   positive is left for validation to refuse.
+  /// </summary>
+  /// <param name="backup">The file.</param>
+  /// <returns>The file with monitor widgets and no monitor IDs.</returns>
+  private static DashboardBackup UseMonitorWidgets (DashboardBackup backup)
+  {
+    string? kuma = backup.Connections
+                        ?.FirstOrDefault (c => c.Integration?.Trim () == UptimeKumaIntegration.IntegrationKey)
+                        ?.Name
+                        ?.Trim ();
+
+    return backup with
+           {
+             Categories = backup.Categories
+                               ?.Select (c => c with
+                                              {
+                                                Links = c.Links
+                                                        ?.Select (l => DashboardBackupService.UseMonitorWidget (link: l,
+                                                                                                                connection: kuma))
+                                                         .ToList (),
+                                              })
+                                .ToList (),
+           };
+  }
+
+  /// <summary>
+  ///   Turns one link's Uptime Kuma monitor ID into a monitor widget (see <see cref="UseMonitorWidgets" />).
+  /// </summary>
+  /// <param name="link">The link.</param>
+  /// <param name="connection">The name of the file's Uptime Kuma connection, if it has one.</param>
+  /// <returns>The link, without its monitor ID.</returns>
+  private static BackupLink UseMonitorWidget (BackupLink link, string? connection)
+  {
+    if (link.MonitorId is not ({ } monitorId and > 0))
+    {
+      return link;
+    }
+
+    List<BackupWidget> widgets = link.Widgets ?? [];
+    var                kind    = $"{UptimeKumaIntegration.IntegrationKey}/{KumaMonitorWidgetKind.KindKey}";
+
+    if ((connection    == null)                         ||
+        (widgets.Count >= WidgetForm.MaxWidgetsPerLink) ||
+        widgets.Any (w => (w.Kind?.Trim () == kind) && (DashboardBackupService.MonitorIdOf (w.Options) == monitorId)))
+    {
+      return link with { MonitorId = null };
+    }
+
+    BackupWidget widget = new (Kind: kind,
+                               Connection: connection,
+                               Options: JsonSerializer.SerializeToElement (new Dictionary<string, object>
+                                                                           {
+                                                                             [KumaMonitorWidgetKind.MonitorIdOption] = monitorId,
+                                                                             [KumaMonitorWidgetKind.ShowResponseTimeOption] = true,
+                                                                             [KumaMonitorWidgetKind.ShowUptimeOption] = true,
+                                                                             [KumaMonitorWidgetKind.UptimeWindowOption] = "",
+                                                                           }));
+
+    return link with { MonitorId = null, Widgets = [widget, .. widgets] };
+  }
+
+  /// <summary>
+  ///   Reads the monitor ID from a monitor widget's options in a dashboard file, stored as a number or as text.
+  /// </summary>
+  /// <param name="options">The widget's options.</param>
+  /// <returns>The monitor ID, or <c>null</c> when there isn't one.</returns>
+  private static int? MonitorIdOf (JsonElement? options)
+  {
+    if (options is not { ValueKind: JsonValueKind.Object } element ||
+        !element.TryGetProperty (propertyName: KumaMonitorWidgetKind.MonitorIdOption, value: out JsonElement value))
+    {
+      return null;
+    }
+
+    return value.ValueKind switch
+           {
+             JsonValueKind.Number when value.TryGetInt32 (out int number) => number,
+             JsonValueKind.String when int.TryParse (s: value.GetString ()?.Trim (),
+                                                     style: NumberStyles.None,
+                                                     provider: CultureInfo.InvariantCulture,
+                                                     result: out int text) => text,
+             _ => null,
+           };
+  }
+
+  /// <summary>
   ///   Replaces a period in hours in an options object with the shortest uptime window that covers it.
   /// </summary>
   /// <param name="options">The options, if they're an object.</param>
@@ -753,6 +833,21 @@ public class DashboardBackupService
 
     return JsonSerializer.SerializeToElement (json);
   }
+
+  /// <summary>
+  ///   Describes a link for a dashboard file.
+  /// </summary>
+  /// <param name="link">The link, with its widgets loaded.</param>
+  /// <param name="connections">The connections, by ID.</param>
+  /// <returns>The link as the file holds it.</returns>
+  private static BackupLink ExportLink (Link link, IReadOnlyDictionary<int, Connection> connections)
+    => new (Label: link.Label,
+            Url: link.Url,
+            Description: link.Description,
+            IconName: link.IconName,
+            IconUrl: link.IconUrl,
+            OpenInNewTab: link.OpenInNewTab,
+            Widgets: DashboardBackupService.ExportWidgets (link: link, connections: connections));
 
   /// <summary>
   ///   Describes a link's widgets for a dashboard file, naming each one's connection.
