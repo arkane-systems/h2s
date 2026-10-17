@@ -28,9 +28,10 @@ public sealed class UptimeKumaIntegration : IIntegration
   public const string ApiKeyOption = "apiKey";
 
   /// <summary>
-  ///   The key of the option holding the status page slug.
+  ///   The key of the option that held the status page slug, before status bars got a link of their own. Older backups
+  ///   still carry it, and reading one turns it into the status bar's link.
   /// </summary>
-  public const string StatusPageSlugOption = "statusPageSlug";
+  public const string LegacyStatusPageSlugOption = "statusPageSlug";
 
   /// <summary>
   ///   The key of the option holding the default uptime window.
@@ -87,8 +88,8 @@ public sealed class UptimeKumaIntegration : IIntegration
 
   /// <inheritdoc />
   public string Description
-    => "Monitor widgets for links' tiles, and a status bar of infrastructure groups. The status bar's badges are still " +
-       "Kuma's own, so a group's monitor must also be on a published status page for its badge to show.";
+    => "Monitor widgets, read from Kuma's /metrics, for links' tiles and status bars: any monitor, group monitors " +
+       "included, with its status, response time and uptime.";
 
   /// <inheritdoc />
   public bool AllowsMultipleConnections => false;
@@ -105,13 +106,6 @@ public sealed class UptimeKumaIntegration : IIntegration
         IsRequired = true,
         HelpText = "Create one in Uptime Kuma under Settings → API Keys. h2s uses it only to read Kuma's /metrics, which " +
                    "lists every monitor.",
-      },
-      new (Key: UptimeKumaIntegration.StatusPageSlugOption, Label: "Status page slug", Type: OptionType.Text)
-      {
-        Pattern            = @"[A-Za-z0-9\-]+",
-        PatternDescription = "may only contain letters, numbers, and hyphens",
-        Placeholder        = "main",
-        HelpText           = "Optional. The status bar links to this status page.",
       },
       new (Key: UptimeKumaIntegration.DefaultUptimeWindowOption, Label: "Default uptime period", Type: OptionType.Select)
       {
@@ -134,7 +128,7 @@ public sealed class UptimeKumaIntegration : IIntegration
   /// <inheritdoc />
   /// <remarks>
   ///   It checks whether the server answers, whether the h2s server trusts its certificate, whether Kuma accepts the API key
-  ///   for <c>/metrics</c>, and, when a slug is set, whether the status page exists.
+  ///   for <c>/metrics</c>, and how many monitors and groups it reports.
   /// </remarks>
   public async Task<ConnectionTestResult> TestAsync (ConnectionContext context)
   {
@@ -177,27 +171,16 @@ public sealed class UptimeKumaIntegration : IIntegration
 
     int groups   = metrics.Monitors.Values.Count (m => m.IsGroup);
     int monitors = metrics.Monitors.Count - groups;
-    var found =
-      $"Connected. Uptime Kuma reports {UptimeKumaIntegration.Count (count: monitors, noun: "monitor")} and {UptimeKumaIntegration.Count (count: groups, noun: "group")}.";
 
-    if (settings.StatusPageSlug == null)
-    {
-      return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success, message: found);
-    }
-
-    KumaMonitorList page = await client.GetStatusPageMonitorsAsync (serverUrl: settings.ServerUrl,
-                                                                    slug: settings.StatusPageSlug,
-                                                                    cancellationToken: context.CancellationToken);
-
-    return page.Message == null
-             ? UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success, message: $"{found} The status page exists.")
-             : UptimeKumaIntegration.Result (level: ConnectionTestLevel.Warning,
-                                             message: $"{found} But for the status page: {page.Message}");
+    return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success,
+                                         message:
+                                         $"Connected. Uptime Kuma reports {UptimeKumaIntegration.Count (count: monitors, noun: "monitor")} " +
+                                         $"and {UptimeKumaIntegration.Count (count: groups, noun: "group")}.");
   }
 
   /// <inheritdoc />
   /// <remarks>
-  ///   Its one list, <see cref="MonitorsList" />, holds every monitor <c>/metrics</c> reports, as the monitor picker lists
+  ///   Its one list, <see cref="MonitorsList" />, holds every monitor <c>/metrics</c> reports, as the link dialog lists
   ///   them: group monitors under "Groups", then the rest under "Monitors", each by name with its ID.
   /// </remarks>
   public async Task<ChoiceList?> GetChoicesAsync (string listKey, ConnectionContext context)

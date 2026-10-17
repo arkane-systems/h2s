@@ -24,6 +24,13 @@ public interface IWidgetKind
   WidgetRole Role { get; }
 
   /// <summary>
+  ///   Gets where the kind's widgets may go. By default a status widget suits tiles and status bars alike, and an app
+  ///   widget only tiles; a kind whose widgets make sense in only one place says so.
+  /// </summary>
+  WidgetPlacements Placements
+    => this.Role == WidgetRole.App ? WidgetPlacements.Tile : WidgetPlacements.Tile | WidgetPlacements.StatusBar;
+
+  /// <summary>
   ///   Gets the kind's option schema.
   /// </summary>
   IReadOnlyList<SchemaOption> Options { get; }

@@ -48,11 +48,11 @@ if (section) {
 
             fileName.textContent = file.name;
             summary.textContent = `“${incoming.title}”${exported}: ${plural(incoming.categories, 'category', 'categories')}${admin}, `
-                + `${plural(incoming.links, 'link')}, ${plural(incoming.infrastructureGroups, 'infrastructure group')}, `
+                + `${plural(incoming.links, 'link')}, `
                 + `${plural(incoming.panels, 'panel')}, ${plural(incoming.searchEngines, 'search engine')}, `
                 + `${plural(incoming.connections, 'connection')}, ${plural(incoming.widgets, 'widget')} and its settings.`;
             warning.textContent = `Importing replaces everything here now: ${plural(current.categories, 'category', 'categories')}, `
-                + `${plural(current.links, 'link')}, ${plural(current.infrastructureGroups, 'infrastructure group')}, `
+                + `${plural(current.links, 'link')}, `
                 + `${plural(current.panels, 'panel')}, ${plural(current.searchEngines, 'search engine')}, `
                 + `${plural(current.connections, 'connection')}, ${plural(current.widgets, 'widget')} and the settings. `
                 + 'Export first if you might want them back.';

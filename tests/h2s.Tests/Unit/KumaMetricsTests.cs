@@ -107,7 +107,8 @@ public class KumaMetricsTests
   [Fact]
   public void UptimeKumaSettings_LeavesTheApiKeyOutOfToString ()
     => Assert.DoesNotContain (expectedSubstring: "secret",
-                              actualString: new UptimeKumaSettings (ServerUrl: "https://k",
-                                                                    StatusPageSlug: null,
-                                                                    DefaultUptimeWindow: "1d") { ApiKey = "secret" }.ToString ());
+                              actualString: new UptimeKumaSettings (ServerUrl: "https://k", DefaultUptimeWindow: "1d")
+                                            {
+                                              ApiKey = "secret",
+                                            }.ToString ());
 }

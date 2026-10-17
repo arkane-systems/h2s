@@ -242,7 +242,7 @@ footer,
 
 /* Keyboard focus needs more than the hover tint to stand out: a solid ring, clear in both themes. */
 .link-block:focus-visible,
-.uptime-status-bar-link:focus-visible {
+.status-bar-link:focus-visible {
   outline: 2px solid var(--bs-primary);
   outline-offset: 2px;
 }
@@ -528,13 +528,6 @@ footer,
   font-weight: 600;
 }
 
-/* Sets off a part of a card that works on its own, such as the infrastructure groups under Uptime Kuma's settings. */
-.settings-divider {
-  margin: 1.5rem 0 1.25rem;
-  border-top: 2px solid var(--bs-border-color);
-  opacity: 1;
-}
-
 .settings-index {
   display: flex;
   flex-wrap: wrap;
@@ -713,7 +706,8 @@ th[aria-sort="descending"] .list-view-sort::after {
 }
 
 /* The link dialog's preview is the real tile markup; the container is inert, so it is shown but not followed. */
-.link-dialog-preview {
+.link-dialog-preview,
+.panel-dialog-preview {
   padding: 0.75rem;
   border-radius: 0.5rem;
   background-color: var(--bs-tertiary-bg);
@@ -728,36 +722,51 @@ th[aria-sort="descending"] .list-view-sort::after {
   cursor: progress;
 }
 
-.uptime-status-bar {
+.status-bar {
   width: 100%;
   min-width: 0;
   margin: 0 auto 1rem;
   display: block;
 }
 
-.uptime-status-bar-link {
+.status-bar-link {
   transition: background-color 0.15s ease, border-color 0.15s ease;
   cursor: pointer;
 }
 
-.uptime-status-bar-link:hover,
-.uptime-status-bar-link:focus-visible {
+.status-bar-link:hover,
+.status-bar-link:focus-visible {
   background-color: rgba(var(--bs-body-bg-rgb), 0.72);
   border-color: color-mix(in srgb, var(--bs-border-color) 90%, transparent);
 }
 
-.uptime-status-bar-static {
+.status-bar-static {
   cursor: default;
 }
 
-.uptime-badge-list {
+/* The title, when there is one, sits at the start; the items share the rest. */
+.status-bar-body {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.status-bar-title {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--bs-emphasis-color);
+}
+
+.status-bar-items {
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: 0.75rem 1rem;
   align-items: center;
 }
 
-.uptime-badge-group {
+.status-bar-item {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -766,7 +775,7 @@ th[aria-sort="descending"] .list-view-sort::after {
   min-width: 0;
 }
 
-.uptime-badge-label {
+.status-bar-label {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--bs-emphasis-color);
@@ -776,22 +785,12 @@ th[aria-sort="descending"] .list-view-sort::after {
   overflow-wrap: anywhere;
 }
 
-.uptime-badge-label::after {
+.status-bar-label::after {
   content: ':';
 }
 
-.uptime-badge-pair {
-  display: flex;
-  flex-direction: row;
-  gap: 0.25rem;
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
-.uptime-badge-pair img {
-  display: block;
-  height: auto;
-  max-width: 100%;
+.status-bar-item .link-widget {
+  font-size: 0.8rem;
 }
 
 .home-search-box {
@@ -994,32 +993,18 @@ th[aria-sort="descending"] .list-view-sort::after {
 
 @media (max-width: 767.98px) {
   .home-search-box,
-  .uptime-status-bar {
+  .status-bar {
     width: 100%;
     min-width: 0;
   }
 
-  .uptime-badge-list {
+  .status-bar-body {
+    flex-direction: column;
+  }
+
+  .status-bar-items {
+    width: 100%;
     grid-template-columns: 1fr;
-  }
-
-  .uptime-badge-group {
-    min-width: 0;
-    flex-direction: row;
-    justify-content: center;
-    gap: 0.4rem;
-  }
-
-  .uptime-badge-label {
-    text-align: right;
-  }
-
-  .uptime-badge-label::after {
-    content: ':';
-  }
-
-  .uptime-badge-pair {
-    flex-direction: row;
   }
 
   .category-grid {
@@ -1028,22 +1013,18 @@ th[aria-sort="descending"] .list-view-sort::after {
 }
 
 @media (max-width: 480px) {
-  .uptime-badge-group {
+  .status-bar-item {
     flex-direction: column;
     align-items: center;
     gap: 0.35rem;
   }
 
-  .uptime-badge-label {
+  .status-bar-label {
     text-align: center;
   }
 
-  .uptime-badge-label::after {
+  .status-bar-label::after {
     content: '';
-  }
-
-  .uptime-badge-pair {
-    flex-direction: column;
   }
 }
 

@@ -67,12 +67,10 @@ public static class TestConnections
   /// <summary>
   ///   Creates an Uptime Kuma connection, as Settings saves it.
   /// </summary>
-  /// <param name="statusPageSlug">The status page slug; blank for none.</param>
   /// <param name="defaultUptimeWindow">The default uptime window.</param>
   /// <param name="serverUrl">The server URL.</param>
   /// <returns>The connection, not yet added to a context, without an API key.</returns>
-  public static Connection UptimeKuma (string statusPageSlug      = "",
-                                       string defaultUptimeWindow = UptimeKumaWindows.OneDay,
+  public static Connection UptimeKuma (string defaultUptimeWindow = UptimeKumaWindows.OneDay,
                                        string serverUrl           = TestConnections.KumaServerUrl)
     => new ()
        {
@@ -81,7 +79,6 @@ public static class TestConnections
          OptionsJson = JsonSerializer.Serialize (new Dictionary<string, object>
                                                  {
                                                    [UptimeKumaIntegration.ServerUrlOption]           = serverUrl,
-                                                   [UptimeKumaIntegration.StatusPageSlugOption]      = statusPageSlug,
                                                    [UptimeKumaIntegration.DefaultUptimeWindowOption] = defaultUptimeWindow,
                                                  }),
        };
@@ -121,11 +118,9 @@ public static class TestConnections
   ///   connections.
   /// </summary>
   /// <param name="factory">The application factory.</param>
-  /// <param name="statusPageSlug">The status page slug; blank for none.</param>
   /// <param name="defaultUptimeWindow">The default uptime window.</param>
   /// <param name="apiKey">The API key, encrypted with the app's own Data Protection keys; <c>null</c> for none.</param>
   public static async Task AddUptimeKumaAsync (this DashboardApplicationFactory factory,
-                                               string                           statusPageSlug      = "",
                                                string                           defaultUptimeWindow = UptimeKumaWindows.OneDay,
                                                string?                          apiKey              = null)
   {
@@ -133,7 +128,7 @@ public static class TestConnections
 
     using (scope)
     {
-      Connection kuma = TestConnections.UptimeKuma (statusPageSlug: statusPageSlug, defaultUptimeWindow: defaultUptimeWindow);
+      Connection kuma = TestConnections.UptimeKuma (defaultUptimeWindow: defaultUptimeWindow);
 
       if (apiKey != null)
       {

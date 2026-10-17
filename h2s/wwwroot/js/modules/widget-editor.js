@@ -1,6 +1,7 @@
-/* The link dialog's Widgets section (Pages/Shared/_LinkDialog.cshtml). It lists the link's widgets, which can be
-   reordered, edited and removed, and adds new ones from the kinds the Editor's WidgetKinds handler offers (those whose
-   integration has a connection). The fields come from each kind's schema through option-fields.js; an option with a
+/* A dialog's widgets section (Pages/Shared/_WidgetEditor.cshtml): a link's widgets, or a panel's such as a status bar's
+   items. It lists them, to reorder, edit and remove, and adds new ones from the kinds the Editor's WidgetKinds handler
+   offers for the place they go (kinds that allow it, whose integration has a connection). Where the widgets go decides
+   whether they have labels and how many there may be; configure() sets it. The fields come from each kind's schema through option-fields.js; an option with a
    choice list offers its integration's list, read once per opening of the dialog through the Choices handler. Nothing is
    saved here: value() gives the list as the JSON the link handlers take, so widgets save and cancel with the link, and
    previewValue() gives the same with the widget being edited, for the dialog's live preview. */
@@ -18,14 +19,15 @@ const button = (text, className, label) => {
 // Option values as the handlers take them: booleans as true or false, everything else as typed.
 const postedValue = value => value === null || value === undefined ? '' : String(value);
 
-// A widget as the link handlers take it.
+// A widget as the link and panel handlers take it.
 const postedWidget = widget => widget.isKnown === false
     ? { id: widget.id, keep: true }
     : {
         id: widget.id ?? null,
         kind: widget.kind,
         options: Object.fromEntries(Object.entries(widget.values).map(([key, value]) => [key, postedValue(value)])),
-        refreshSeconds: postedValue(widget.refreshSeconds)
+        refreshSeconds: postedValue(widget.refreshSeconds),
+        label: widget.label ?? ''
     };
 
 // The integration a kind reference (integration/kind) belongs to.
@@ -55,6 +57,14 @@ export class WidgetEditor {
         this.refresh = root.querySelector('[data-role="widget-refresh"]');
         this.refreshHelp = root.querySelector('[data-role="widget-refresh-help"]');
         this.result = root.querySelector('[data-role="widget-result"]');
+        // Option fields' IDs follow the section's own (link-dialog-widget-kind gives link-dialog-widget-option-…), so two
+        // dialogs on one page don't clash.
+        this.optionIdPrefix = this.kindSelect.id.replace(/kind$/, 'option-');
+        this.labelField = root.querySelector('[data-role="widget-label-field"]');
+        this.labelInput = root.querySelector('[data-role="widget-label"]');
+        this.full = root.querySelector('[data-role="widget-full"]');
+        this.placement = 'tile';
+        this.maxWidgets = 10;
         this.kinds = [];
         // Choice lists read since the dialog opened, as promises by integration/list, and their labels by value.
         this.choiceLists = new Map();
@@ -84,7 +94,21 @@ export class WidgetEditor {
         });
     }
 
-    /** Whether a widget is being added or edited, which has to be finished before the link is saved. */
+    /**
+     * Sets where the widgets go: a tile, whose widgets have no labels, or a status bar, whose items do.
+     * @param {{ placement: string, maxWidgets: number }} place The placement (tile or statusBar) and the most widgets.
+     */
+    configure({ placement, maxWidgets }) {
+        this.placement = placement;
+        this.maxWidgets = maxWidgets;
+    }
+
+    /** Whether the widgets have labels, as a status bar's items do. */
+    get hasLabels() {
+        return this.placement !== 'tile';
+    }
+
+    /** Whether a widget is being added or edited, which has to be finished before the link or panel is saved. */
     get isEditing() {
         return this.editing !== null;
     }
@@ -100,7 +124,9 @@ export class WidgetEditor {
         this.render();
 
         try {
-            this.kinds = await window.h2sApi.getJson(this.kindsUrl);
+            const url = new URL(this.kindsUrl, window.location.origin);
+            url.searchParams.set('placement', this.placement);
+            this.kinds = await window.h2sApi.getJson(url.pathname + url.search);
         } catch {
             this.kinds = [];
         }
@@ -209,12 +235,15 @@ export class WidgetEditor {
 
             const text = document.createElement('div');
             text.className = 'flex-grow-1 small';
+            // A labelled widget goes by its label, with its kind among the details.
             const name = document.createElement('div');
             name.className = 'fw-semibold';
-            name.textContent = widget.displayName;
+            name.textContent = widget.label || widget.displayName;
             const details = document.createElement('div');
             details.className = 'text-muted';
-            details.textContent = widget.isKnown === false ? "This version of h2s doesn't know it; you can only remove it." : this.summary(widget);
+            details.textContent = widget.isKnown === false
+                ? "This version of h2s doesn't know it; you can only remove it."
+                : [widget.label ? widget.displayName : '', this.summary(widget)].filter(Boolean).join(': ');
             text.append(name, details);
             item.append(text);
 
@@ -245,10 +274,13 @@ export class WidgetEditor {
             return item;
         }));
 
+        const isFull = this.widgets.length >= this.maxWidgets;
         this.empty.classList.toggle('d-none', this.widgets.length > 0 || this.kinds.length === 0);
         this.unavailable.classList.toggle('d-none', this.kinds.length > 0);
+        this.full.textContent = isFull ? `That's the most there can be: ${this.maxWidgets}.` : '';
+        this.full.classList.toggle('d-none', !isFull);
         this.addButton.classList.toggle('d-none', this.kinds.length === 0);
-        this.addButton.disabled = this.isEditing;
+        this.addButton.disabled = this.isEditing || isFull;
     }
 
     move(index, offset) {
@@ -281,12 +313,16 @@ export class WidgetEditor {
 
         this.showFields(this.selectedKind(), widget?.values ?? {});
         this.refresh.value = widget?.refreshSeconds ?? '';
+        this.labelField.classList.toggle('d-none', !this.hasLabels);
+        this.labelInput.value = widget?.label ?? '';
         this.form.classList.remove('was-validated', 'd-none');
         this.showResult('');
         this.render();
         this.onEditingChanged(true);
         this.onChanged();
-        (widget ? this.fields.querySelector('input:not(.d-none), select:not(.d-none)') : this.kindSelect)?.focus();
+        (widget
+            ? (this.hasLabels ? this.labelInput : this.fields.querySelector('input:not(.d-none), select:not(.d-none)'))
+            : this.kindSelect)?.focus();
     }
 
     showFields(kind, values) {
@@ -295,7 +331,7 @@ export class WidgetEditor {
             option.type === 'boolean'
                 ? (values[option.key] ?? option.defaultValue) === true || values[option.key] === 'true'
                 : values[option.key] ?? option.defaultValue,
-            { idPrefix: 'link-dialog-widget-option-', loadChoices })));
+            { idPrefix: this.optionIdPrefix, loadChoices })));
         this.refreshHelp.textContent = kind ? `Leave blank for every ${kind.defaultRefreshSeconds} seconds.` : '';
     }
 
@@ -341,7 +377,8 @@ export class WidgetEditor {
             isKnown: true,
             role: kind.role,
             values: Object.fromEntries(readOptionFields(this.fields).map(([name, value]) => [name.replace(/^options\[(.*)\]$/, '$1'), value])),
-            refreshSeconds: this.refresh.value.trim()
+            refreshSeconds: this.refresh.value.trim(),
+            label: this.hasLabels ? this.labelInput.value.trim() : ''
         };
     }
 

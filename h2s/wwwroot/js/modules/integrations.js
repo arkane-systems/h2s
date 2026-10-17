@@ -1,8 +1,6 @@
 /* Settings → Integrations: one card per integration, its fields built from the integration's connection schema by
    option-fields.js. Save, Test connection and Remove (after a confirmation) call the page's SaveConnection,
-   TestConnection and RemoveConnection handlers, and each card re-renders from what Save and Remove answer. Elements
-   marked data-shown-with="<key>" (Uptime Kuma's infrastructure groups) show only while that integration has a
-   connection. */
+   TestConnection and RemoveConnection handlers, and each card re-renders from what Save and Remove answer. */
 import { createOptionField, readOptionFields } from './option-fields.js';
 import { showToast } from './toast.js';
 
@@ -30,10 +28,6 @@ const render = (form, card) => {
         ? `Its settings, any secrets and the ${card.widgetCount === 1 ? 'widget that uses' : `${card.widgetCount} widgets that use`} it are`
         : 'Its settings and any secrets are';
     form.classList.remove('was-validated');
-
-    for (const element of document.querySelectorAll(`[data-shown-with="${card.key}"]`)) {
-        element.classList.toggle('d-none', !card.isConfigured);
-    }
 };
 
 for (const card of cards) {

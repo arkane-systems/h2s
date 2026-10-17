@@ -48,9 +48,9 @@ public partial class PanelTests
 
     Assert.Equal (expected: ["Status bar", "Search"],
                   actual: PanelTests.PanelHandlePattern ().Matches (html).Select (m => m.Groups["name"].Value));
-    Assert.Contains (expectedSubstring: "Uptime Kuma isn&#x27;t set up.", actualString: html);
-    Assert.Contains (expectedSubstring: """data-zone="Top""",             actualString: html);
-    Assert.Contains (expectedSubstring: """data-zone="Bottom""",          actualString: html);
+    Assert.Contains (expectedSubstring: "No items yet.",         actualString: html);
+    Assert.Contains (expectedSubstring: """data-zone="Top""",    actualString: html);
+    Assert.Contains (expectedSubstring: """data-zone="Bottom""", actualString: html);
   }
 
   [Fact]
@@ -141,27 +141,25 @@ public partial class PanelTests
   }
 
   [Fact]
-  public async Task PanelKinds_MarksSingleInstanceKindsOnTheDashboardUnavailable ()
+  public async Task PanelKinds_DescribeEachKind_AndMarkSingleInstanceKindsOnTheDashboardUnavailable ()
   {
     await using var factory = new DashboardApplicationFactory ();
     HttpClient      client  = factory.CreateClient ();
 
     JsonElement kinds = await PanelTests.GetJsonAsync (client: client, query: "handler=PanelKinds");
 
-    Assert.Equal (expected: [("status-bar", false), ("search", false)],
+    // A dashboard may have several status bars, and holds their items as widgets.
+    Assert.Equal (expected: [("status-bar", true, "statusBar", 20), ("search", false, null, 0)],
                   actual: kinds.EnumerateArray ()
-                               .Select (k => (k.GetProperty ("key").GetString ()!, k.GetProperty ("isAvailable").GetBoolean ())));
+                               .Select (k => (k.GetProperty ("key").GetString ()!, k.GetProperty ("isAvailable").GetBoolean (),
+                                              k.GetProperty ("widgetPlacement").GetString (),
+                                              k.GetProperty ("maxWidgets").GetInt32 ())));
 
     JsonElement statusBarOptions = kinds[0].GetProperty ("options");
-    Assert.Equal (expected: ["showUptime", "uptimeWindow"],
-                  actual: statusBarOptions.EnumerateArray ().Select (o => o.GetProperty ("key").GetString ()!));
-    Assert.Equal (expected: "boolean", actual: statusBarOptions[0].GetProperty ("type").GetString ());
-    Assert.Equal (expected: "select",  actual: statusBarOptions[1].GetProperty ("type").GetString ());
-    Assert.Equal (expected: ["1d", "30d", "365d"],
-                  actual: statusBarOptions[1]
-                         .GetProperty ("choices")
-                         .EnumerateArray ()
-                         .Select (c => c.GetProperty ("value").GetString ()!));
+    Assert.Equal (expected: [("title", "text"), ("linkUrl", "url")],
+                  actual: statusBarOptions.EnumerateArray ()
+                                          .Select (o => (o.GetProperty ("key").GetString ()!,
+                                                         o.GetProperty ("type").GetString ()!)));
   }
 
   [Fact]
@@ -171,7 +169,7 @@ public partial class PanelTests
     await PanelTests.UpdatePanelAsync (factory: factory,
                                        kind: StatusBarPanelKind.KindKey,
                                        zone: PanelZone.Top,
-                                       optionsJson: """{"uptimeWindow":"30d"}""");
+                                       optionsJson: """{"title":"Home"}""");
     Dictionary<string, int> ids = await PanelTests.GetPanelIdsAsync (factory);
 
     JsonElement panel = await PanelTests.GetJsonAsync (client: factory.CreateClient (),
@@ -179,9 +177,10 @@ public partial class PanelTests
 
     Assert.Equal (expected: "Status bar", actual: panel.GetProperty ("displayName").GetString ());
     Assert.True (panel.GetProperty ("isKnown").GetBoolean ());
-    Assert.Equal (expected: "Top", actual: panel.GetProperty ("zone").GetString ());
-    Assert.True (panel.GetProperty ("values").GetProperty ("showUptime").GetBoolean ());
-    Assert.Equal (expected: "30d", actual: panel.GetProperty ("values").GetProperty ("uptimeWindow").GetString ());
+    Assert.Equal (expected: "Top",       actual: panel.GetProperty ("zone").GetString ());
+    Assert.Equal (expected: "Home",      actual: panel.GetProperty ("values").GetProperty ("title").GetString ());
+    Assert.Equal (expected: "statusBar", actual: panel.GetProperty ("widgetPlacement").GetString ());
+    Assert.Empty (panel.GetProperty ("widgets").EnumerateArray ());
   }
 
   [Fact]
@@ -213,12 +212,12 @@ public partial class PanelTests
     HttpResponseMessage response = await PanelTests.PostFieldsAsync (factory: factory,
                                                                      handler: "UpdatePanel",
                                                                      ("id", ids["status-bar"].ToString ()),
-                                                                     ("options[showUptime]", "true"),
-                                                                     ("options[uptimeWindow]", "7d"));
+                                                                     ("options[title]", "Home"),
+                                                                     ("options[linkUrl]", "ftp://status.home.arpa"));
 
     await FormPoster.AssertProblemAsync (response: response,
                                          status: HttpStatusCode.BadRequest,
-                                         detail: "Uptime period must be one of 1 day, 30 days, 365 days.");
+                                         detail: "Link must be an HTTP or HTTPS URL.");
     Assert.Equal (expected: "{}", actual: await PanelTests.GetOptionsAsync (factory: factory, kind: "status-bar"));
   }
 
@@ -281,13 +280,13 @@ public partial class PanelTests
     Assert.Equal (expected: [("status-bar", PanelZone.Top, 0), ("search", PanelZone.Top, 1)],
                   actual: await PanelTests.GetPanelOrderAsync (factory));
 
-    // Restoring again would make a second status bar.
+    // Status bars aren't single-instance, so restoring again makes a second one.
     HttpResponseMessage again = await PanelTests.PostFieldsAsync (factory: factory,
                                                                   handler: "RestorePanel",
                                                                   ("snapshot", deleted.GetProperty ("restore").GetRawText ()));
-    await FormPoster.AssertProblemAsync (response: again,
-                                         status: HttpStatusCode.BadRequest,
-                                         detail: "The dashboard already has a status bar panel, and can only have one.");
+
+    Assert.Equal (expected: HttpStatusCode.OK, actual: again.StatusCode);
+    Assert.Equal (expected: 2, actual: (await PanelTests.GetPanelOrderAsync (factory)).Count (p => p.Kind == "status-bar"));
   }
 
   [Fact]

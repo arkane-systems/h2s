@@ -33,6 +33,13 @@ public interface IPanelKind
   IReadOnlyList<SchemaOption> Options { get; }
 
   /// <summary>
+  ///   Gets where on the dashboard the kind's panels hold widgets, such as <see cref="WidgetPlacements.StatusBar" /> for a
+  ///   status bar's items: the panel dialog edits them, and only kinds of widget allowed there are offered and accepted.
+  ///   <see cref="WidgetPlacements.None" /> (the default) for a kind that holds none.
+  /// </summary>
+  WidgetPlacements WidgetPlacement => WidgetPlacements.None;
+
+  /// <summary>
   ///   Builds a panel's content.
   /// </summary>
   /// <param name="context">The panel's option values and the request's services.</param>

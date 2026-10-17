@@ -1,4 +1,4 @@
-/* Behavior shared by every page. Page-specific scripts live beside it (infrastructure-groups.js) or under js/modules/. */
+/* Behavior shared by every page. Page-specific scripts live under js/modules/. */
 
 // A tile icon that fails to load (a moved favicon, an unreachable host) falls back to the same dot as a link without one.
 (() => {

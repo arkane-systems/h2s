@@ -1,17 +1,11 @@
-using h2s.Data;
-using h2s.Integrations;
-using h2s.Integrations.UptimeKuma;
-using h2s.Models;
-using h2s.Pages;
-using h2s.Services;
 using h2s.Widgets.Abstractions;
-using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Panels;
 
 /// <summary>
-///   The status bar panel: a status and uptime badge pair from Uptime Kuma for each infrastructure group. Until it becomes
-///   multi-source (Phase 5d), it reads the Uptime Kuma connection and the infrastructure groups.
+///   A status bar: a row of status widgets from any integration, each under its label, such as an Uptime Kuma group
+///   monitor's status and uptime, or a Home Assistant entity's state. A dashboard may have several, each with its own
+///   title, and a bar may link to a page, such as a status page.
 /// </summary>
 public sealed class StatusBarPanelKind : IPanelKind
 {
@@ -21,15 +15,26 @@ public sealed class StatusBarPanelKind : IPanelKind
   public const string KindKey = "status-bar";
 
   /// <summary>
-  ///   The key of the option that decides whether uptime badges are shown beside the status badges.
+  ///   The key of the option holding the bar's title.
   /// </summary>
-  public const string ShowUptimeOption = "showUptime";
+  public const string TitleOption = "title";
 
   /// <summary>
-  ///   The key of the option holding the uptime badges' window (<see cref="UptimeKumaWindows" />); blank uses the Uptime
-  ///   Kuma default.
+  ///   The key of the option holding the page the bar opens when clicked.
   /// </summary>
-  public const string UptimeWindowOption = "uptimeWindow";
+  public const string LinkUrlOption = "linkUrl";
+
+  /// <summary>
+  ///   The key of the option that decided whether uptime badges were shown, before each item chose for itself. Older
+  ///   backups still carry it.
+  /// </summary>
+  public const string LegacyShowUptimeOption = "showUptime";
+
+  /// <summary>
+  ///   The key of the option that held the uptime badges' window, before each item chose its own. Older backups still carry
+  ///   it.
+  /// </summary>
+  public const string LegacyUptimeWindowOption = "uptimeWindow";
 
   /// <summary>
   ///   The key of the option that held the uptime period in hours, before windows replaced it. Older backups still carry
@@ -38,13 +43,18 @@ public sealed class StatusBarPanelKind : IPanelKind
   public const string LegacyUptimeHoursOption = "uptimeHours";
 
   /// <summary>
-  ///   Builds the URL of the Uptime Kuma status page the status bar links to.
+  ///   The most items a status bar can have.
   /// </summary>
-  /// <param name="serverUrl">The Uptime Kuma server URL.</param>
-  /// <param name="slug">The status page slug, if one is set.</param>
-  /// <returns>The status page URL, or <c>null</c> without a slug, when the status bar isn't a link.</returns>
+  public const int MaxItems = 20;
+
+  /// <summary>
+  ///   Builds the URL of an Uptime Kuma status page, which older dashboards' status bars linked to.
+  /// </summary>
+  /// <param name="serverUrl">The Uptime Kuma server's base URL.</param>
+  /// <param name="slug">The status page slug, if any.</param>
+  /// <returns>The status page URL, or <c>null</c> when there's no slug.</returns>
   public static string? BuildStatusPageUrl (string serverUrl, string? slug)
-    => string.IsNullOrWhiteSpace (slug) ? null : $"{serverUrl.TrimEnd ('/')}/status/{slug}";
+    => string.IsNullOrWhiteSpace (slug) ? null : $"{serverUrl.TrimEnd ('/')}/status/{slug.Trim ()}";
 
   /// <inheritdoc />
   public string Key => StatusBarPanelKind.KindKey;
@@ -53,79 +63,36 @@ public sealed class StatusBarPanelKind : IPanelKind
   public string DisplayName => "Status bar";
 
   /// <inheritdoc />
-  public bool IsSingleInstance => true;
+  public bool IsSingleInstance => false;
+
+  /// <inheritdoc />
+  public WidgetPlacements WidgetPlacement => WidgetPlacements.StatusBar;
 
   /// <inheritdoc />
   public IReadOnlyList<SchemaOption> Options { get; } =
     [
-      new (Key: StatusBarPanelKind.ShowUptimeOption, Label: "Show uptime badges", Type: OptionType.Boolean)
+      new (Key: StatusBarPanelKind.TitleOption, Label: "Title", Type: OptionType.Text)
       {
-        DefaultValue = true, HelpText = "Shows each group's uptime beside its status.",
+        Placeholder = "Home", HelpText = "Optional. Shown at the start of the bar, to tell several bars apart.",
       },
-      new (Key: StatusBarPanelKind.UptimeWindowOption, Label: "Uptime period", Type: OptionType.Select)
+      new (Key: StatusBarPanelKind.LinkUrlOption, Label: "Link", Type: OptionType.Url)
       {
-        Choices     = UptimeKumaWindows.Choices,
-        Placeholder = "The Uptime Kuma default",
-        HelpText    = "The period the uptime badges cover.",
+        Placeholder = "https://status.example.com/status/main",
+        HelpText    = "Optional. The page the bar opens when clicked, such as a status page.",
       },
     ];
 
   /// <inheritdoc />
-  public async Task<PanelContent> GetContentAsync (PanelContext context)
+  public Task<PanelContent> GetContentAsync (PanelContext context)
   {
-    UptimeKumaSettings? uptimeKuma =
-      await UptimeKumaSettings.LoadAsync (connections: context.Services.GetRequiredService<ConnectionService> (),
-                                          cancellationToken: context.CancellationToken);
+    string title = context.Options.GetText (StatusBarPanelKind.TitleOption).Trim ();
+    string link  = context.Options.GetText (StatusBarPanelKind.LinkUrlOption).Trim ();
 
-    if (uptimeKuma == null)
-    {
-      return PanelContent.Empty ("Uptime Kuma isn't set up. Add its server in Settings → Integrations.");
-    }
-
-    List<InfrastructureGroup> groups = await context.Services.GetRequiredService<DashboardContext> ()
-                                                    .InfrastructureGroups
-                                                    .AsNoTracking ()
-                                                    .OrderBy (g => g.SortOrder)
-                                                    .ThenBy (g => g.Name)
-                                                    .ToListAsync (context.CancellationToken);
-
-    if (groups.Count == 0)
-    {
-      return PanelContent.Empty ("No infrastructure groups yet. Add them under Uptime Kuma in Settings → Integrations.");
-    }
-
-    DashboardSettings settings = await context.Services.GetRequiredService<DashboardSettingsService> ().GetSettingsAsync ();
-
-    var    badges      = new LinkTileFactory (settings: settings, uptimeKuma: uptimeKuma);
-    bool   showUptime  = context.Options.GetBoolean (StatusBarPanelKind.ShowUptimeOption);
-    string window      = context.Options.GetText (StatusBarPanelKind.UptimeWindowOption);
-    int    uptimeHours = UptimeKumaWindows.ToHours (window.Length == 0 ? uptimeKuma.DefaultUptimeWindow : window);
-
-    return PanelContent.Show (partialName: "_UptimeStatusBar",
-                              model: new StatusBarPanelModel (StatusPageUrl:
-                                                              StatusBarPanelKind
-                                                               .BuildStatusPageUrl (serverUrl: uptimeKuma.ServerUrl,
-                                                                                    slug: uptimeKuma.StatusPageSlug),
-                                                              Items:
-                                                              [
-                                                                .. groups.Select (g => new StatusBarItem (Name: g.Name,
-                                                                                                          StatusBadgeUrl:
-                                                                                                          badges
-                                                                                                           .BuildBadgeUrl (monitorId
-                                                                                                                           : g
-                                                                                                                            .MonitorId,
-                                                                                                                           type:
-                                                                                                                           "status"),
-                                                                                                          UptimeBadgeUrl: showUptime
-                                                                                                                            ? badges
-                                                                                                                             .BuildBadgeUrl (monitorId
-                                                                                                                                             : g
-                                                                                                                                              .MonitorId,
-                                                                                                                                             type
-                                                                                                                                             : "uptime",
-                                                                                                                                             duration
-                                                                                                                                             : uptimeHours)
-                                                                                                                            : null)),
-                                                              ]));
+    return Task.FromResult (context.Widgets.Count == 0
+                              ? PanelContent.Empty ("No items yet. Add status widgets with the panel's ✎.")
+                              : PanelContent.Show (partialName: "_StatusBar",
+                                                   model: new StatusBarPanelModel (Title: title.Length  == 0 ? null : title,
+                                                                                   LinkUrl: link.Length == 0 ? null : link,
+                                                                                   Items: context.Widgets)));
   }
 }

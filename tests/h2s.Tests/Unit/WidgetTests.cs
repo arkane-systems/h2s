@@ -84,6 +84,7 @@ public class WidgetTests
                                                 catalog: WidgetTests.Catalog,
                                                 connections: [WidgetTests.KumaConnection (3)],
                                                 existing: [saved],
+                                                placement: WidgetPlacements.Tile,
                                                 plan: out List<WidgetPlan>? plan,
                                                 error: out string? error),
                  userMessage: error);
@@ -113,7 +114,7 @@ public class WidgetTests
                "Widget 1 (Monitor status): the refresh interval must be a whole number of seconds, from 15 to 86400.")]
   [InlineData ("""[{ "kind": "app-test/app" }, { "kind": "app-test/app" }]""",
                "Widget 2 (App): a link can have only one app widget.")]
-  [InlineData ("""not json""", "The link's widgets are malformed.")]
+  [InlineData ("""not json""", "The widgets are malformed.")]
   public void WidgetForm_ExplainsWhatsWrong (string json, string expected)
   {
     Assert.False (WidgetForm.TryRead (json: json,
@@ -124,6 +125,7 @@ public class WidgetTests
                                         new Connection { Id = 4, IntegrationKey = AppIntegration.IntegrationKey },
                                       ],
                                       existing: [],
+                                      placement: WidgetPlacements.Tile,
                                       plan: out _,
                                       error: out string? error));
     Assert.Equal (expected: expected, actual: error);
@@ -136,6 +138,7 @@ public class WidgetTests
                                       catalog: WidgetTests.Catalog,
                                       connections: [],
                                       existing: [],
+                                      placement: WidgetPlacements.Tile,
                                       plan: out _,
                                       error: out string? error));
     Assert.Equal (expected: "Widget 1 (Monitor status): Uptime Kuma isn't set up; add it in Settings → Integrations.",
@@ -153,23 +156,79 @@ public class WidgetTests
                  ],
                };
 
-    WidgetForm.Apply (link: link,
-                      plan:
-                      [
-                        new WidgetPlan (ExistingId: null,
-                                        ConnectionId: 3,
-                                        Kind: "monitor",
-                                        OptionsJson: "{}",
-                                        RefreshSeconds: null),
-                        new WidgetPlan (ExistingId: 2,
-                                        ConnectionId: 3,
-                                        Kind: "monitor",
-                                        OptionsJson: """{"x":1}""",
-                                        RefreshSeconds: 60),
-                      ]);
+    List<Widget> removed = WidgetForm.Apply (widgets: link.Widgets,
+                                             plan:
+                                             [
+                                               new WidgetPlan (ExistingId: null,
+                                                               ConnectionId: 3,
+                                                               Kind: "monitor",
+                                                               OptionsJson: "{}",
+                                                               RefreshSeconds: null),
+                                               new WidgetPlan (ExistingId: 2,
+                                                               ConnectionId: 3,
+                                                               Kind: "monitor",
+                                                               OptionsJson: """{"x":1}""",
+                                                               RefreshSeconds: 60),
+                                             ]);
 
     Assert.Equal (expected: [(2, 1, """{"x":1}"""), (0, 0, "{}")],
                   actual: link.Widgets.Select (w => (w.Id, w.SortOrder, w.OptionsJson)));
+
+    // Taking a widget out doesn't delete it: the caller does, since a widget's owner is optional in the model.
+    Assert.Equal (expected: [1], actual: removed.Select (w => w.Id));
+  }
+
+  [Theory]
+  [InlineData ("""[{ "kind": "app-test/app" }]""", "Widget 1 (App): this kind of widget can't go on a status bar.")]
+  [InlineData ("""[{ "kind": "uptime-kuma/monitor", "options": { "monitorId": "1" }, "label": "LONG" }]""",
+               "Widget 1 (Monitor status): the label can be at most 100 characters.")]
+  public void WidgetForm_ChecksStatusBarItems (string json, string expected)
+  {
+    Assert.False (WidgetForm.TryRead (json: json.Replace (oldValue: "LONG", newValue: new string (c: 'x', count: 101)),
+                                      catalog: WidgetTests.Catalog,
+                                      connections:
+                                      [
+                                        WidgetTests.KumaConnection (3),
+                                        new Connection { Id = 4, IntegrationKey = AppIntegration.IntegrationKey },
+                                      ],
+                                      existing: [],
+                                      placement: WidgetPlacements.StatusBar,
+                                      plan: out _,
+                                      error: out string? error));
+    Assert.Equal (expected: expected, actual: error);
+  }
+
+  [Fact]
+  public void WidgetForm_ReadsLabels_AndAllowsMoreItemsOnAStatusBarThanOnATile ()
+  {
+    var json =
+      $"[{string.Join (separator: ',', values: Enumerable.Repeat (element: """{ "kind": "uptime-kuma/monitor", "options": { "monitorId": "1" }, "label": " Compute " }""", count: 11))}]";
+
+    Assert.True (WidgetForm.TryRead (json: json,
+                                     catalog: WidgetTests.Catalog,
+                                     connections: [WidgetTests.KumaConnection (3)],
+                                     existing: [],
+                                     placement: WidgetPlacements.StatusBar,
+                                     plan: out List<WidgetPlan>? plan,
+                                     error: out _));
+    Assert.All (collection: plan, action: p => Assert.Equal (expected: "Compute", actual: p.Label));
+
+    Assert.False (WidgetForm.TryRead (json: json,
+                                      catalog: WidgetTests.Catalog,
+                                      connections: [WidgetTests.KumaConnection (3)],
+                                      existing: [],
+                                      placement: WidgetPlacements.Tile,
+                                      plan: out _,
+                                      error: out string? error));
+    Assert.Equal (expected: "A link can have at most 10 widgets.", actual: error);
+  }
+
+  [Fact]
+  public void WidgetKinds_DefaultTheirPlacementsFromTheirRole ()
+  {
+    Assert.Equal (expected: WidgetPlacements.Tile | WidgetPlacements.StatusBar,
+                  actual: ((IWidgetKind)new KumaMonitorWidgetKind ()).Placements);
+    Assert.Equal (expected: WidgetPlacements.Tile, actual: ((IWidgetKind)new AppKind ()).Placements);
   }
 
   [Fact]

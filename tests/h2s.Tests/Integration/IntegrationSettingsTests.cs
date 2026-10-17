@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using h2s.Integrations.UptimeKuma;
 using h2s.Models;
@@ -24,7 +23,7 @@ public class IntegrationSettingsTests
   public async Task Get_RendersACardPerIntegration ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    await factory.AddUptimeKumaAsync (statusPageSlug: "main");
+    await factory.AddUptimeKumaAsync ();
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: IntegrationSettingsTests.SettingsPath,
@@ -32,15 +31,13 @@ public class IntegrationSettingsTests
 
     Assert.Contains (expectedSubstring: """<section id="integration-uptime-kuma" """,                     actualString: html);
     Assert.Contains (expectedSubstring: """data-role="integration-form" data-integration="uptime-kuma""", actualString: html);
-    Assert.Contains (expectedSubstring: """data-shown-with="uptime-kuma""",                               actualString: html);
 
     JsonElement card = IntegrationSettingsTests.ReadCards (html).Single (c => c.GetProperty ("key").GetString () == "uptime-kuma");
 
     Assert.True (card.GetProperty ("isConfigured").GetBoolean ());
     Assert.Equal (expected: TestConnections.KumaServerUrl,
                   actual: card.GetProperty ("values").GetProperty ("serverUrl").GetString ());
-    Assert.Equal (expected: "main", actual: card.GetProperty ("values").GetProperty ("statusPageSlug").GetString ());
-    Assert.Equal (expected: ["serverUrl", "apiKey", "statusPageSlug", "defaultUptimeWindow"],
+    Assert.Equal (expected: ["serverUrl", "apiKey", "defaultUptimeWindow"],
                   actual: card.GetProperty ("options").EnumerateArray ().Select (o => o.GetProperty ("key").GetString ()));
   }
 
@@ -54,12 +51,10 @@ public class IntegrationSettingsTests
                                                                       handler: "SaveConnection",
                                                                       fields: IntegrationSettingsTests
                                                                        .KumaFields (serverUrl: " https://status.home.arpa ",
-                                                                                    slug: "main",
                                                                                     window: "30d"));
 
     Assert.True (created.GetProperty ("isConfigured").GetBoolean ());
     Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
-                                                    StatusPageSlug: "main",
                                                     DefaultUptimeWindow: "30d"),
                   actual: await TestConnections.ReadUptimeKumaAsync (factory));
 
@@ -67,7 +62,6 @@ public class IntegrationSettingsTests
                                                     handler: "SaveConnection",
                                                     fields:
                                                     IntegrationSettingsTests.KumaFields (serverUrl: "https://kuma.home.arpa",
-                                                                                         slug: "",
                                                                                          window: "1d"));
 
     var (scope, context) = factory.CreateContext ();
@@ -77,7 +71,6 @@ public class IntegrationSettingsTests
       Connection connection = await context.Connections.SingleAsync (TestContext.Current.CancellationToken);
 
       Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: "https://kuma.home.arpa",
-                                                      StatusPageSlug: null,
                                                       DefaultUptimeWindow: "1d"),
                     actual: await TestConnections.ReadUptimeKumaAsync (context));
       Assert.Equal (expected: "Uptime Kuma", actual: connection.Name);
@@ -85,13 +78,12 @@ public class IntegrationSettingsTests
   }
 
   [Theory]
-  [InlineData ("", "main", "1d", "Server URL is required.")]
-  [InlineData ("ftp://status.home.arpa", "main", "1d", "Server URL must be an HTTP or HTTPS URL.")]
-  [InlineData ("https://status.home.arpa/dashboard", "main", "1d", UptimeKumaIntegration.InvalidServerUrl)]
-  [InlineData ("https://status.home.arpa", "not a slug!", "1d", "Status page slug may only contain letters, numbers, and hyphens.")]
-  [InlineData ("https://status.home.arpa", "main", "7d", "Default uptime period must be one of 1 day, 30 days, 365 days.")]
-  [InlineData ("https://status.home.arpa", "main", "", "Default uptime period is required.")]
-  public async Task SaveConnection_RejectsInvalidValues (string serverUrl, string slug, string window, string detail)
+  [InlineData ("",                                   "1d", "Server URL is required.")]
+  [InlineData ("ftp://status.home.arpa",             "1d", "Server URL must be an HTTP or HTTPS URL.")]
+  [InlineData ("https://status.home.arpa/dashboard", "1d", UptimeKumaIntegration.InvalidServerUrl)]
+  [InlineData ("https://status.home.arpa",           "7d", "Default uptime period must be one of 1 day, 30 days, 365 days.")]
+  [InlineData ("https://status.home.arpa",           "",   "Default uptime period is required.")]
+  public async Task SaveConnection_RejectsInvalidValues (string serverUrl, string window, string detail)
   {
     await using var factory = new DashboardApplicationFactory ();
 
@@ -100,7 +92,6 @@ public class IntegrationSettingsTests
                                                                                handler: "SaveConnection",
                                                                                fields: IntegrationSettingsTests
                                                                                 .KumaFields (serverUrl: serverUrl,
-                                                                                             slug: slug,
                                                                                              window: window)),
                                          status: HttpStatusCode.BadRequest,
                                          detail: detail);
@@ -131,7 +122,7 @@ public class IntegrationSettingsTests
   public async Task RemoveConnection_TurnsTheIntegrationOff ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    await factory.AddUptimeKumaAsync (statusPageSlug: "main");
+    await factory.AddUptimeKumaAsync ();
 
     JsonElement card = await IntegrationSettingsTests.PostOkAsync (client: factory.CreateClient (),
                                                                    handler: "RemoveConnection",
@@ -147,30 +138,20 @@ public class IntegrationSettingsTests
     Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
   }
 
-  [Theory]
-  [InlineData ("main", "Connected. Uptime Kuma reports 2 monitors and 1 group. The status page exists.")]
-  [InlineData ("",     "Connected. Uptime Kuma reports 2 monitors and 1 group.")]
-  public async Task TestConnection_ReadsTheMetrics_WithoutSaving (string slug, string message)
+  [Fact]
+  public async Task TestConnection_ReadsTheMetrics_WithoutSaving ()
   {
-    await using var factory = new DashboardApplicationFactory ();
-    factory.Outbound = request => request.RequestUri!.AbsolutePath == "/api/status-page/main"
-                                    ? new HttpResponseMessage (HttpStatusCode.OK)
-                                      {
-                                        Content = new StringContent (content: """{ "publicGroupList": [] }""",
-                                                                     encoding: Encoding.UTF8,
-                                                                     mediaType: "application/json"),
-                                      }
-                                    : TestConnections.ServeKuma (request);
+    await using var factory = new DashboardApplicationFactory { Outbound = TestConnections.ServeKuma };
 
     JsonElement result = await IntegrationSettingsTests.PostOkAsync (client: factory.CreateClient (),
                                                                      handler: "TestConnection",
                                                                      fields: IntegrationSettingsTests
                                                                       .KumaFields (serverUrl: "https://status.home.arpa",
-                                                                                   slug: slug,
                                                                                    window: "1d"));
 
     Assert.Equal (expected: "success", actual: result.GetProperty ("level").GetString ());
-    Assert.Equal (expected: message,   actual: result.GetProperty ("message").GetString ());
+    Assert.Equal (expected: "Connected. Uptime Kuma reports 2 monitors and 1 group.",
+                  actual: result.GetProperty ("message").GetString ());
     Assert.Null (await TestConnections.ReadUptimeKumaAsync (factory));
   }
 
@@ -183,7 +164,6 @@ public class IntegrationSettingsTests
                                                                      handler: "TestConnection",
                                                                      fields: IntegrationSettingsTests
                                                                       .KumaFields (serverUrl: "https://status.home.arpa",
-                                                                                   slug: "",
                                                                                    window: "1d",
                                                                                    apiKey: "wrong"));
 
@@ -202,7 +182,6 @@ public class IntegrationSettingsTests
                                                                                handler: "SaveConnection",
                                                                                fields: IntegrationSettingsTests
                                                                                 .KumaFields (serverUrl: "https://status.home.arpa",
-                                                                                             slug: "",
                                                                                              window: "1d",
                                                                                              apiKey: null)),
                                          status: HttpStatusCode.BadRequest,
@@ -219,7 +198,6 @@ public class IntegrationSettingsTests
                                                                      handler: "TestConnection",
                                                                      fields: IntegrationSettingsTests
                                                                       .KumaFields (serverUrl: "https://status.home.arpa",
-                                                                                   slug: "",
                                                                                    window: "1d"));
 
     Assert.Equal (expected: "danger", actual: result.GetProperty ("level").GetString ());
@@ -307,19 +285,16 @@ public class IntegrationSettingsTests
   ///   Builds the fields the Uptime Kuma card posts.
   /// </summary>
   /// <param name="serverUrl">The server URL.</param>
-  /// <param name="slug">The status page slug.</param>
   /// <param name="window">The default uptime window.</param>
   /// <param name="apiKey">A newly typed API key, if any.</param>
   /// <returns>The fields.</returns>
   private static KeyValuePair<string, string>[] KumaFields (string  serverUrl,
-                                                            string  slug,
                                                             string  window,
                                                             string? apiKey = TestConnections.KumaApiKey)
     =>
     [
       new (key: "integration", value: UptimeKumaIntegration.IntegrationKey),
       new (key: "options[serverUrl]", value: serverUrl),
-      new (key: "options[statusPageSlug]", value: slug),
       new (key: "options[defaultUptimeWindow]", value: window),
       .. apiKey == null ? [] : new[] { new KeyValuePair<string, string> (key: "secrets[apiKey]", value: apiKey) },
     ];

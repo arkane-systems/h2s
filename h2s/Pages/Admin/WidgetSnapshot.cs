@@ -9,7 +9,8 @@ namespace h2s.Pages.Admin;
 /// <param name="Kind">The widget's kind key within the connection's integration.</param>
 /// <param name="OptionsJson">The widget's option values, as stored.</param>
 /// <param name="RefreshSeconds">The widget's refresh interval, or <c>null</c> for its kind's default.</param>
-public sealed record WidgetSnapshot (int ConnectionId, string? Kind, string? OptionsJson, int? RefreshSeconds)
+/// <param name="Label">The widget's label, such as a status bar item's name; <c>null</c> for none.</param>
+public sealed record WidgetSnapshot (int ConnectionId, string? Kind, string? OptionsJson, int? RefreshSeconds, string? Label = null)
 {
   /// <summary>
   ///   Takes a snapshot of a widget.
@@ -20,5 +21,6 @@ public sealed record WidgetSnapshot (int ConnectionId, string? Kind, string? Opt
     => new (ConnectionId: widget.ConnectionId,
             Kind: widget.Kind,
             OptionsJson: widget.OptionsJson,
-            RefreshSeconds: widget.RefreshSeconds);
+            RefreshSeconds: widget.RefreshSeconds,
+            Label: widget.Label);
 }

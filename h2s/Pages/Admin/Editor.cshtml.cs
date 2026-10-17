@@ -1,12 +1,12 @@
 using System.Text.Json;
 using h2s.Data;
 using h2s.Integrations;
-using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
 using h2s.Validation;
 using h2s.Widgets;
+using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +26,6 @@ public partial class EditorModel : PageModel
   private readonly PanelCatalog             panelCatalog;
   private readonly PanelService             panelService;
   private readonly DashboardSettingsService settingsService;
-  private readonly UptimeKumaClient         uptimeKumaClient;
   private readonly WidgetCatalog            widgetCatalog;
   private readonly WidgetService            widgetService;
 
@@ -37,7 +36,6 @@ public partial class EditorModel : PageModel
   /// <param name="iconCatalog">The catalog used to suggest icons for link labels.</param>
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   /// <param name="pageMetadataReader">The reader used to suggest a label from a link's page.</param>
-  /// <param name="uptimeKumaClient">The client used to list Uptime Kuma's monitors.</param>
   /// <param name="panelCatalog">The panel kinds edit mode can add.</param>
   /// <param name="panelService">The service used to render panels as edit mode shows them.</param>
   /// <param name="connections">The service holding the connections, Uptime Kuma's among them.</param>
@@ -47,7 +45,6 @@ public partial class EditorModel : PageModel
                       IconCatalog              iconCatalog,
                       DashboardSettingsService settingsService,
                       PageMetadataReader       pageMetadataReader,
-                      UptimeKumaClient         uptimeKumaClient,
                       PanelCatalog             panelCatalog,
                       PanelService             panelService,
                       ConnectionService        connections,
@@ -63,7 +60,6 @@ public partial class EditorModel : PageModel
     this.iconCatalog        = iconCatalog;
     this.settingsService    = settingsService;
     this.pageMetadataReader = pageMetadataReader;
-    this.uptimeKumaClient   = uptimeKumaClient;
   }
 
   /// <summary>
@@ -258,7 +254,7 @@ public partial class EditorModel : PageModel
                  SortOrder    = await this.GetNextLinkSortOrderAsync (categoryId),
                };
 
-    if (await this.ApplyPostedWidgetsAsync (link) is { } widgetError)
+    if (await this.ApplyPostedWidgetsAsync (widgets: link.Widgets, placement: WidgetPlacements.Tile) is { } widgetError)
     {
       return this.BadRequestProblem (widgetError);
     }
@@ -357,7 +353,7 @@ public partial class EditorModel : PageModel
       link.OpenInNewTab = openInNewTab;
     }
 
-    if (await this.ApplyPostedWidgetsAsync (link) is { } widgetError)
+    if (await this.ApplyPostedWidgetsAsync (widgets: link.Widgets, placement: WidgetPlacements.Tile) is { } widgetError)
     {
       return this.BadRequestProblem (widgetError);
     }
@@ -447,7 +443,9 @@ public partial class EditorModel : PageModel
 
     Link link = EditorModel.CreateLink (snapshot: restore, sortOrder: position);
     link.CategoryId = restore.CategoryId;
-    EditorModel.RestoreWidgets (link: link, snapshot: restore, connectionIds: await this.GetConnectionIdsAsync ());
+    EditorModel.RestoreWidgets (widgets: link.Widgets,
+                                snapshot: restore.Widgets,
+                                connectionIds: await this.GetConnectionIdsAsync ());
 
     this.context.Links.Add (link);
     await this.context.SaveChangesAsync ();
@@ -515,7 +513,7 @@ public partial class EditorModel : PageModel
 
     for (var i = 0; i < links.Count; i++)
     {
-      EditorModel.RestoreWidgets (link: category.Links[i], snapshot: links[i], connectionIds: connectionIds);
+      EditorModel.RestoreWidgets (widgets: category.Links[i].Widgets, snapshot: links[i].Widgets, connectionIds: connectionIds);
     }
 
     this.context.Categories.Add (category);
@@ -589,34 +587,6 @@ public partial class EditorModel : PageModel
   }
 
   /// <summary>
-  ///   Lists every Uptime Kuma monitor, from Kuma's <c>/metrics</c>, for the link dialog's monitor picker.
-  /// </summary>
-  /// <returns>
-  ///   A JSON payload with the monitors (group monitors first, then the rest), and a message instead when they can't be
-  ///   listed: Kuma or its API key isn't set up, or Kuma can't be read. The dialog then falls back to entering an ID.
-  /// </returns>
-  public async Task<IActionResult> OnGetKumaMonitorsAsync ()
-  {
-    UptimeKumaSettings? uptimeKuma = await UptimeKumaSettings.LoadAsync (this.connections);
-
-    if (uptimeKuma == null)
-    {
-      return new JsonResult (KumaMonitorList.Failed ("Uptime Kuma isn't configured."));
-    }
-
-    if (uptimeKuma.ApiKey == null)
-    {
-      return new JsonResult (KumaMonitorList.Failed ("Add an API key to the Uptime Kuma settings to pick monitors."));
-    }
-
-    KumaMetrics metrics = await this.uptimeKumaClient.GetMetricsAsync (serverUrl: uptimeKuma.ServerUrl,
-                                                                       apiKey: uptimeKuma.ApiKey,
-                                                                       cancellationToken: this.HttpContext.RequestAborted);
-
-    return new JsonResult (metrics.ToMonitorList ());
-  }
-
-  /// <summary>
   ///   Searches the selfh.st icons for the link dialog's icon picker.
   /// </summary>
   /// <param name="q">The search text.</param>
@@ -660,7 +630,7 @@ public partial class EditorModel : PageModel
                  IconUrl     = EditorModel.IsValidWebUrl ((iconUrl ?? string.Empty).Trim ()) ? iconUrl!.Trim () : "",
                };
 
-    List<WidgetView> drafts = await this.ReadPreviewWidgetsAsync (widgets) is { } plan
+    List<WidgetView> drafts = await this.ReadPreviewWidgetsAsync (widgets: widgets, placement: WidgetPlacements.Tile) is { } plan
                                 ? await this.widgetService.DescribeDraftsAsync (plan: plan,
                                                                                 cancellationToken: this.HttpContext.RequestAborted)
                                 : [];
@@ -973,7 +943,7 @@ public partial class EditorModel : PageModel
     => [.. (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).Select (c => c.Id)];
 
   /// <summary>
-  ///   Builds a link's tile with the current dashboard and Uptime Kuma settings, and its widgets.
+  ///   Builds a link's tile with the current dashboard settings, and its widgets.
   /// </summary>
   /// <param name="link">The link.</param>
   /// <param name="widgets">The widgets to show, such as a preview's; when <c>null</c>, a saved link's own widgets.</param>
@@ -985,9 +955,7 @@ public partial class EditorModel : PageModel
       widgets = (await this.widgetService.GetForLinksAsync ([link.Id])).GetValueOrDefault (link.Id);
     }
 
-    return new LinkTileFactory (settings: await this.settingsService.GetSettingsAsync (),
-                                uptimeKuma: await UptimeKumaSettings.LoadAsync (this.connections))
-     .Create (link: link, widgets: widgets);
+    return new LinkTileFactory (await this.settingsService.GetSettingsAsync ()).Create (link: link, widgets: widgets);
   }
 
   /// <summary>

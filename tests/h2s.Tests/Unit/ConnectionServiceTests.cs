@@ -42,8 +42,7 @@ public class ConnectionServiceTests
     Assert.Equal (expected: created.Id, actual: updated.Id);
     Assert.Equal (expected: "secret",   actual: updated.SecretsJson);
     Assert.Equal (expected: "https://b.home.arpa",
-                  actual: (await UptimeKumaSettings.LoadAsync (connections: service,
-                                                               cancellationToken: TestContext.Current.CancellationToken))!
+                  actual: (await ConnectionServiceTests.ReadKumaAsync (service))!
                  .ServerUrl);
   }
 
@@ -59,14 +58,12 @@ public class ConnectionServiceTests
     await context.SaveChangesAsync (TestContext.Current.CancellationToken);
 
     // Read once, so the delete must clear the cache.
-    Assert.NotNull (await UptimeKumaSettings.LoadAsync (connections: service,
-                                                        cancellationToken: TestContext.Current.CancellationToken));
+    Assert.NotNull (await ConnectionServiceTests.ReadKumaAsync (service));
 
     await service.DeleteAllAsync (integrationKey: UptimeKumaIntegration.IntegrationKey,
                                   cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Null (await UptimeKumaSettings.LoadAsync (connections: service,
-                                                     cancellationToken: TestContext.Current.CancellationToken));
+    Assert.Null (await ConnectionServiceTests.ReadKumaAsync (service));
   }
 
   [Fact]
@@ -110,6 +107,17 @@ public class ConnectionServiceTests
                   actual: kuma.Validate (new OptionValues (schema: kuma.ConnectionOptions,
                                                            json: $$"""{"serverUrl":"{{serverUrl}}"}""")));
   }
+
+  /// <summary>
+  ///   Reads the Uptime Kuma connection's settings through a connection service.
+  /// </summary>
+  /// <param name="service">The service.</param>
+  /// <returns>The settings, or <c>null</c> when there's no connection.</returns>
+  private static async Task<UptimeKumaSettings?> ReadKumaAsync (ConnectionService service)
+    => await service.FindFirstAsync (integrationKey: UptimeKumaIntegration.IntegrationKey,
+                                     cancellationToken: TestContext.Current.CancellationToken) is { } connection
+         ? UptimeKumaSettings.From (service.ReadOptions (connection))
+         : null;
 
   /// <summary>
   ///   An integration with a secret, like Home Assistant's token.

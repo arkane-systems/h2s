@@ -190,7 +190,9 @@ Start typing anywhere on the dashboard (or press `/`) to open **quick launch**, 
 
 Quick launch is off in edit mode, and while you're typing in a field such as the search box. It shows matches in collapsed categories too, opening them until you close it.
 
-The search box and the Uptime Kuma status bar are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as the status bar before Uptime Kuma is set up, is hidden outside edit mode.
+The search box and status bars are **panels**: full-width cards above or below the categories. Edit mode rearranges them. A panel with nothing to show, such as a status bar with no items yet, is hidden outside edit mode.
+
+A **status bar** is a row of status widgets, such as Uptime Kuma monitors (group monitors make good ones), each under its own label. A dashboard can have several, say one for the infrastructure and one for the home, each with an optional **title** at its start and an optional **link** the bar opens when clicked, such as a Kuma status page.
 - Pick a color mode for your browser with the navbar's ◑ button. It cycles through the site default, Light, Dark and Auto, and only your browser changes; back at the site default, it follows **Settings → Appearance** again.
 
 ### Settings page
@@ -211,24 +213,17 @@ Click **+ Add engine**, or an engine's name to edit it. Its **search URL** is th
 
 #### Uptime Kuma integration
 
-You can optionally connect Uptime Kuma, for monitor widgets on links' tiles (see the link dialog's **Widgets**) and the status bar:
+You can optionally connect Uptime Kuma, for monitor widgets on links' tiles (see the link dialog's **Widgets**) and status bars:
 
 - **Server URL**: the base URL of your Kuma instance (for example `https://status.example.com`).
 - **API key**: a key created in Uptime Kuma under **Settings → API Keys** (Kuma 1.21 or later). h2s uses it only to read Kuma's `/metrics`, which lists every monitor; it's stored encrypted and never shown again.
-- **Status page slug** (optional): the public status page the top status bar links to.
-- **Default uptime period**: 1 day, 30 days or 365 days, the windows Kuma reports; the status bar can choose its own.
+- **Default uptime period**: 1 day, 30 days or 365 days, the windows Kuma reports; each widget can choose its own.
 
 **Save** turns the integration on. **Remove** turns it off again, after asking, and forgets its settings.
 
 **Test connection** checks the values in the form before you save them. It tells you whether the server answers, whether h2s trusts its certificate, whether Kuma accepts the API key and how many monitors and groups it reports, and, with a slug, whether the status page exists.
 
-##### Infrastructure groups (top status bar)
-
-With Uptime Kuma configured, add infrastructure groups at the bottom of its card, below the divider; they save as you change them, separately from the settings above. Each group renders as a status + uptime badge pair in the top status bar. Click **+ Add group**, or a group's name to edit it. Choose its monitor (or a Kuma group monitor) from the list, or pick **Another monitor ID…** to type one. Drag the ⠿ handles (or focus one and use the arrow keys) to reorder them. Deleting a group has **Undo**.
-
-> Important: The status bar's badges are still Kuma's images, so a group's monitor must be included on a published Uptime Kuma **status page** for its badge to work. Otherwise the badge shows `N/A`. Links' monitor widgets read Kuma directly and don't need a status page.
->
-> Links used to have an Uptime Kuma monitor of their own, shown as Kuma's badge. Upgrading turns each into a monitor widget on the link (unless it already had one for that monitor), and importing an older backup does the same.
+> Upgrading from an earlier version converts what Kuma used to draw as its own badge images into widgets, which read Kuma directly and need no published status page. Each link's Uptime Kuma monitor becomes a monitor widget on the link, unless it already had one for that monitor. Each infrastructure group becomes an item of the status bar, labelled with the group's name, and the status page the bar linked to becomes its link. Importing an older backup does the same.
 
 ### Edit mode
 
@@ -241,7 +236,7 @@ Click **Edit** at the right of the navbar to edit the dashboard in place; **Done
   - **Widgets** add live figures to the tile from an integration you've set up, such as an Uptime Kuma monitor's status, response time and uptime. **+ Add widget** picks a kind and fills in its settings, such as a monitor picked by name from the ones Kuma reports (or **Another value…** to type an ID); the ↑ ↓ buttons order them, ✎ edits one and × removes it. The dialog's preview shows the widgets live as you edit them, and the widget being edited says what it reads, so you can check it before saving. They're saved with the link. Status widgets show as small coloured pills on the right of the tile (green up, red down, amber pending, blue maintenance, grey unknown), with the details as a tooltip, and refresh on their own (every minute by default).
   - **Open in a new tab** makes the tile open its link in a new browser tab. The list view marks such links with ↗.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
-- Use a panel's ✎ to change its options or delete it, and **+ Add panel** to add one above or below the categories. The status bar's options choose whether it shows uptime badges and over what period; the search box's, its placeholder text. Each kind of panel can appear only once for now, so **+ Add panel** offers only kinds that aren't on the dashboard.
+- Use a panel's ✎ to change its options or delete it, and **+ Add panel** to add one above or below the categories. A status bar's dialog has its title, its link and its **Items**, edited like a link's widgets, each with a **label**, and a live preview of the bar; the search box's has its placeholder text. There can be only one search box, so **+ Add panel** offers it only when there isn't one.
 - Deletes take effect immediately, and the toast that confirms them has an **Undo** button.
 
 ### List view
@@ -256,7 +251,7 @@ Categories are managed in edit mode.
 
 ### Backup
 
-**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links in order, the infrastructure groups, the panels, the search engines and the integrations' connections (such as Uptime Kuma's). Secrets, such as API tokens, are never exported: importing keeps the ones already set for the same connection, and elsewhere you enter them again. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels or search engines existed still import, and give the dashboard the defaults: the status bar, then search, above the categories, and the three engines above.
+**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links and widgets in order, the panels with their widgets (such as a status bar's items), the search engines and the integrations' connections (such as Uptime Kuma's). Secrets, such as API tokens, are never exported: importing keeps the ones already set for the same connection, and elsewhere you enter them again. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels or search engines existed still import, and give the dashboard the defaults: the status bar, then search, above the categories, and the three engines above.
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).

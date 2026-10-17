@@ -14,47 +14,6 @@ public class SettingsPageTests
   private const string SettingsPath = "/Admin/Settings";
 
   [Fact]
-  public async Task CreateInfrastructureGroup_ReturnsNumericMonitorId ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-
-    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
-                                                               pagePath: SettingsPageTests.SettingsPath,
-                                                               handler: "CreateInfrastructureGroup",
-                                                               fields:
-                                                               [
-                                                                 new KeyValuePair<string, string> (key: "name",      value: "Edge"),
-                                                                 new KeyValuePair<string, string> (key: "monitorId", value: " 35 "),
-                                                               ]);
-
-    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
-    Assert.Equal (expected: 35, actual: (await FormPoster.ReadJsonAsync (response)).GetProperty ("monitorId").GetInt32 ());
-  }
-
-  [Theory]
-  [InlineData ("")]
-  [InlineData ("0")]
-  [InlineData ("abc")]
-  public async Task CreateInfrastructureGroup_RejectsInvalidMonitorId (string monitorId)
-  {
-    await using var factory = new DashboardApplicationFactory ();
-
-    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
-                                                               pagePath: SettingsPageTests.SettingsPath,
-                                                               handler: "CreateInfrastructureGroup",
-                                                               fields:
-                                                               [
-                                                                 new KeyValuePair<string, string> (key: "name", value: "Edge"),
-                                                                 new KeyValuePair<string, string> (key: "monitorId",
-                                                                                                   value: monitorId),
-                                                               ]);
-
-    await FormPoster.AssertProblemAsync (response: response,
-                                         status: HttpStatusCode.BadRequest,
-                                         detail: "Monitor ID must be a positive integer.");
-  }
-
-  [Fact]
   public async Task Get_ShowsTheSectionsWithoutJQuery ()
   {
     await using var factory = new DashboardApplicationFactory ();
@@ -68,8 +27,8 @@ public class SettingsPageTests
       Assert.Contains (expectedSubstring: $"""<section id="{section}" """, actualString: html);
     }
 
-    Assert.Contains (expectedSubstring: """value="Development""",              actualString: html);
-    Assert.Contains (expectedSubstring: """id="infrastructure-group-dialog""", actualString: html);
+    Assert.Contains (expectedSubstring: """value="Development""", actualString: html);
+    Assert.DoesNotContain (expectedSubstring: "infrastructure-group", actualString: html);
     Assert.DoesNotContain (expectedSubstring: "jquery", actualString: html, comparisonType: StringComparison.OrdinalIgnoreCase);
   }
 
@@ -186,60 +145,6 @@ public class SettingsPageTests
                                                                                ]),
                                          status: HttpStatusCode.BadRequest,
                                          detail: "Color mode must be Auto, Light or Dark.");
-  }
-
-  [Fact]
-  public async Task DeleteThenRestoreInfrastructureGroup_PutsItBack ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-    HttpClient      client  = factory.CreateClient ();
-    int             id;
-
-    var (scope, context) = factory.CreateContext ();
-
-    using (scope)
-    {
-      id = await context.InfrastructureGroups.Where (g => g.Name == "Storage")
-                        .Select (g => g.Id)
-                        .SingleAsync (TestContext.Current.CancellationToken);
-    }
-
-    JsonElement deleted = await SettingsPageTests.PostOkAsync (factory: factory,
-                                                               handler: "DeleteInfrastructureGroup",
-                                                               fields:
-                                                               [
-                                                                 new KeyValuePair<string, string> (key: "id",
-                                                                                                   value: id.ToString ()),
-                                                               ],
-                                                               client: client);
-    JsonElement restore = deleted.GetProperty ("restore");
-
-    _ = await SettingsPageTests.PostOkAsync (factory: factory,
-                                             handler: "RestoreInfrastructureGroup",
-                                             fields:
-                                             [
-                                               new KeyValuePair<string, string> (key: "name",
-                                                                                 value: restore.GetProperty ("name").GetString ()!),
-                                               new KeyValuePair<string, string> (key: "monitorId",
-                                                                                 value: restore.GetProperty ("monitorId")
-                                                                                               .GetInt32 ()
-                                                                                               .ToString ()),
-                                               new KeyValuePair<string, string> (key: "sortOrder",
-                                                                                 value: restore.GetProperty ("sortOrder")
-                                                                                               .GetInt32 ()
-                                                                                               .ToString ()),
-                                             ],
-                                             client: client);
-
-    (scope, context) = factory.CreateContext ();
-
-    using (scope)
-    {
-      Assert.Equal (expected: ["Compute", "Storage", "Network"],
-                    actual: await context.InfrastructureGroups.OrderBy (g => g.SortOrder)
-                                         .Select (g => g.Name)
-                                         .ToListAsync (TestContext.Current.CancellationToken));
-    }
   }
 
   [Fact]

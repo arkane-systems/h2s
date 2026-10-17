@@ -23,14 +23,13 @@ public static class DevDataSeeder
   /// </summary>
   /// <param name="context">The database context to seed. Its schema must already be migrated.</param>
   /// <param name="cancellationToken">A token used to cancel the operation.</param>
-  /// <exception cref="InvalidOperationException">The database already contains categories, links, or infrastructure groups.</exception>
+  /// <exception cref="InvalidOperationException">The database already contains categories or links.</exception>
   public static async Task SeedAsync (DashboardContext context, CancellationToken cancellationToken = default)
   {
     ArgumentNullException.ThrowIfNull (context);
 
     if (await context.Categories.AnyAsync (cancellationToken) ||
-        await context.Links.AnyAsync (cancellationToken)      ||
-        await context.InfrastructureGroups.AnyAsync (cancellationToken))
+        await context.Links.AnyAsync (cancellationToken))
     {
       throw new InvalidOperationException ("The database already contains data; reset it before seeding.");
     }
@@ -47,7 +46,6 @@ public static class DevDataSeeder
 
     DevDataSeeder.ApplySettings (settings);
     context.Categories.AddRange (DevDataSeeder.CreateCategories ());
-    context.InfrastructureGroups.AddRange (DevDataSeeder.CreateInfrastructureGroups ());
 
     await context.SaveChangesAsync (cancellationToken);
   }
@@ -162,17 +160,6 @@ public static class DevDataSeeder
                                                                         host: "pihole",
                                                                         description: "DNS filtering",
                                                                         iconName: "pi-hole"));
-  }
-
-  /// <summary>
-  ///   Creates the sample infrastructure groups shown in the Uptime Kuma status bar.
-  /// </summary>
-  /// <returns>The infrastructure groups.</returns>
-  private static IEnumerable<InfrastructureGroup> CreateInfrastructureGroups ()
-  {
-    yield return new InfrastructureGroup { Name = "Compute", MonitorId = 1, SortOrder = 0 };
-    yield return new InfrastructureGroup { Name = "Storage", MonitorId = 2, SortOrder = 1 };
-    yield return new InfrastructureGroup { Name = "Network", MonitorId = 4, SortOrder = 2 };
   }
 
   /// <summary>

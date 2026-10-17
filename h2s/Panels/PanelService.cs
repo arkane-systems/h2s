@@ -1,5 +1,6 @@
 using h2s.Data;
 using h2s.Models;
+using h2s.Widgets;
 using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
@@ -92,9 +93,15 @@ public sealed partial class PanelService
 
     try
     {
+      IReadOnlyList<WidgetView> widgets = kind.WidgetPlacement == WidgetPlacements.None
+                                            ? []
+                                            : await this.services.GetRequiredService<WidgetService> ()
+                                                        .GetForPanelAsync (panelId: panel.Id,
+                                                                           cancellationToken: cancellationToken);
+
       content =
-        await kind.GetContentAsync (new PanelContext (Options:
-                                                      new OptionValues (schema: kind.Options, json: panel.OptionsJson),
+        await kind.GetContentAsync (new PanelContext (Options: new OptionValues (schema: kind.Options, json: panel.OptionsJson),
+                                                      Widgets: widgets,
                                                       Services: this.services,
                                                       CancellationToken: cancellationToken));
     }

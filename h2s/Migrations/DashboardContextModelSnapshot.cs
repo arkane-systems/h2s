@@ -97,27 +97,6 @@ namespace h2s.Migrations
                         });
                 });
 
-            modelBuilder.Entity("h2s.Models.InfrastructureGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("MonitorId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("InfrastructureGroups");
-                });
-
             modelBuilder.Entity("h2s.Models.Link", b =>
                 {
                     b.Property<int>("Id")
@@ -231,12 +210,19 @@ namespace h2s.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("LinkId")
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LinkId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("OptionsJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("PanelId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("RefreshSeconds")
                         .HasColumnType("INTEGER");
@@ -250,7 +236,12 @@ namespace h2s.Migrations
 
                     b.HasIndex("LinkId");
 
-                    b.ToTable("Widgets");
+                    b.HasIndex("PanelId");
+
+                    b.ToTable("Widgets", t =>
+                        {
+                            t.HasCheckConstraint("CK_Widgets_OneOwner", "(\"LinkId\" IS NULL) <> (\"PanelId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("h2s.Models.Link", b =>
@@ -275,12 +266,18 @@ namespace h2s.Migrations
                     b.HasOne("h2s.Models.Link", "Link")
                         .WithMany("Widgets")
                         .HasForeignKey("LinkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("h2s.Models.Panel", "Panel")
+                        .WithMany("Widgets")
+                        .HasForeignKey("PanelId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Connection");
 
                     b.Navigation("Link");
+
+                    b.Navigation("Panel");
                 });
 
             modelBuilder.Entity("h2s.Models.Category", b =>
@@ -289,6 +286,11 @@ namespace h2s.Migrations
                 });
 
             modelBuilder.Entity("h2s.Models.Link", b =>
+                {
+                    b.Navigation("Widgets");
+                });
+
+            modelBuilder.Entity("h2s.Models.Panel", b =>
                 {
                     b.Navigation("Widgets");
                 });

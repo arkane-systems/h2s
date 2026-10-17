@@ -57,20 +57,22 @@ public sealed class WidgetService
       return [];
     }
 
-    List<Widget> widgets = await this.context.Widgets
-                                     .AsNoTracking ()
-                                     .Where (w => linkIds.Contains (w.LinkId))
-                                     .OrderBy (w => w.SortOrder)
-                                     .ThenBy (w => w.Id)
-                                     .ToListAsync (cancellationToken);
+    List<WidgetView> views = await this.DescribeAsync (query: this.context.Widgets.Where (w => (w.LinkId != null) &&
+                                                                                               linkIds.Contains (w.LinkId.Value)),
+                                                       cancellationToken: cancellationToken);
 
-    Dictionary<int, Connection> connectionsById =
-      (await this.connections.GetConnectionsAsync (cancellationToken)).ToDictionary (c => c.Id);
-
-    return widgets.Select (w => this.Describe (widget: w, connection: connectionsById.GetValueOrDefault (w.ConnectionId)))
-                  .GroupBy (v => v.LinkId)
-                  .ToDictionary (keySelector: g => g.Key, elementSelector: g => g.ToList ());
+    return views.GroupBy (v => v.LinkId).ToDictionary (keySelector: g => g.Key, elementSelector: g => g.ToList ());
   }
+
+  /// <summary>
+  ///   Loads a panel's widgets, each with its result if one was read recently.
+  /// </summary>
+  /// <param name="panelId">The panel.</param>
+  /// <param name="cancellationToken">A token used to cancel the queries.</param>
+  /// <returns>The panel's widgets, in order.</returns>
+  public async Task<List<WidgetView>> GetForPanelAsync (int panelId, CancellationToken cancellationToken = default)
+    => await this.DescribeAsync (query: this.context.Widgets.Where (w => w.PanelId == panelId),
+                                 cancellationToken: cancellationToken);
 
   /// <summary>
   ///   Loads one widget and reads it, unless it was read recently.
@@ -156,6 +158,25 @@ public sealed class WidgetService
     => Math.Max (val1: widget.RefreshSeconds ?? (int)(kind?.DefaultRefresh.TotalSeconds ?? 60), val2: Widget.MinRefreshSeconds);
 
   /// <summary>
+  ///   Loads widgets, in order, and describes each with its cached result.
+  /// </summary>
+  /// <param name="query">The widgets to load.</param>
+  /// <param name="cancellationToken">A token used to cancel the queries.</param>
+  /// <returns>The widgets.</returns>
+  private async Task<List<WidgetView>> DescribeAsync (IQueryable<Widget> query, CancellationToken cancellationToken)
+  {
+    List<Widget> widgets = await query.AsNoTracking ()
+                                      .OrderBy (w => w.SortOrder)
+                                      .ThenBy (w => w.Id)
+                                      .ToListAsync (cancellationToken);
+
+    Dictionary<int, Connection> connectionsById =
+      (await this.connections.GetConnectionsAsync (cancellationToken)).ToDictionary (c => c.Id);
+
+    return [.. widgets.Select (w => this.Describe (widget: w, connection: connectionsById.GetValueOrDefault (w.ConnectionId)))];
+  }
+
+  /// <summary>
   ///   Makes an unsaved widget of a planned one, so drafts are described and read as saved widgets are.
   /// </summary>
   /// <param name="plan">The planned widget.</param>
@@ -168,6 +189,7 @@ public sealed class WidgetService
          Kind           = plan.Kind,
          OptionsJson    = plan.OptionsJson,
          RefreshSeconds = plan.RefreshSeconds,
+         Label          = plan.Label,
          SortOrder      = index,
        };
 
@@ -227,11 +249,11 @@ public sealed class WidgetService
                                                                                refreshSeconds: refreshSeconds));
 
     return new WidgetView (Id: widget.Id,
-                           LinkId: widget.LinkId,
+                           LinkId: widget.LinkId  ?? 0,
                            Role: entry?.Kind.Role ?? WidgetRole.Status,
                            SortOrder: widget.SortOrder,
                            RefreshSeconds: refreshSeconds,
-                           Result: result);
+                           Result: result) { Label = widget.Label };
   }
 
   /// <summary>

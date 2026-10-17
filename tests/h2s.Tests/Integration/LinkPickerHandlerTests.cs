@@ -28,58 +28,6 @@ public class LinkPickerHandlerTests
   }
 
   [Fact]
-  public async Task KumaMonitors_ExplainsWhenKumaIsNotConfigured ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-
-    JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
-
-    Assert.Equal (expected: "Uptime Kuma isn't configured.", actual: list.GetProperty ("message").GetString ());
-    Assert.Empty (list.GetProperty ("groups").EnumerateArray ());
-  }
-
-  [Fact]
-  public async Task KumaMonitors_AsksForAnApiKey ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-    await factory.AddUptimeKumaAsync ();
-
-    JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
-
-    Assert.Equal (expected: "Add an API key to the Uptime Kuma settings to pick monitors.",
-                  actual: list.GetProperty ("message").GetString ());
-  }
-
-  [Fact]
-  public async Task KumaMonitors_ListsEveryMonitorFromTheMetrics_GroupsFirst ()
-  {
-    await using var factory = new DashboardApplicationFactory { Outbound = TestConnections.ServeKuma };
-    await factory.AddUptimeKumaAsync (apiKey: TestConnections.KumaApiKey);
-
-    JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
-
-    Assert.Equal (expected: JsonValueKind.Null, actual: list.GetProperty ("message").ValueKind);
-    Assert.Equal (expected: [("Groups", "1 Infrastructure"), ("Monitors", "11 Jellyfin"), ("Monitors", "12 Sonarr \"TV\"")],
-                  actual: list.GetProperty ("groups")
-                              .EnumerateArray ()
-                              .SelectMany (g => g.GetProperty ("monitors")
-                                                 .EnumerateArray ()
-                                                 .Select (m => (g.GetProperty ("name").GetString (),
-                                                                $"{m.GetProperty ("id").GetInt32 ()} {m.GetProperty ("name").GetString ()}"))));
-  }
-
-  [Fact]
-  public async Task KumaMonitors_SaysWhenTheApiKeyIsRefused ()
-  {
-    await using var factory = new DashboardApplicationFactory { Outbound = TestConnections.ServeKuma };
-    await factory.AddUptimeKumaAsync (apiKey: "wrong");
-
-    JsonElement list = await LinkPickerHandlerTests.GetJsonAsync (factory: factory, query: "handler=KumaMonitors");
-
-    Assert.Equal (expected: "Uptime Kuma refused the API key.", actual: list.GetProperty ("message").GetString ());
-  }
-
-  [Fact]
   public async Task CreateLink_StoresTheIconUrl ()
   {
     await using var factory = new DashboardApplicationFactory ();
@@ -185,7 +133,7 @@ public class LinkPickerHandlerTests
   public async Task Index_EditModeOffersThePickers ()
   {
     await using var factory = new DashboardApplicationFactory ();
-    await LinkPickerHandlerTests.ConfigureKumaAsync (factory: factory, slug: "main");
+    await factory.AddUptimeKumaAsync ();
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/?edit=true",
@@ -196,14 +144,6 @@ public class LinkPickerHandlerTests
     Assert.DoesNotContain (expectedSubstring: """data-role="monitor-select""", actualString: html);
     Assert.Contains (expectedSubstring: """name="iconUrl""", actualString: html);
   }
-
-  /// <summary>
-  ///   Configures Uptime Kuma in the settings, before the first request so the settings cache picks it up.
-  /// </summary>
-  /// <param name="factory">The application factory.</param>
-  /// <param name="slug">The status page slug, or <c>null</c> for none.</param>
-  private static Task ConfigureKumaAsync (DashboardApplicationFactory factory, string? slug)
-    => factory.AddUptimeKumaAsync (statusPageSlug: slug ?? "");
 
   /// <summary>
   ///   Creates a link in Media with the given icon URL.

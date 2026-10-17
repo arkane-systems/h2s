@@ -25,11 +25,6 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
   public DbSet<DashboardSettings> DashboardSettings => this.Set<DashboardSettings> ();
 
   /// <summary>
-  ///   Gets the set of infrastructure groups for Uptime Kuma monitoring badges.
-  /// </summary>
-  public DbSet<InfrastructureGroup> InfrastructureGroups => this.Set<InfrastructureGroup> ();
-
-  /// <summary>
   ///   Gets the set of full-width panels shown above and below the categories.
   /// </summary>
   public DbSet<Panel> Panels => this.Set<Panel> ();
@@ -60,5 +55,21 @@ public class DashboardContext (DbContextOptions<DashboardContext> options) : DbC
     // Ensure only one DashboardSettings record can exist.
     _ = modelBuilder.Entity<DashboardSettings> ()
                     .ToTable (t => t.HasCheckConstraint (name: "CK_DashboardSettings_SingleRow", sql: "Id = 1"));
+
+    // A widget belongs to exactly one link or panel, and goes with it.
+    _ = modelBuilder.Entity<Widget> (widget =>
+                                     {
+                                       _ = widget.ToTable (t => t.HasCheckConstraint (name: "CK_Widgets_OneOwner",
+                                                                                      sql:
+                                                                                      "(\"LinkId\" IS NULL) <> (\"PanelId\" IS NULL)"));
+                                       _ = widget.HasOne (w => w.Link)
+                                                 .WithMany (l => l.Widgets)
+                                                 .HasForeignKey (w => w.LinkId)
+                                                 .OnDelete (DeleteBehavior.Cascade);
+                                       _ = widget.HasOne (w => w.Panel)
+                                                 .WithMany (p => p.Widgets)
+                                                 .HasForeignKey (w => w.PanelId)
+                                                 .OnDelete (DeleteBehavior.Cascade);
+                                     });
   }
 }
