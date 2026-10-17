@@ -35,7 +35,8 @@ max_line_length = 132
 # Prefer expression bodies for methods, operators, constructors and destructors.
 resharper_csharp_method_or_operator_body = expression_body
 resharper_csharp_constructor_or_destructor_body = expression_body
-# Braces only when a body spans multiple lines.
+# Braces always, even around a single-line body, so Full Cleanup settles in one pass (with braces only for multi-line
+# bodies, it drops braces, wraps the statement, then restores them on the next pass).
 resharper_csharp_braces_for_ifelse = required
 resharper_csharp_braces_for_for = required
 resharper_csharp_braces_for_foreach = required

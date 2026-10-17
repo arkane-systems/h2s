@@ -85,7 +85,16 @@ export class LinkDialog {
             : null;
 
         const widgets = element.querySelector('[data-role="widgets"]');
-        this.widgetEditor = widgets ? new WidgetEditor(widgets) : null;
+        // While a widget is open, the link can't be saved or deleted: Done or Cancel finishes the widget first.
+        this.widgetEditor = widgets
+            ? new WidgetEditor(widgets, {
+                onEditingChanged: isEditing => {
+                    this.saveButton.disabled = isEditing;
+                    this.deleteButton.disabled = isEditing;
+                    this.showError('');
+                }
+            })
+            : null;
 
         const previewSoon = debounce(() => this.refreshPreview(), 250);
 

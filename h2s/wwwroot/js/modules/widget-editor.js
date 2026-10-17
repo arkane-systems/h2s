@@ -17,9 +17,14 @@ const button = (text, className, label) => {
 const postedValue = value => value === null || value === undefined ? '' : String(value);
 
 export class WidgetEditor {
-    /** @param {HTMLElement} root The Widgets fieldset. */
-    constructor(root) {
+    /**
+     * @param {HTMLElement} root The Widgets fieldset.
+     * @param {{ onEditingChanged?: (isEditing: boolean) => void }} [hooks] Called when a widget's form opens or closes, so
+     *   the dialog can hold off saving the link meanwhile.
+     */
+    constructor(root, { onEditingChanged } = {}) {
         this.root = root;
+        this.onEditingChanged = onEditingChanged ?? (() => {});
         this.kindsUrl = root.dataset.widgetKindsUrl;
         this.list = root.querySelector('[data-role="widget-list"]');
         this.empty = root.querySelector('[data-role="widget-empty"]');
@@ -190,6 +195,7 @@ export class WidgetEditor {
         this.refresh.value = widget?.refreshSeconds ?? '';
         this.form.classList.remove('was-validated', 'd-none');
         this.render();
+        this.onEditingChanged(true);
         (widget ? this.fields.querySelector('input, select') : this.kindSelect)?.focus();
     }
 
@@ -203,10 +209,14 @@ export class WidgetEditor {
     }
 
     closeForm() {
+        const wasEditing = this.editing !== null;
         this.editing = null;
         this.form.classList.add('d-none');
         this.fields.replaceChildren();
         this.addButton.disabled = false;
+        if (wasEditing) {
+            this.onEditingChanged(false);
+        }
     }
 
     commit() {
