@@ -71,16 +71,13 @@ public sealed class UptimeKumaIntegration : IIntegration
   private static string Count (int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
 
   /// <summary>
-  ///   Offers a monitor as a choice: its ID, labelled with its name and ID.
+  ///   Offers a group's monitors as choices: each one's ID, labelled with its name and ID, under the group's name.
   /// </summary>
-  /// <param name="monitor">The monitor.</param>
-  /// <param name="group">The group it's listed under.</param>
-  /// <returns>The choice.</returns>
-  private static OptionChoice ToChoice (KumaMonitor monitor, KumaMonitorGroup group)
-    => new (Value: monitor.Id.ToString (CultureInfo.InvariantCulture), Label: $"{monitor.Name} (#{monitor.Id})")
-       {
-         Group = group.Name,
-       };
+  /// <param name="group">The group.</param>
+  /// <returns>The choices.</returns>
+  private static IEnumerable<OptionChoice> ToChoices (KumaMonitorGroup group)
+    => group.Monitors.Select (m => new OptionChoice (Value: m.Id.ToString (CultureInfo.InvariantCulture),
+                                                     Label: $"{m.Name} (#{m.Id})") { Group = group.Name });
 
   /// <inheritdoc />
   public string Key => UptimeKumaIntegration.IntegrationKey;
@@ -228,9 +225,6 @@ public sealed class UptimeKumaIntegration : IIntegration
 
     return list.Message != null
              ? ChoiceList.Unavailable (list.Message)
-             : new ChoiceList ([
-                                 .. list.Groups.SelectMany (g => g.Monitors.Select (m => UptimeKumaIntegration.ToChoice (monitor: m,
-                                                                                                                         group: g))),
-                               ]);
+             : new ChoiceList ([.. list.Groups.SelectMany (UptimeKumaIntegration.ToChoices)]);
   }
 }
