@@ -157,8 +157,8 @@ The connection string key is `ConnectionStrings:h2s`. Development uses `App_Data
   - File-scoped namespaces, with usings outside them. `JetBrains.Annotations` is a global using.
   - XML doc comments on public members (CS1591 is on, except in tests).
   - Named arguments for literal and other non-trivial arguments; single-argument calls stay positional.
-  - Expression bodies are preferred for methods, operators and constructors. Braces only when a body spans multiple lines, so put comments above an `if`, never between it and its statement.
-- Full Cleanup isn't idempotent in one pass: it can drop braces, then wrap the statement, then restore the braces on the next pass. After cleaning new code, run it again until `git diff` is empty.
+  - Expression bodies are preferred for methods, operators and constructors. Braces are always required around the bodies of `if`/`else`, loops, `using`, `lock` and `fixed`, even single-line ones.
+- Braces are always required so that Full Cleanup settles in one pass: with braces only for multi-line bodies, it would drop a statement's braces, wrap it, then restore them on the next pass. If a second pass ever changes anything, treat that as a settings problem to fix rather than something to repeat.
 - Purely mechanical formatting commits go in `.git-blame-ignore-revs`. Locally, `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 - Dark mode:
   - Prefer Bootstrap theme-aware utilities (`bg-body`, `bg-body-tertiary`, `text-body`, `text-muted`, `border`) and CSS variables (`var(--bs-body-bg)`, `var(--bs-border-color)`, `rgba(var(--bs-body-bg-rgb), …)`) over hard-coded colors.
