@@ -39,7 +39,9 @@ public static partial class SearchEngineRules
   public static string? CheckUrlTemplate (string template)
   {
     if (!template.Contains (value: SearchEngineRules.QueryPlaceholder, comparisonType: StringComparison.Ordinal))
+    {
       return $"The search URL must contain {SearchEngineRules.QueryPlaceholder} where the search terms go.";
+    }
 
     string sample = template.Replace (oldValue: SearchEngineRules.QueryPlaceholder,
                                       newValue: "terms",

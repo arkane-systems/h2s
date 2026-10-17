@@ -126,7 +126,9 @@ public sealed class ConnectionService
     connection.OptionsJson = optionsJson;
 
     if (secrets != null)
+    {
       connection.SecretsJson = this.secrets.Protect (secrets);
+    }
 
     await this.context.SaveChangesAsync (cancellationToken);
     this.ForgetCached ();

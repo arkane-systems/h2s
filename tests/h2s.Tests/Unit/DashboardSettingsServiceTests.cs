@@ -20,7 +20,9 @@ public class DashboardSettingsServiceTests
     CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       _ = await new DashboardSettingsService (context: context, cache: cache).GetSettingsAsync ();
+    }
 
     // A write that bypasses the service isn't seen until the cache entry expires.
     await using (DashboardContext context = database.CreateContext ())
@@ -45,7 +47,9 @@ public class DashboardSettingsServiceTests
     CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       await context.DashboardSettings.ExecuteDeleteAsync (cancellationToken);
+    }
 
     await using (DashboardContext context = database.CreateContext ())
     {
@@ -59,7 +63,9 @@ public class DashboardSettingsServiceTests
     }
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       Assert.Equal (expected: 1, actual: await context.DashboardSettings.CountAsync (cancellationToken));
+    }
   }
 
   [Fact]
@@ -131,7 +137,9 @@ public class DashboardSettingsServiceTests
     CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       await context.DashboardSettings.ExecuteDeleteAsync (cancellationToken);
+    }
 
     // Creating the default row and saving a copy of it through the same context must not conflict.
     await using (DashboardContext context = database.CreateContext ())
@@ -144,7 +152,9 @@ public class DashboardSettingsServiceTests
     }
 
     await using (DashboardContext context = database.CreateContext ())
+    {
       Assert.Equal (expected: "Homelab", actual: (await context.DashboardSettings.SingleAsync (cancellationToken)).Title);
+    }
   }
 
   [Fact]

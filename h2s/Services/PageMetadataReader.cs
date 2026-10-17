@@ -119,18 +119,24 @@ public partial class PageMetadataReader
   public async Task<PageMetadata> ReadAsync (string? url, CancellationToken cancellationToken = default)
   {
     if (!PageMetadataReader.TryGetWebUri (value: url?.Trim (), baseUri: null, uri: out Uri? uri))
+    {
       return PageMetadata.Empty;
+    }
 
     var key = $"page-metadata:{uri.AbsoluteUri}";
 
     if (this.cache.TryGetValue (key: key, value: out PageMetadata? cached) && (cached != null))
+    {
       return cached;
+    }
 
     PageMetadata metadata = await this.CollectAsync (uri: uri, cancellationToken: cancellationToken);
 
     // Only useful reads are cached, so a page that was briefly down is tried again next time.
     if (!metadata.IsEmpty)
+    {
       _ = this.cache.Set (key: key, value: metadata, absoluteExpirationRelativeToNow: PageMetadataReader.CacheDuration);
+    }
 
     return metadata;
   }
@@ -157,12 +163,16 @@ public partial class PageMetadataReader
   public static string? CleanTitle (string title)
   {
     if (PageMetadataReader.IsGenericTitle (title))
+    {
       return null;
+    }
 
     var label = new StringBuilder ();
 
     foreach ((string separator, string part) in PageMetadataReader.SplitTitle (title))
+    {
       _ = label.Append (label.Length > 0 ? separator : "").Append (part);
+    }
 
     return label.Length > 0 ? label.ToString () : null;
   }
@@ -204,17 +214,23 @@ public partial class PageMetadataReader
       if (!meta.TryGetValue (key: "http-equiv", value: out string? equiv)                      ||
           !equiv.Equals (value: "refresh", comparisonType: StringComparison.OrdinalIgnoreCase) ||
           !meta.TryGetValue (key: "content", value: out string? content))
+      {
         continue;
+      }
 
       Match refresh = PageMetadataReader.RefreshUrlPattern ().Match (content);
 
       if (refresh.Success &&
           PageMetadataReader.TryGetWebUri (value: refresh.Groups["url"].Value, baseUri: pageUri, uri: out Uri? target))
+      {
         return target;
+      }
     }
 
     if (html.Length > PageMetadataReader.MaxScriptRedirectPageLength)
+    {
       return null;
+    }
 
     Match script = PageMetadataReader.ScriptRedirectPattern ().Match (html);
 
@@ -242,8 +258,11 @@ public partial class PageMetadataReader
       string part      = tokens[i];
 
       int colon = part.IndexOf (value: ": ", comparisonType: StringComparison.Ordinal);
+
       if (colon > 0)
+      {
         part = part[..colon];
+      }
 
       part = PageMetadataReader.SignInPhrasePattern ().Replace (input: part, replacement: "").Trim ();
 
@@ -251,7 +270,9 @@ public partial class PageMetadataReader
           PageMetadataReader.IsGenericTitle (part)                ||
           PageMetadataReader.SignInWordsPattern ().IsMatch (part) ||
           parts.Exists (p => p.Part.Equals (value: part, comparisonType: StringComparison.OrdinalIgnoreCase)))
+      {
         continue;
+      }
 
       parts.Add ((separator, part));
     }
@@ -279,7 +300,9 @@ public partial class PageMetadataReader
       Page? page = await this.GetPageAsync (uri: current, cancellationToken: cancellationToken);
 
       if (page?.Html == null)
+      {
         break;
+      }
 
       lastPage = page.Uri;
 
@@ -287,7 +310,9 @@ public partial class PageMetadataReader
       if (page.IsSuccess                                             &&
           PageMetadataReader.ParseTitle (page.Html) is { } pageTitle &&
           PageMetadataReader.CleanTitle (pageTitle) is { } cleanTitle)
+      {
         title = cleanTitle;
+      }
 
       PageDetails details = await this.ReadDetailsAsync (html: page.Html, pageUri: page.Uri, cancellationToken: cancellationToken);
 
@@ -303,7 +328,9 @@ public partial class PageMetadataReader
       var favicon = new Uri (baseUri: lastPage, relativeUri: "/favicon.ico");
 
       if (await this.IsImageAsync (uri: favicon, cancellationToken: cancellationToken))
+      {
         iconUrl = favicon;
+      }
     }
 
     return new PageMetadata (Title: title,
@@ -386,7 +413,9 @@ public partial class PageMetadataReader
 
       if (key is "application-name" or "apple-mobile-web-app-title" or "og:site_name" &&
           PageMetadataReader.CleanText (meta.GetValueOrDefault ("content") ?? "") is { } name)
+      {
         details.AppNames.Add (name);
+      }
     }
 
     foreach (Dictionary<string, string> link in links)
@@ -395,7 +424,9 @@ public partial class PageMetadataReader
 
       // A mask-icon is a single-colour silhouette, not something to show on a tile.
       if (rels.Contains ("mask-icon") || !(rels.Contains ("icon") || rels.Contains ("apple-touch-icon")))
+      {
         continue;
+      }
 
       if (PageMetadataReader.TryGetWebUri (value: link.GetValueOrDefault ("href"), baseUri: pageUri, uri: out Uri? icon))
       {
@@ -432,7 +463,9 @@ public partial class PageMetadataReader
                                                                    cancellationToken: cancellationToken);
 
       if (!response.IsSuccessStatusCode)
+      {
         return details;
+      }
 
       string json = await PageMetadataReader.ReadPrefixAsync (content: response.Content,
                                                               maxBytes: PageMetadataReader.MaxManifestBytes,
@@ -442,13 +475,17 @@ public partial class PageMetadataReader
       JsonElement        root     = manifest.RootElement;
 
       if (root.ValueKind != JsonValueKind.Object)
+      {
         return details;
+      }
 
       foreach (string property in new[] { "short_name", "name" })
       {
         if (PageMetadataReader.GetString (element: root, property: property) is { } value &&
             PageMetadataReader.CleanText (value) is { } name)
+        {
           details.AppNames.Add (name);
+        }
       }
 
       if (root.TryGetProperty (propertyName: "icons", value: out JsonElement icons) && (icons.ValueKind == JsonValueKind.Array))
@@ -456,7 +493,9 @@ public partial class PageMetadataReader
         foreach (JsonElement icon in icons.EnumerateArray ())
         {
           if (icon.ValueKind != JsonValueKind.Object)
+          {
             continue;
+          }
 
           string[] purposes = (PageMetadataReader.GetString (element: icon, property: "purpose") ?? "any").Split (' ');
 
@@ -464,7 +503,9 @@ public partial class PageMetadataReader
               !PageMetadataReader.TryGetWebUri (value: PageMetadataReader.GetString (element: icon, property: "src"),
                                                 baseUri: uri,
                                                 uri: out Uri? src))
+          {
             continue;
+          }
 
           details.Icons.Add (new IconCandidate (Uri: src,
                                                 Size: PageMetadataReader.ParseIconSize (sizes:
@@ -540,7 +581,9 @@ public partial class PageMetadataReader
     if ((type?.Contains ("svg") ?? false)                                                             ||
         uri.AbsolutePath.EndsWith (value: ".svg", comparisonType: StringComparison.OrdinalIgnoreCase) ||
         (sizes?.Contains (value: "any", comparisonType: StringComparison.OrdinalIgnoreCase) ?? false))
+    {
       return PageMetadataReader.ScalableIconSize;
+    }
 
     int largest = (sizes ?? "").Split (separator: ' ', options: StringSplitOptions.RemoveEmptyEntries)
                                .Select (size => int.TryParse (s: size.Split ('x', 'X')[0], result: out int width) ? width : 0)
@@ -587,7 +630,9 @@ public partial class PageMetadataReader
       var attributes = new Dictionary<string, string> (StringComparer.OrdinalIgnoreCase);
 
       foreach (Match attribute in PageMetadataReader.AttributePattern ().Matches (tag.Value))
+      {
         attributes.TryAdd (key: attribute.Groups["name"].Value, value: WebUtility.HtmlDecode (attribute.Groups["value"].Value));
+      }
 
       yield return attributes;
     }
@@ -605,7 +650,9 @@ public partial class PageMetadataReader
     uri = null;
 
     if (string.IsNullOrWhiteSpace (value))
+    {
       return false;
+    }
 
     bool resolved = baseUri == null
                       ? Uri.TryCreate (uriString: value, uriKind: UriKind.Absolute,  result: out uri)
@@ -626,7 +673,9 @@ public partial class PageMetadataReader
                                      .Trim ();
 
     if (clean.Length > PageMetadataReader.MaxTitleLength)
+    {
       clean = clean[..PageMetadataReader.MaxTitleLength].TrimEnd ();
+    }
 
     return clean.Length > 0 ? clean : null;
   }
@@ -648,7 +697,9 @@ public partial class PageMetadataReader
 
     while ((length < buffer.Length) &&
            ((read = await stream.ReadAsync (buffer: buffer.AsMemory (start: length), cancellationToken: cancellationToken)) > 0))
+    {
       length += read;
+    }
 
     return PageMetadataReader.GetEncoding (content.Headers.ContentType?.CharSet).GetString (bytes: buffer, index: 0, count: length);
   }

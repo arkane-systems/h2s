@@ -94,7 +94,9 @@ public partial class SettingsModel : PageModel
     (DashboardBackup? backup, IActionResult? problem) = await this.ReadBackupAsync (file);
 
     if (backup == null)
+    {
       return problem!;
+    }
 
     return new JsonResult (new
                            {
@@ -123,7 +125,9 @@ public partial class SettingsModel : PageModel
     (DashboardBackup? backup, IActionResult? problem) = await this.ReadBackupAsync (file);
 
     if (backup == null)
+    {
       return problem!;
+    }
 
     await this.backupService.ImportAsync (backup: backup, cancellationToken: this.HttpContext.RequestAborted);
 
@@ -156,7 +160,9 @@ public partial class SettingsModel : PageModel
     string normalizedTitle = (title ?? string.Empty).Trim ();
 
     if (normalizedTitle.Length == 0)
+    {
       return this.BadRequestProblem ("Title is required.");
+    }
 
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
     settings.Title        = normalizedTitle;
@@ -175,7 +181,9 @@ public partial class SettingsModel : PageModel
   public async Task<IActionResult> OnPostSaveAppearanceAsync (string? colorMode)
   {
     if (!Enum.TryParse (value: colorMode?.Trim (), ignoreCase: true, result: out ColorMode mode) || !Enum.IsDefined (mode))
+    {
       return this.BadRequestProblem ("Color mode must be Auto, Light or Dark.");
+    }
 
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
     settings.ColorMode = mode;
@@ -212,10 +220,14 @@ public partial class SettingsModel : PageModel
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
+    {
       return this.BadRequestProblem ("Group name is required.");
+    }
 
     if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
+    {
       return this.BadRequestProblem ("Monitor ID must be a positive integer.");
+    }
 
     int nextSortOrder = await this.context.InfrastructureGroups
                                   .Select (g => (int?)g.SortOrder)
@@ -245,15 +257,21 @@ public partial class SettingsModel : PageModel
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
+    {
       return this.BadRequestProblem ("Group name is required.");
+    }
 
     if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
+    {
       return this.BadRequestProblem ("Monitor ID must be a positive integer.");
+    }
 
     InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
 
     if (group == null)
+    {
       return this.NotFoundProblem ("Infrastructure group not found.");
+    }
 
     group.Name      = normalizedName;
     group.MonitorId = parsedMonitorId;
@@ -278,7 +296,9 @@ public partial class SettingsModel : PageModel
     InfrastructureGroup? group = await this.context.InfrastructureGroups.FirstOrDefaultAsync (g => g.Id == id);
 
     if (group == null)
+    {
       return this.NotFoundProblem ("Infrastructure group not found.");
+    }
 
     this.context.InfrastructureGroups.Remove (group);
     await this.context.SaveChangesAsync ();
@@ -298,10 +318,14 @@ public partial class SettingsModel : PageModel
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
+    {
       return this.BadRequestProblem ("Group name is required.");
+    }
 
     if (!MonitorIdParser.TryParse (value: monitorId, monitorId: out int parsedMonitorId))
+    {
       return this.BadRequestProblem ("Monitor ID must be a positive integer.");
+    }
 
     int position = Math.Clamp (value: sortOrder, min: 0, max: await this.context.InfrastructureGroups.CountAsync ());
 
@@ -329,14 +353,18 @@ public partial class SettingsModel : PageModel
   public async Task<IActionResult> OnPostReorderInfrastructureGroupsAsync (string[]? orderedIds)
   {
     if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     List<InfrastructureGroup> groups = await this.context.InfrastructureGroups
                                                  .Where (g => ids.Contains (g.Id))
                                                  .ToListAsync ();
 
     if (groups.Count != ids.Count)
+    {
       return this.BadRequestProblem ("One or more infrastructure groups do not exist.");
+    }
 
     for (var i = 0; i < ids.Count; i++)
     {
@@ -357,10 +385,14 @@ public partial class SettingsModel : PageModel
   private async Task<(DashboardBackup? Backup, IActionResult? Problem)> ReadBackupAsync (IFormFile? file)
   {
     if ((file == null) || (file.Length == 0))
+    {
       return (null, this.BadRequestProblem ("Choose a dashboard file to import."));
+    }
 
     if (file.Length > SettingsModel.MaxBackupBytes)
+    {
       return (null, this.BadRequestProblem ("The file is too large to be a dashboard export."));
+    }
 
     using var reader = new StreamReader (stream: file.OpenReadStream (), encoding: Encoding.UTF8);
     string    json   = await reader.ReadToEndAsync (this.HttpContext.RequestAborted);

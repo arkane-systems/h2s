@@ -51,7 +51,9 @@ public sealed class WidgetService
                                                                          CancellationToken        cancellationToken = default)
   {
     if (linkIds.Count == 0)
+    {
       return [];
+    }
 
     List<Widget> widgets = await this.context.Widgets
                                      .AsNoTracking ()
@@ -81,7 +83,9 @@ public sealed class WidgetService
                                .FirstOrDefaultAsync (predicate: w => w.Id == id, cancellationToken: cancellationToken);
 
     if (widget == null)
+    {
       return null;
+    }
 
     Connection? connection =
       (await this.connections.GetConnectionsAsync (cancellationToken)).FirstOrDefault (c => c.Id == widget.ConnectionId);
@@ -90,7 +94,9 @@ public sealed class WidgetService
     if ((view.Result != null) ||
         (connection  == null) ||
         this.catalog.Find (integrationKey: connection.IntegrationKey, kindKey: widget.Kind) is not { } entry)
+    {
       return view;
+    }
 
     OptionValues connectionOptions = this.connections.ReadOptions (connection)!;
     var          options           = new OptionValues (schema: entry.Kind.Options, json: widget.OptionsJson);

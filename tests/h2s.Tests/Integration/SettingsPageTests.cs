@@ -64,7 +64,9 @@ public class SettingsPageTests
                                                 cancellationToken: TestContext.Current.CancellationToken);
 
     foreach (string section in new[] { "general", "appearance", "integrations", "integration-uptime-kuma", "backup" })
+    {
       Assert.Contains (expectedSubstring: $"""<section id="{section}" """, actualString: html);
+    }
 
     Assert.Contains (expectedSubstring: """value="Development""",              actualString: html);
     Assert.Contains (expectedSubstring: """id="infrastructure-group-dialog""", actualString: html);
@@ -329,6 +331,8 @@ public class SettingsPageTests
     var (scope, context) = factory.CreateContext ();
 
     using (scope)
+    {
       return await context.DashboardSettings.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
+    }
   }
 }

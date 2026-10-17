@@ -125,7 +125,9 @@ public class LinkPickerHandlerTests
     ];
 
     if (iconUrl != null)
+    {
       fields.Add (new KeyValuePair<string, string> (key: "iconUrl", value: iconUrl));
+    }
 
     HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
                                                                pagePath: LinkPickerHandlerTests.EditorPath,

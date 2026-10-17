@@ -58,16 +58,23 @@ public sealed class LinkTileFactory
   public string BuildBadgeUrl (int monitorId, string type, int? duration = null, string? label = null)
   {
     if (string.IsNullOrWhiteSpace (this.uptimeKumaServerUrl))
+    {
       return "";
+    }
 
     var baseUrl = $"{this.uptimeKumaServerUrl.TrimEnd ('/')}/api/badge/{monitorId}/{type}";
 
     if (duration.HasValue)
+    {
       baseUrl += $"/{duration.Value}";
+    }
 
     var query = "style=flat";
+
     if (label != null)
+    {
       query += $"&label={Uri.EscapeDataString (label)}";
+    }
 
     return $"{baseUrl}?{query}";
   }
@@ -80,10 +87,14 @@ public sealed class LinkTileFactory
   public bool IsExternalLink (string url)
   {
     if (this.localDomains.Count == 0)
+    {
       return false;
+    }
 
     if (!Uri.TryCreate (uriString: url, uriKind: UriKind.Absolute, result: out Uri? uri) || string.IsNullOrWhiteSpace (uri.Host))
+    {
       return false;
+    }
 
     string host = uri.Host.ToLowerInvariant ();
     bool isInternal = this.localDomains.Any (domain => (host == domain) ||
@@ -103,7 +114,9 @@ public sealed class LinkTileFactory
     var parsedDomains = new HashSet<string> (StringComparer.OrdinalIgnoreCase);
 
     if (string.IsNullOrWhiteSpace (domains))
+    {
       return parsedDomains;
+    }
 
     var separators = new[] { ',', ';', '\n', '\r', '\t', ' ' };
 
@@ -111,8 +124,11 @@ public sealed class LinkTileFactory
                                             options: StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
     {
       string normalized = LinkTileFactory.NormalizeDomain (value);
+
       if (!string.IsNullOrWhiteSpace (normalized))
+      {
         _ = parsedDomains.Add (normalized);
+      }
     }
 
     return parsedDomains;
@@ -126,11 +142,15 @@ public sealed class LinkTileFactory
   private static string NormalizeDomain (string domain)
   {
     if (string.IsNullOrWhiteSpace (domain))
+    {
       return "";
+    }
 
     if (Uri.TryCreate (uriString: domain.Trim (), uriKind: UriKind.Absolute, result: out Uri? parsedUri) &&
         !string.IsNullOrWhiteSpace (parsedUri.Host))
+    {
       return parsedUri.Host.Trim ().TrimStart ('.').ToLowerInvariant ();
+    }
 
     return domain.Trim ().TrimStart ('.').ToLowerInvariant ();
   }

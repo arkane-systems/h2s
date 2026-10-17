@@ -104,10 +104,14 @@ public class UrlProbe
                                                                      cancellationToken: cancellationToken);
 
     if (headResponse.IsSuccessStatusCode)
+    {
       return true;
+    }
 
     if (headResponse.StatusCode != HttpStatusCode.MethodNotAllowed)
+    {
       return false;
+    }
 
     using var getRequest = new HttpRequestMessage (method: HttpMethod.Get, requestUri: url);
     using HttpResponseMessage getResponse = await client.SendAsync (request: getRequest,

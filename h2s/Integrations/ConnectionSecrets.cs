@@ -51,7 +51,9 @@ public sealed class ConnectionSecrets
   public IReadOnlyDictionary<string, string> Unprotect (string? stored)
   {
     if (string.IsNullOrEmpty (stored))
+    {
       return new Dictionary<string, string> ();
+    }
 
     try
     {

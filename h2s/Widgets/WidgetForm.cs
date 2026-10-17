@@ -159,7 +159,9 @@ public static class WidgetForm
       WidgetPlan item = plan[i];
 
       if (item.ExistingId is { } id && existing.TryGetValue (key: id, value: out Widget? widget))
+      {
         _ = kept.Add (id);
+      }
       else
       {
         widget = new Widget ();
@@ -187,7 +189,9 @@ public static class WidgetForm
     seconds = null;
 
     if (string.IsNullOrWhiteSpace (value))
+    {
       return true;
+    }
 
     if (!int.TryParse (s: value.Trim (),
                        style: NumberStyles.None,
@@ -195,7 +199,9 @@ public static class WidgetForm
                        result: out int parsed) ||
         (parsed < Widget.MinRefreshSeconds)    ||
         (parsed > Widget.MaxRefreshSeconds))
+    {
       return false;
+    }
 
     seconds = parsed;
 

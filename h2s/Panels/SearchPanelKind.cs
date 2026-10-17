@@ -51,7 +51,9 @@ public sealed class SearchPanelKind : IPanelKind
                                               .ToListAsync (context.CancellationToken);
 
     if (WebSearch.GetDefault (engines) is not { } engine)
+    {
       return PanelContent.Empty ("There are no search engines. Add one in Settings → Search.");
+    }
 
     string placeholder = context.Options.GetText (SearchPanelKind.PlaceholderOption).Trim ();
 

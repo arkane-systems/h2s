@@ -129,7 +129,9 @@ public partial class EditorModel : PageModel
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
+    {
       return this.BadRequestProblem ("Category name is required.");
+    }
 
     var category = new Category
                    {
@@ -159,17 +161,23 @@ public partial class EditorModel : PageModel
     string normalizedName = (name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (normalizedName))
+    {
       return this.BadRequestProblem ("Category name is required.");
+    }
 
     Category? category = await this.context.Categories
                                    .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
+    {
       return this.NotFoundProblem ("Category not found.");
+    }
 
     // A category that changes section goes to the end of its new section.
     if (category.IsAdminCategory != isAdminCategory)
+    {
       category.SortOrder = await this.GetNextCategorySortOrderAsync (isAdminCategory);
+    }
 
     category.Name            = normalizedName;
     category.IsAdminCategory = isAdminCategory;
@@ -200,7 +208,9 @@ public partial class EditorModel : PageModel
                                    .FirstOrDefaultAsync (c => c.Id == id);
 
     if (category == null)
+    {
       return this.NotFoundProblem ("Category not found.");
+    }
 
     CategorySnapshot snapshot = CategorySnapshot.From (category);
 
@@ -236,13 +246,19 @@ public partial class EditorModel : PageModel
     string normalizedIconUrl = (iconUrl ?? string.Empty).Trim ();
 
     if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl, iconUrl: normalizedIconUrl) is { } invalid)
+    {
       return this.BadRequestProblem (invalid);
+    }
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
+    {
       return this.BadRequestProblem ("Selected category does not exist.");
+    }
 
     if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
+    {
       return this.BadRequestProblem ("Monitor ID must be a positive integer.");
+    }
 
     var link = new Link
                {
@@ -258,7 +274,9 @@ public partial class EditorModel : PageModel
                };
 
     if (await this.ApplyPostedWidgetsAsync (link) is { } widgetError)
+    {
       return this.BadRequestProblem (widgetError);
+    }
 
     this.context.Links.Add (link);
     await this.context.SaveChangesAsync ();
@@ -318,24 +336,34 @@ public partial class EditorModel : PageModel
     string normalizedIconUrl = (iconUrl ?? string.Empty).Trim ();
 
     if (EditorModel.ValidateLink (label: normalizedLabel, url: normalizedUrl, iconUrl: normalizedIconUrl) is { } invalid)
+    {
       return this.BadRequestProblem (invalid);
+    }
 
     Link? link = await this.context.Links
                            .Include (l => l.Widgets)
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
+    {
       return this.NotFoundProblem ("Link not found.");
+    }
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
+    {
       return this.BadRequestProblem ("Selected category does not exist.");
+    }
 
     if (!MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId))
+    {
       return this.BadRequestProblem ("Monitor ID must be a positive integer.");
+    }
 
     // A link that moves to another category goes to the end of it.
     if (link.CategoryId != categoryId)
+    {
       link.SortOrder = await this.GetNextLinkSortOrderAsync (categoryId);
+    }
 
     link.CategoryId  = categoryId;
     link.Label       = normalizedLabel;
@@ -346,17 +374,25 @@ public partial class EditorModel : PageModel
     // Without Uptime Kuma the editor has no monitor ID field and omits it, which leaves the stored monitor ID alone;
     // only a posted (possibly blank) value replaces it.
     if (this.Request.Form.ContainsKey (nameof (monitorId)))
+    {
       link.MonitorId = parsedMonitorId;
+    }
 
     // Likewise the older Editor page has no icon URL field.
     if (this.Request.Form.ContainsKey (nameof (iconUrl)))
+    {
       link.IconUrl = normalizedIconUrl;
+    }
 
     if (this.Request.Form.ContainsKey (nameof (openInNewTab)))
+    {
       link.OpenInNewTab = openInNewTab;
+    }
 
     if (await this.ApplyPostedWidgetsAsync (link) is { } widgetError)
+    {
       return this.BadRequestProblem (widgetError);
+    }
 
     await this.context.SaveChangesAsync ();
 
@@ -395,7 +431,9 @@ public partial class EditorModel : PageModel
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
+    {
       return this.NotFoundProblem ("Link not found.");
+    }
 
     LinkSnapshot snapshot = LinkSnapshot.From (link);
 
@@ -418,13 +456,19 @@ public partial class EditorModel : PageModel
     var restore = EditorModel.ReadSnapshot<LinkSnapshot> (snapshot);
 
     if (restore == null)
+    {
       return this.BadRequestProblem ("The link to restore is missing or malformed.");
+    }
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == restore.CategoryId))
+    {
       return this.NotFoundProblem ("The link's category no longer exists.");
+    }
 
     if (EditorModel.ValidateSnapshot (restore) is { } invalid)
+    {
       return this.BadRequestProblem (invalid);
+    }
 
     int count    = await this.context.Links.CountAsync (l => l.CategoryId == restore.CategoryId);
     int position = Math.Clamp (value: restore.SortOrder, min: 0, max: count);
@@ -467,17 +511,23 @@ public partial class EditorModel : PageModel
     var restore = EditorModel.ReadSnapshot<CategorySnapshot> (snapshot);
 
     if (restore == null)
+    {
       return this.BadRequestProblem ("The category to restore is missing or malformed.");
+    }
 
     string name = (restore.Name ?? string.Empty).Trim ();
 
     if (string.IsNullOrWhiteSpace (name))
+    {
       return this.BadRequestProblem ("Category name is required.");
+    }
 
     List<LinkSnapshot> links = restore.Links ?? [];
 
     if (links.Select (EditorModel.ValidateSnapshot).FirstOrDefault (e => e != null) is { } invalid)
+    {
       return this.BadRequestProblem (invalid);
+    }
 
     int count    = await this.context.Categories.CountAsync (c => c.IsAdminCategory == restore.IsAdminCategory);
     int position = Math.Clamp (value: restore.SortOrder, min: 0, max: count);
@@ -498,7 +548,9 @@ public partial class EditorModel : PageModel
     HashSet<int> connectionIds = await this.GetConnectionIdsAsync ();
 
     for (var i = 0; i < links.Count; i++)
+    {
       EditorModel.RestoreWidgets (link: category.Links[i], snapshot: links[i], connectionIds: connectionIds);
+    }
 
     this.context.Categories.Add (category);
     await this.context.SaveChangesAsync ();
@@ -519,7 +571,9 @@ public partial class EditorModel : PageModel
                            .FirstOrDefaultAsync (l => l.Id == id);
 
     if (link == null)
+    {
       return this.NotFoundProblem ("Link not found.");
+    }
 
     Dictionary<int, Connection> connections =
       (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).ToDictionary (c => c.Id);
@@ -581,10 +635,14 @@ public partial class EditorModel : PageModel
     UptimeKumaSettings? uptimeKuma = await UptimeKumaSettings.LoadAsync (this.connections);
 
     if (uptimeKuma == null)
+    {
       return new JsonResult (KumaMonitorList.Failed ("Uptime Kuma isn't configured."));
+    }
 
     if (uptimeKuma.ApiKey == null)
+    {
       return new JsonResult (KumaMonitorList.Failed ("Add an API key to the Uptime Kuma settings to pick monitors."));
+    }
 
     KumaMetrics metrics = await this.uptimeKumaClient.GetMetricsAsync (serverUrl: uptimeKuma.ServerUrl,
                                                                        apiKey: uptimeKuma.ApiKey,
@@ -663,27 +721,37 @@ public partial class EditorModel : PageModel
   public async Task<IActionResult> OnPostReorderCategoriesAsync (string[]? orderedIds)
   {
     if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     List<Category> categories = await this.context.Categories
                                           .Where (c => ids.Contains (c.Id))
                                           .ToListAsync ();
 
     if (categories.Count != ids.Count)
+    {
       return this.BadRequestProblem ("One or more categories do not exist.");
+    }
 
     bool isAdminSection = categories[0].IsAdminCategory;
 
     if (categories.Any (c => c.IsAdminCategory != isAdminSection))
+    {
       return this.BadRequestProblem ("Regular and admin categories are ordered separately.");
+    }
 
     if (await this.context.Categories.CountAsync (c => c.IsAdminCategory == isAdminSection) != ids.Count)
+    {
       return this.BadRequestProblem ("The order must include every category in the section.");
+    }
 
     Dictionary<int, Category> categoriesById = categories.ToDictionary (c => c.Id);
 
     for (var i = 0; i < ids.Count; i++)
+    {
       categoriesById[ids[i]].SortOrder = i;
+    }
 
     await this.context.SaveChangesAsync ();
 
@@ -701,20 +769,28 @@ public partial class EditorModel : PageModel
   public async Task<IActionResult> OnPostReorderLinksAsync (int categoryId, string[]? orderedIds)
   {
     if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
+    {
       return this.NotFoundProblem ("Category not found.");
+    }
 
     List<Link> links = await this.context.Links
                                  .Where (l => ids.Contains (l.Id))
                                  .ToListAsync ();
 
     if (links.Count != ids.Count)
+    {
       return this.BadRequestProblem ("One or more links do not exist.");
+    }
 
     if (await this.context.Links.AnyAsync (l => (l.CategoryId == categoryId) && !ids.Contains (l.Id)))
+    {
       return this.BadRequestProblem ("The order must include every link in the category.");
+    }
 
     await this.PlaceLinksAsync (categoryId: categoryId, ids: ids, links: links);
 
@@ -730,17 +806,23 @@ public partial class EditorModel : PageModel
   public async Task<IActionResult> OnPostMoveLinksAsync (int categoryId, string[]? orderedIds)
   {
     if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     if (!await this.context.Categories.AnyAsync (c => c.Id == categoryId))
+    {
       return this.NotFoundProblem ("Category not found.");
+    }
 
     List<Link> moving = await this.context.Links
                                   .Where (l => ids.Contains (l.Id))
                                   .ToListAsync ();
 
     if (moving.Count != ids.Count)
+    {
       return this.BadRequestProblem ("One or more links do not exist.");
+    }
 
     // Links already in the category keep their places at the front; the moved ones follow in the order given.
     List<Link> staying = await this.context.Links
@@ -768,7 +850,9 @@ public partial class EditorModel : PageModel
   public async Task<IActionResult> OnPostDeleteLinksAsync (string[]? ids)
   {
     if (!OrderedIdParser.TryParse (values: ids, ids: out List<int>? linkIds, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     List<Link> links = await this.context.Links
                                  .Include (l => l.Widgets)
@@ -778,7 +862,9 @@ public partial class EditorModel : PageModel
                                  .ToListAsync ();
 
     if (links.Count != linkIds.Count)
+    {
       return this.BadRequestProblem ("One or more links do not exist.");
+    }
 
     // Restoring in this order puts each link back at its old position: each restore shifts the later ones along.
     List<LinkSnapshot> snapshots = [.. links.Select (LinkSnapshot.From)];
@@ -898,7 +984,9 @@ public partial class EditorModel : PageModel
         var position = 0;
 
         foreach (Link link in category)
+        {
           link.SortOrder = position++;
+        }
       }
     }
 
@@ -936,13 +1024,19 @@ public partial class EditorModel : PageModel
   private static string? ValidateLink (string label, string url, string iconUrl)
   {
     if (string.IsNullOrWhiteSpace (label))
+    {
       return "Link label is required.";
+    }
 
     if (string.IsNullOrWhiteSpace (url))
+    {
       return "Link URL is required.";
+    }
 
     if (!EditorModel.IsValidWebUrl (url))
+    {
       return "Link URL must be a valid HTTP or HTTPS URL.";
+    }
 
     return (iconUrl.Length == 0) || EditorModel.IsValidWebUrl (iconUrl) ? null : "Icon URL must be a valid HTTP or HTTPS URL.";
   }
@@ -955,7 +1049,9 @@ public partial class EditorModel : PageModel
   private static string? ValidateSnapshot (LinkSnapshot snapshot)
   {
     if (snapshot.MonitorId is <= 0)
+    {
       return "Monitor ID must be a positive integer.";
+    }
 
     return EditorModel.ValidateLink (label: (snapshot.Label     ?? string.Empty).Trim (),
                                      url: (snapshot.Url         ?? string.Empty).Trim (),
@@ -991,7 +1087,9 @@ public partial class EditorModel : PageModel
     where T : class
   {
     if (string.IsNullOrWhiteSpace (json))
+    {
       return null;
+    }
 
     try
     {
@@ -1011,7 +1109,9 @@ public partial class EditorModel : PageModel
   private static bool IsValidWebUrl (string url)
   {
     if (!Uri.TryCreate (uriString: url, uriKind: UriKind.Absolute, result: out Uri? uri))
+    {
       return false;
+    }
 
     return (uri.Scheme == Uri.UriSchemeHttp) || (uri.Scheme == Uri.UriSchemeHttps);
   }

@@ -310,7 +310,9 @@ public class ReorderHandlerTests
       orderedIds.Select (id => new KeyValuePair<string, string> (key: "orderedIds", value: id.ToString ()));
 
     if (categoryId.HasValue)
+    {
       fields = fields.Prepend (new KeyValuePair<string, string> (key: "categoryId", value: categoryId.Value.ToString ()));
+    }
 
     return FormPoster.PostAsync (client: factory.CreateClient (),
                                  pagePath: ReorderHandlerTests.EditorPath,

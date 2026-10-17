@@ -40,7 +40,9 @@ public partial class AccessibilityTests
 
     // Each category region is named by its heading.
     foreach (Match region in AccessibilityTests.CategoryRegionPattern ().Matches (html))
+    {
       Assert.Contains (expectedSubstring: $"id=\"category-title-{region.Groups["id"].Value}\"", actualString: html);
+    }
 
     Assert.Equal (expected: 5, actual: AccessibilityTests.CategoryRegionPattern ().Count (html));
     Assert.Contains (expectedSubstring: """<h1 class="visually-hidden">Development</h1>""", actualString: html);

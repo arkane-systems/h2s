@@ -47,7 +47,9 @@ public sealed class KumaMonitorWidgetKind : IWidgetKind
     double percent = ratio * 100;
 
     if (percent >= 100)
+    {
       return "100";
+    }
 
     // Truncate, so 99.996% doesn't round up to a misleading 100%.
     // Near 100% the second decimal matters; below 99% one is plenty.
@@ -90,10 +92,14 @@ public sealed class KumaMonitorWidgetKind : IWidgetKind
   public async Task<WidgetResult> FetchAsync (WidgetContext context)
   {
     if (UptimeKumaSettings.From (context.Connection) is not { } settings)
+    {
       return WidgetResult.Unknown ("Uptime Kuma isn't set up.");
+    }
 
     if (settings.ApiKey == null)
+    {
       return WidgetResult.Unknown ("Uptime Kuma has no API key; add one in Settings → Integrations.");
+    }
 
     int monitorId = context.Options.GetInteger (KumaMonitorWidgetKind.MonitorIdOption) ?? 0;
 
@@ -103,10 +109,14 @@ public sealed class KumaMonitorWidgetKind : IWidgetKind
                                                          cancellationToken: context.CancellationToken);
 
     if (metrics.Message != null)
+    {
       return WidgetResult.Unknown (metrics.Message);
+    }
 
     if (!metrics.Monitors.TryGetValue (key: monitorId, value: out KumaMonitorMetrics? monitor))
+    {
       return WidgetResult.Unknown ($"Uptime Kuma doesn't report a monitor {monitorId}.");
+    }
 
     string window = context.Options.GetText (KumaMonitorWidgetKind.UptimeWindowOption) is { Length: > 0 } chosen
                       ? chosen
@@ -122,7 +132,9 @@ public sealed class KumaMonitorWidgetKind : IWidgetKind
 
     if (context.Options.GetBoolean (KumaMonitorWidgetKind.ShowUptimeOption) &&
         monitor.Uptime.TryGetValue (key: window, value: out double ratio))
+    {
       stats.Add (new WidgetStat (Label: "Uptime", Value: KumaMonitorWidgetKind.FormatPercent (ratio), Unit: "%"));
+    }
 
     (WidgetStatus status, string state) = monitor.Status switch
                                           {

@@ -206,16 +206,24 @@ public class DashboardBackupService
     }
 
     if (read.Version < DashboardBackup.PanelsVersion)
+    {
       read = read with { Panels = null };
+    }
 
     if (read.Version < DashboardBackup.SearchEnginesVersion)
+    {
       read = read with { SearchEngines = null };
+    }
 
     if (read.Version < DashboardBackup.ConnectionsVersion)
+    {
       read = read with { Connections = DashboardBackupService.ConnectionsFromSettings (read.Settings) };
+    }
 
     if (read.Version < DashboardBackup.UptimeWindowsVersion)
+    {
       read = DashboardBackupService.UseUptimeWindows (read);
+    }
 
     if (read.Version < DashboardBackup.WidgetsVersion)
     {
@@ -230,7 +238,9 @@ public class DashboardBackupService
     DashboardBackupService.Validate (backup: read, kinds: kinds, integrations: integrations, errors: errors);
 
     if (errors.Count > 0)
+    {
       return false;
+    }
 
     backup = read;
 
@@ -347,7 +357,9 @@ public class DashboardBackupService
 
     // A file from before search engines gets the default ones. One engine is always the default.
     if (backup.SearchEngines == null)
+    {
       this.context.SearchEngines.AddRange (DefaultSearchEngines.Create ());
+    }
     else
     {
       bool hasDefault = backup.SearchEngines.Any (e => e.IsDefault);
@@ -367,7 +379,9 @@ public class DashboardBackupService
 
     // A file from before panels gets the default ones. Positions count within each zone.
     if (backup.Panels == null)
+    {
       this.context.Panels.AddRange (DefaultPanels.Create ());
+    }
     else
     {
       int top = 0, bottom = 0;
@@ -415,22 +429,32 @@ public class DashboardBackupService
     void Add (string error)
     {
       if (errors.Count < DashboardBackupService.MaxErrors)
+      {
         errors.Add (error);
+      }
     }
 
     if (backup.Settings is not { } settings)
+    {
       Add ("The file has no settings.");
+    }
     else
     {
       if (string.IsNullOrWhiteSpace (settings.Title))
+      {
         Add ("Settings: the title is required.");
+      }
 
       if (!Enum.IsDefined (settings.ColorMode))
+      {
         Add ("Settings: the color mode isn't one of Auto, Light or Dark.");
+      }
     }
 
     if (backup.Categories == null)
+    {
       Add ("The file has no categories list.");
+    }
 
     var widgetCatalog = new WidgetCatalog (integrations);
     HashSet<(string, string)> fileConnections =
@@ -445,9 +469,13 @@ public class DashboardBackupService
       var            where    = $"Category {c + 1}";
 
       if (string.IsNullOrWhiteSpace (category.Name))
+      {
         Add ($"{where}: the name is required.");
+      }
       else
+      {
         where += $" (\"{category.Name.Trim ()}\")";
+      }
 
       for (var l = 0; l < (category.Links?.Count ?? 0); l++)
       {
@@ -455,21 +483,31 @@ public class DashboardBackupService
         var        linkName = $"{where}, link {l + 1}";
 
         if (string.IsNullOrWhiteSpace (link.Label))
+        {
           Add ($"{linkName}: the label is required.");
+        }
 
         if (string.IsNullOrWhiteSpace (link.Url) || !DashboardBackupService.IsWebUrl (link.Url))
+        {
           Add ($"{linkName}: the URL must be an HTTP or HTTPS URL.");
+        }
 
         if (!string.IsNullOrWhiteSpace (link.IconUrl) && !DashboardBackupService.IsWebUrl (link.IconUrl))
+        {
           Add ($"{linkName}: the icon URL must be an HTTP or HTTPS URL.");
+        }
 
         if (link.MonitorId is <= 0)
+        {
           Add ($"{linkName}: the monitor ID must be a positive integer.");
+        }
 
         foreach (string error in DashboardBackupService.CheckWidgets (link: link,
                                                                       catalog: widgetCatalog,
                                                                       connections: fileConnections))
+        {
           Add ($"{linkName}: {error}");
+        }
       }
     }
 
@@ -478,17 +516,25 @@ public class DashboardBackupService
       BackupInfrastructureGroup group = backup.InfrastructureGroups![g];
 
       if (string.IsNullOrWhiteSpace (group.Name))
+      {
         Add ($"Infrastructure group {g + 1}: the name is required.");
+      }
 
       if (group.MonitorId <= 0)
+      {
         Add ($"Infrastructure group {g + 1}: the monitor ID must be a positive integer.");
+      }
     }
 
     if ((backup.Version >= DashboardBackup.PanelsVersion) && (backup.Panels == null))
+    {
       Add ("The file has no panels list.");
+    }
 
     if ((backup.Version >= DashboardBackup.SearchEnginesVersion) && (backup.SearchEngines == null))
+    {
       Add ("The file has no search engines list.");
+    }
 
     var seenShortcuts = new HashSet<string> (StringComparer.Ordinal);
 
@@ -498,21 +544,33 @@ public class DashboardBackupService
       var                where  = $"Search engine {e + 1}";
 
       if (SearchEngineRules.CheckName ((engine.Name ?? "").Trim ()) is { } nameError)
+      {
         Add ($"{where}: {DashboardBackupService.Lower (nameError)}");
+      }
       else
+      {
         where += $" (\"{engine.Name!.Trim ()}\")";
+      }
 
       if (SearchEngineRules.CheckUrlTemplate ((engine.UrlTemplate ?? "").Trim ()) is { } templateError)
+      {
         Add ($"{where}: {DashboardBackupService.Lower (templateError)}");
+      }
 
       if (!SearchEngineRules.TryNormalizeShortcut (value: engine.Shortcut, shortcut: out string shortcut))
+      {
         Add ($"{where}: {DashboardBackupService.Lower (SearchEngineRules.InvalidShortcut)}");
+      }
       else if ((shortcut.Length > 0) && !seenShortcuts.Add (shortcut))
+      {
         Add ($"{where}: another engine already uses !{shortcut}.");
+      }
     }
 
     if ((backup.SearchEngines?.Count (e => e.IsDefault) ?? 0) > 1)
+    {
       Add ("Only one search engine can be the default.");
+    }
 
     var seenKinds = new HashSet<string> (StringComparer.Ordinal);
 
@@ -522,21 +580,33 @@ public class DashboardBackupService
       var         where = $"Panel {p + 1}";
 
       if (string.IsNullOrWhiteSpace (panel.Kind))
+      {
         Add ($"{where}: the kind is required.");
+      }
       else if (kinds.Find (panel.Kind.Trim ()) is not { } kind)
+      {
         Add ($"{where}: h2s has no “{panel.Kind.Trim ()}” panel kind.");
+      }
       else if (!seenKinds.Add (kind.Key) && kind.IsSingleInstance)
+      {
         Add ($"{where}: the dashboard can only have one {kind.DisplayName.ToLowerInvariant ()} panel.");
+      }
 
       if (!Enum.IsDefined (panel.Zone))
+      {
         Add ($"{where}: the zone isn't one of Top or Bottom.");
+      }
 
       if (panel.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+      {
         Add ($"{where}: the options must be a JSON object.");
+      }
     }
 
     if ((backup.Version >= DashboardBackup.ConnectionsVersion) && (backup.Connections == null))
+    {
       Add ("The file has no connections list.");
+    }
 
     var seenIntegrations = new HashSet<string> (StringComparer.Ordinal);
     var seenNames        = new HashSet<(string, string)> ();
@@ -548,30 +618,48 @@ public class DashboardBackupService
       string           name       = (connection.Name ?? "").Trim ();
 
       if (name.Length == 0)
+      {
         Add ($"{where}: the name is required.");
+      }
       else if (name.Length > Connection.MaxNameLength)
+      {
         Add ($"{where}: the name must be at most {Connection.MaxNameLength} characters.");
+      }
       else
+      {
         where += $" (\"{name}\")";
+      }
 
       if (string.IsNullOrWhiteSpace (connection.Integration))
+      {
         Add ($"{where}: the integration is required.");
+      }
       else if (integrations.Find (connection.Integration.Trim ()) is not { } integration)
+      {
         Add ($"{where}: h2s has no “{connection.Integration.Trim ()}” integration.");
+      }
       else
       {
         if (!seenIntegrations.Add (integration.Key) && !integration.AllowsMultipleConnections)
+        {
           Add ($"{where}: the dashboard can only have one {integration.DisplayName} connection.");
+        }
         else if ((name.Length > 0) && !seenNames.Add ((integration.Key, name)))
+        {
           Add ($"{where}: another {integration.DisplayName} connection has that name.");
+        }
 
         if (connection.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+        {
           Add ($"{where}: the options must be a JSON object.");
+        }
         else if (!DashboardBackupService.TryReadConnectionOptions (integration: integration,
                                                                    options: connection.Options,
                                                                    json: out _,
                                                                    error: out string? error))
+        {
           Add ($"{where}: {error}");
+        }
       }
     }
   }
@@ -584,7 +672,9 @@ public class DashboardBackupService
   private static List<BackupConnection> ConnectionsFromSettings (BackupSettings? settings)
   {
     if (string.IsNullOrWhiteSpace (settings?.UptimeKumaServerUrl))
+    {
       return [];
+    }
 
     var options = new Dictionary<string, object?>
                   {
@@ -593,7 +683,9 @@ public class DashboardBackupService
                   };
 
     if (settings.UptimeKumaDefaultDuration is { } duration)
+    {
       options[UptimeKumaIntegration.LegacyDefaultDurationOption] = duration;
+    }
 
     return
     [
@@ -648,10 +740,14 @@ public class DashboardBackupService
   private static JsonElement? HoursToWindow (JsonElement? options, string hoursKey, string windowKey)
   {
     if (options is not { ValueKind: JsonValueKind.Object } element || JsonNode.Parse (element.GetRawText ()) is not JsonObject json)
+    {
       return options;
+    }
 
     if (json[hoursKey] is JsonValue hours && hours.TryGetValue (out int value))
+    {
       json[windowKey] = UptimeKumaWindows.FromHours (value);
+    }
 
     _ = json.Remove (hoursKey);
 
@@ -729,7 +825,9 @@ public class DashboardBackupService
     List<BackupWidget> widgets = link.Widgets ?? [];
 
     if (widgets.Count > WidgetForm.MaxWidgetsPerLink)
+    {
       yield return $"a link can have at most {WidgetForm.MaxWidgetsPerLink} widgets.";
+    }
 
     var apps = 0;
 
@@ -747,18 +845,26 @@ public class DashboardBackupService
 
       if (string.IsNullOrWhiteSpace (widget.Connection) ||
           !connections.Contains ((entry.Integration.Key, widget.Connection.Trim ())))
+      {
         yield return $"{where}: the file has no {entry.Integration.DisplayName} connection called “{widget.Connection}”.";
+      }
 
       if ((entry.Kind.Role == WidgetRole.App) && (++apps > 1))
+      {
         yield return $"{where}: a link can have only one app widget.";
+      }
 
       if (widget.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+      {
         yield return $"{where}: the options must be a JSON object.";
+      }
       else if (!DashboardBackupService.TryReadOptions (schema: entry.Kind.Options,
                                                        options: widget.Options,
                                                        json: out _,
                                                        error: out string? error))
+      {
         yield return $"{where}: {error}";
+      }
 
       if (widget.RefreshSeconds is < Widget.MinRefreshSeconds or > Widget.MaxRefreshSeconds)
       {
@@ -786,12 +892,16 @@ public class DashboardBackupService
                                                 options: options,
                                                 json: out json,
                                                 error: out error))
+    {
       return false;
+    }
 
     error = integration.Validate (new OptionValues (schema: integration.ConnectionOptions, json: json));
 
     if (error == null)
+    {
       return true;
+    }
 
     json = null;
 
@@ -869,7 +979,9 @@ public class DashboardBackupService
       using JsonDocument document = JsonDocument.Parse (json);
 
       if (document.RootElement.ValueKind == JsonValueKind.Object)
+      {
         return document.RootElement.Clone ();
+      }
     }
     catch (JsonException)
     {

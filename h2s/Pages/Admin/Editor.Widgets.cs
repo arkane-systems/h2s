@@ -84,7 +84,9 @@ public partial class EditorModel
   private async Task<string?> ApplyPostedWidgetsAsync (Link link)
   {
     if (!this.Request.HasFormContentType || !this.Request.Form.TryGetValue (key: "widgets", value: out StringValues posted))
+    {
       return null;
+    }
 
     if (!WidgetForm.TryRead (json: posted.ToString (),
                              catalog: this.widgetCatalog,
@@ -92,7 +94,9 @@ public partial class EditorModel
                              existing: link.Widgets,
                              plan: out List<WidgetPlan>? plan,
                              error: out string? error))
+    {
       return error;
+    }
 
     WidgetForm.Apply (link: link, plan: plan);
 

@@ -94,7 +94,9 @@ public class Link
     string normalizedIconName = Link.NormalizeIconName (iconName);
 
     if (string.IsNullOrWhiteSpace (normalizedIconName))
+    {
       return "";
+    }
 
     string normalizedFormat = Link.NormalizeFormat (format);
 
@@ -109,7 +111,9 @@ public class Link
   public static string NormalizeIconName (string iconName)
   {
     if (string.IsNullOrWhiteSpace (iconName))
+    {
       return "";
+    }
 
     string normalized = Regex.Replace (input: iconName.Trim ().ToLowerInvariant (), pattern: "[^a-z0-9]+", replacement: "-");
 

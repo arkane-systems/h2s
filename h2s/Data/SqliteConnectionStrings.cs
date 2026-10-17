@@ -25,7 +25,9 @@ public static class SqliteConnectionStrings
     var builder = new SqliteConnectionStringBuilder (connectionString);
 
     if (SqliteConnectionStrings.IsInMemory (builder) || Path.IsPathRooted (builder.DataSource))
+    {
       return connectionString;
+    }
 
     builder.DataSource = Path.GetFullPath (Path.Combine (path1: contentRootPath, path2: builder.DataSource));
 
@@ -41,7 +43,9 @@ public static class SqliteConnectionStrings
     string? directory = SqliteConnectionStrings.GetDataDirectory (connectionString);
 
     if (directory != null)
+    {
       Directory.CreateDirectory (directory);
+    }
   }
 
   /// <summary>
@@ -56,7 +60,9 @@ public static class SqliteConnectionStrings
     var builder = new SqliteConnectionStringBuilder (connectionString);
 
     if (SqliteConnectionStrings.IsInMemory (builder))
+    {
       return null;
+    }
 
     string? directory = Path.GetDirectoryName (builder.DataSource);
 

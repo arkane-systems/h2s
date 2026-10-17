@@ -56,7 +56,9 @@ public sealed partial class WidgetFetcher
                                             Func<CancellationToken, Task<WidgetResult>> fetch)
   {
     if (this.GetCached (key) is { } cached)
+    {
       return cached;
+    }
 
     Lazy<Task<WidgetResult>> read =
       this.inFlight.GetOrAdd (key: key,

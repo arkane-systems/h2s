@@ -196,7 +196,9 @@ public class MigrationTests
     List<Connection> connections = await context.Connections.AsNoTracking ().ToListAsync (cancellationToken);
 
     if (expectedOptions == null)
+    {
       Assert.Empty (connections);
+    }
     else
     {
       Connection kuma = Assert.Single (connections);
@@ -315,7 +317,9 @@ public class MigrationTests
     await using SqliteDataReader reader = await command.ExecuteReaderAsync (cancellationToken);
 
     while (await reader.ReadAsync (cancellationToken))
+    {
       rows.Add ((reader.GetString (0), reader.GetInt64 (1)));
+    }
 
     return rows;
   }
@@ -341,7 +345,9 @@ public class MigrationTests
     await using SqliteDataReader reader = await command.ExecuteReaderAsync (cancellationToken);
 
     while (await reader.ReadAsync (cancellationToken))
+    {
       rows.Add ((reader.GetString (0), reader.GetString (1), reader.IsDBNull (2) ? null : reader.GetInt64 (2)));
+    }
 
     return rows;
   }

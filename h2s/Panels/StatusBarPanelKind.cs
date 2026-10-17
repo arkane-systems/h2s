@@ -78,7 +78,9 @@ public sealed class StatusBarPanelKind : IPanelKind
                                           cancellationToken: context.CancellationToken);
 
     if (uptimeKuma == null)
+    {
       return PanelContent.Empty ("Uptime Kuma isn't set up. Add its server in Settings → Integrations.");
+    }
 
     List<InfrastructureGroup> groups = await context.Services.GetRequiredService<DashboardContext> ()
                                                     .InfrastructureGroups
@@ -88,7 +90,9 @@ public sealed class StatusBarPanelKind : IPanelKind
                                                     .ToListAsync (context.CancellationToken);
 
     if (groups.Count == 0)
+    {
       return PanelContent.Empty ("No infrastructure groups yet. Add them under Uptime Kuma in Settings → Integrations.");
+    }
 
     DashboardSettings settings = await context.Services.GetRequiredService<DashboardSettingsService> ().GetSettingsAsync ();
 

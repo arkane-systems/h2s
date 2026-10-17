@@ -27,7 +27,9 @@ public static class WebSearch
     List<string> words = [.. (query ?? "").Split (separator: (char[]?)null, options: StringSplitOptions.RemoveEmptyEntries)];
 
     if ((words.Count == 0) || (engines.Count == 0))
+    {
       return null;
+    }
 
     SearchEngine? engine     = null;
     int[]         candidates = words.Count == 1 ? [0] : [0, words.Count - 1];

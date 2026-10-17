@@ -21,7 +21,9 @@ public class WidgetModel (WidgetService widgets) : PageModel
     WidgetView? view = await widgets.ReadAsync (id: id, cancellationToken: cancellationToken);
 
     if (view == null)
+    {
       return this.NotFound ();
+    }
 
     // Each read is fresh to the browser; the server keeps results for the widget's interval.
     this.Response.Headers.CacheControl = "no-store";

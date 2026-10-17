@@ -143,6 +143,8 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
     base.Dispose (disposing);
 
     if (disposing)
+    {
       this.connection.Dispose ();
+    }
   }
 }

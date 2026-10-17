@@ -45,7 +45,9 @@ public partial class SettingsModel
                                                               string[]?                    clearSecrets)
   {
     if (this.integrations.Find (integration ?? "") is not { } found)
+    {
       return this.NotFoundProblem ("h2s has no such integration.");
+    }
 
     Connection? existing = await this.connections.FindFirstAsync (integrationKey: found.Key,
                                                                   cancellationToken: this.HttpContext.RequestAborted);
@@ -57,7 +59,9 @@ public partial class SettingsModel
                                  clearSecrets: clearSecrets,
                                  form: out ConnectionForm? form,
                                  problem: out IActionResult? problem))
+    {
       return problem;
+    }
 
     _ = await this.connections.SaveOnlyAsync (integration: found,
                                               optionsJson: form.Json,
@@ -85,7 +89,9 @@ public partial class SettingsModel
                                                               string[]?                    clearSecrets)
   {
     if (this.integrations.Find (integration ?? "") is not { } found)
+    {
       return this.NotFoundProblem ("h2s has no such integration.");
+    }
 
     Connection? existing = await this.connections.FindFirstAsync (integrationKey: found.Key,
                                                                   cancellationToken: this.HttpContext.RequestAborted);
@@ -97,7 +103,9 @@ public partial class SettingsModel
                                  clearSecrets: clearSecrets,
                                  form: out ConnectionForm? form,
                                  problem: out IActionResult? problem))
+    {
       return problem;
+    }
 
     ConnectionTestResult result =
       await found.TestAsync (new ConnectionContext (Options: form.Values,
@@ -117,7 +125,9 @@ public partial class SettingsModel
   public async Task<IActionResult> OnPostRemoveConnectionAsync (string? integration)
   {
     if (this.integrations.Find (integration ?? "") is not { } found)
+    {
       return this.NotFoundProblem ("h2s has no such integration.");
+    }
 
     await this.connections.DeleteAllAsync (integrationKey: found.Key, cancellationToken: this.HttpContext.RequestAborted);
 
@@ -133,7 +143,9 @@ public partial class SettingsModel
     var cards = new List<object> (this.integrations.Integrations.Count);
 
     foreach (IIntegration integration in this.integrations.Integrations)
+    {
       cards.Add (await this.DescribeIntegrationAsync (integration));
+    }
 
     return cards;
   }

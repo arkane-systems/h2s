@@ -175,6 +175,8 @@ public static class TestConnections
     var (scope, context) = factory.CreateContext ();
 
     using (scope)
+    {
       return await TestConnections.ReadUptimeKumaAsync (context);
+    }
   }
 }

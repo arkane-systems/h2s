@@ -48,7 +48,9 @@ public sealed partial class PanelService
     var views = new List<PanelView> (panels.Count);
 
     foreach (Panel panel in panels)
+    {
       views.Add (await this.CreateViewAsync (panel: panel, cancellationToken: cancellationToken));
+    }
 
     return views;
   }

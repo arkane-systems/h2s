@@ -64,13 +64,17 @@ public class UptimeKumaClient
     var key = $"kuma-monitors:{url}";
 
     if (this.cache.TryGetValue (key: key, value: out KumaMonitorList? cached) && (cached != null))
+    {
       return cached;
+    }
 
     KumaMonitorList monitors = await this.FetchAsync (url: url, slug: slug.Trim (), cancellationToken: cancellationToken);
 
     // Only successful reads are cached, so fixing the server or slug takes effect straight away.
     if (monitors.Message == null)
+    {
       _ = this.cache.Set (key: key, value: monitors, absoluteExpirationRelativeToNow: UptimeKumaClient.CacheDuration);
+    }
 
     return monitors;
   }
@@ -90,13 +94,17 @@ public class UptimeKumaClient
     var key = $"kuma-metrics:{url}:{Convert.ToHexString (SHA256.HashData (Encoding.UTF8.GetBytes (apiKey)))}";
 
     if (this.cache.TryGetValue (key: key, value: out KumaMetrics? cached) && (cached != null))
+    {
       return cached;
+    }
 
     KumaMetrics metrics = await this.FetchMetricsAsync (url: url, apiKey: apiKey, cancellationToken: cancellationToken);
 
     // Only successful reads are cached, so fixing the server or key takes effect straight away.
     if (metrics.Message == null)
+    {
       _ = this.cache.Set (key: key, value: metrics, absoluteExpirationRelativeToNow: UptimeKumaClient.MetricsCacheDuration);
+    }
 
     return metrics;
   }
@@ -121,13 +129,19 @@ public class UptimeKumaClient
       using HttpResponseMessage response = await client.SendAsync (request: request, cancellationToken: cancellationToken);
 
       if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+      {
         return KumaMetrics.Failed ("Uptime Kuma refused the API key.");
+      }
 
       if (response.StatusCode == HttpStatusCode.NotFound)
+      {
         return KumaMetrics.Failed ("Uptime Kuma has no /metrics endpoint; it needs version 1.21 or later.");
+      }
 
       if (!response.IsSuccessStatusCode)
+      {
         return KumaMetrics.Failed ($"Uptime Kuma answered {(int)response.StatusCode} {response.ReasonPhrase}.");
+      }
 
       return KumaMetrics.Parse (await response.Content.ReadAsStringAsync (cancellationToken));
     }
@@ -153,10 +167,14 @@ public class UptimeKumaClient
       using HttpResponseMessage response = await client.GetAsync (requestUri: url, cancellationToken: cancellationToken);
 
       if (response.StatusCode == HttpStatusCode.NotFound)
+      {
         return KumaMonitorList.Failed ($"Uptime Kuma has no status page \"{slug}\".");
+      }
 
       if (!response.IsSuccessStatusCode)
+      {
         return KumaMonitorList.Failed ($"Uptime Kuma answered {(int)response.StatusCode} {response.ReasonPhrase}.");
+      }
 
       await using Stream stream = await response.Content.ReadAsStreamAsync (cancellationToken);
       using JsonDocument data   = await JsonDocument.ParseAsync (utf8Json: stream, cancellationToken: cancellationToken);
@@ -185,7 +203,9 @@ public class UptimeKumaClient
     if ((root.ValueKind != JsonValueKind.Object)                                                 ||
         !root.TryGetProperty (propertyName: "publicGroupList", value: out JsonElement groupList) ||
         (groupList.ValueKind != JsonValueKind.Array))
+    {
       return null;
+    }
 
     var groups = new List<KumaMonitorGroup> ();
 
@@ -194,7 +214,9 @@ public class UptimeKumaClient
       if ((group.ValueKind != JsonValueKind.Object)                                               ||
           !group.TryGetProperty (propertyName: "monitorList", value: out JsonElement monitorList) ||
           (monitorList.ValueKind != JsonValueKind.Array))
+      {
         continue;
+      }
 
       var monitors = new List<KumaMonitor> ();
 

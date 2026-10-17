@@ -28,10 +28,14 @@ public static class MonitorIdParser
     monitorId = null;
 
     if (string.IsNullOrWhiteSpace (value))
+    {
       return true;
+    }
 
     if (!MonitorIdParser.TryParse (value: value, monitorId: out int parsed))
+    {
       return false;
+    }
 
     monitorId = parsed;
 

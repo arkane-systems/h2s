@@ -18,7 +18,9 @@ WebApplicationBuilder builder       = WebApplication.CreateBuilder (isSeedComman
 
 // Keep the seed command's output to its own messages rather than every EF Core SQL statement.
 if (isSeedCommand)
+{
   builder.Logging.AddFilter (category: "Microsoft.EntityFrameworkCore", level: LogLevel.Warning);
+}
 
 // Resolve a relative SQLite data source against the content root, so the database location does not depend on the
 // working directory (development uses h2s/App_Data/h2s.db; production configures an absolute /app/data/h2s.db).
@@ -103,7 +105,9 @@ IDataProtectionBuilder dataProtection = builder.Services.AddDataProtection ()
 string? dataDirectory = SqliteConnectionStrings.GetDataDirectory (connectionString);
 
 if (dataDirectory != null)
+{
   dataProtection.PersistKeysToFileSystem (new DirectoryInfo (Path.Combine (path1: dataDirectory, path2: "keys")));
+}
 
 // The app runs behind a reverse proxy (Traefik) and is reachable only through it, so trust forwarded headers from any
 // address rather than only loopback.
@@ -121,7 +125,9 @@ builder.Services.AddHealthChecks ()
 WebApplication app = builder.Build ();
 
 if (isSeedCommand)
+{
   return await SeedCommand.RunAsync (app: app, args: args);
+}
 
 // Apply any pending EF Core migrations during startup so the SQLite schema stays current.
 using (IServiceScope scope = app.Services.CreateScope ())
@@ -135,7 +141,9 @@ using (IServiceScope scope = app.Services.CreateScope ())
 app.UseForwardedHeaders ();
 
 if (!app.Environment.IsDevelopment ())
+{
   _ = app.UseExceptionHandler ("/Error");
+}
 
 app.UseRouting ();
 
