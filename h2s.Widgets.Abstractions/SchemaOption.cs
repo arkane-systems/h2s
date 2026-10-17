@@ -51,6 +51,15 @@ public sealed record SchemaOption (string Key, string Label, OptionType Type)
   public IReadOnlyList<OptionChoice> Choices { get; init; } = [];
 
   /// <summary>
+  ///   Gets the name of a choice list, which the edit form offers the option's values from: one the integration that
+  ///   declares the option publishes through <see cref="IIntegration.GetChoicesAsync" />, read from its service when the
+  ///   form opens. The option keeps its <see cref="Type" />, and the form still lets a value the list doesn't hold be typed
+  ///   in, so a service that's down or a value it doesn't report doesn't stop anyone. Only widget kinds' text and integer
+  ///   options use it so far.
+  /// </summary>
+  public string? ChoicesFrom { get; init; }
+
+  /// <summary>
   ///   Gets an example value shown in the empty field, such as <c>https://status.example.com</c>.
   /// </summary>
   public string? Placeholder { get; init; }

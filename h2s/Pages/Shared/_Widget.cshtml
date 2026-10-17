@@ -4,14 +4,22 @@
 @* One widget on a tile, drawn the same way whatever its kind. A status widget is a compact pill: a coloured dot and its
    figures, with its description for screen readers and as the tooltip. An app widget shows its figures with their labels.
    Without a result yet it's a placeholder (widget-pending), which wwwroot/js/modules/widgets.js reads straight away; it
-   refreshes every widget on its interval, swapping in this partial from /widgets/{id}. *@
+   refreshes every widget on its interval, swapping in this partial from /widgets/{id}. The link dialog's preview marks its
+   widgets with data-widget-preview instead, so widgets.js leaves them alone. *@
 @{
     WidgetResult? result = Model.Result;
     string state = result == null ? "pending" : result.Status.ToString().ToLowerInvariant();
     string role = Model.Role == WidgetRole.App ? "app" : "status";
 }
-<span class="link-widget link-widget-@role widget-@state" data-widget-id="@Model.Id" data-widget-refresh="@Model.RefreshSeconds"
-      data-widget-url="@Url.Page("/Widget", new { id = Model.Id })" title="@result?.Description">
+@if (Model.PreviewIndex is { } previewIndex)
+{
+    @* In the link dialog's preview, which reads it by its position (link-dialog.js), and never on an interval. *@
+    @:<span class="link-widget link-widget-@role widget-@state" data-widget-preview="@previewIndex" title="@result?.Description">
+}
+else
+{
+    @:<span class="link-widget link-widget-@role widget-@state" data-widget-id="@Model.Id" data-widget-refresh="@Model.RefreshSeconds" data-widget-url="@Url.Page("/Widget", new { id = Model.Id })" title="@result?.Description">
+}
     @if (Model.Role == WidgetRole.Status)
     {
         <span class="widget-dot" aria-hidden="true"></span>

@@ -57,4 +57,15 @@ public interface IIntegration
   Task<ConnectionTestResult> TestAsync (ConnectionContext context)
     => Task.FromResult (new ConnectionTestResult (Level: ConnectionTestLevel.Warning,
                                                   Message: $"{this.DisplayName} has no connection test."));
+
+  /// <summary>
+  ///   Reads one of the integration's choice lists from its service, such as Uptime Kuma's monitors, for the options that
+  ///   name it in <see cref="SchemaOption.ChoicesFrom" />. A list belongs to the integration rather than to one widget kind,
+  ///   so every kind (and later panel) that picks from it shares it. A failure to read the service should come back as
+  ///   <see cref="ChoiceList.Unavailable" /> with a reason, rather than an exception.
+  /// </summary>
+  /// <param name="listKey">The list's name.</param>
+  /// <param name="context">The connection's settings and the request's services.</param>
+  /// <returns>The list, or <c>null</c> when the integration has no list of that name.</returns>
+  Task<ChoiceList?> GetChoicesAsync (string listKey, ConnectionContext context) => Task.FromResult<ChoiceList?> (null);
 }

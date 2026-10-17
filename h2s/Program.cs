@@ -55,6 +55,7 @@ builder.Services.AddSingleton<IIntegration, UptimeKumaIntegration> ();
 builder.Services.AddSingleton<IntegrationCatalog> ();
 builder.Services.AddSingleton<ConnectionSecrets> ();
 builder.Services.AddScoped<ConnectionService> ();
+builder.Services.AddScoped<ChoiceListReader> ();
 
 // Panel kinds are singletons; the catalog lists them, and PanelService builds each panel's content per request.
 builder.Services.AddSingleton<IPanelKind, StatusBarPanelKind> ();

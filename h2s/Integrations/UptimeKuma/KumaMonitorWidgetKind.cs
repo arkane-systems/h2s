@@ -73,9 +73,12 @@ public sealed class KumaMonitorWidgetKind : IWidgetKind
   /// <inheritdoc />
   public IReadOnlyList<SchemaOption> Options { get; } =
     [
-      new (Key: KumaMonitorWidgetKind.MonitorIdOption, Label: "Monitor ID", Type: OptionType.Integer)
+      new (Key: KumaMonitorWidgetKind.MonitorIdOption, Label: "Monitor", Type: OptionType.Integer)
       {
-        IsRequired = true, Minimum = 1, HelpText = "The monitor's ID in Uptime Kuma, as in its address: /dashboard/12.",
+        IsRequired  = true,
+        Minimum     = 1,
+        ChoicesFrom = UptimeKumaIntegration.MonitorsList,
+        HelpText    = "For a monitor Kuma doesn't list, enter its ID, as in its address: /dashboard/12.",
       },
       new (Key: KumaMonitorWidgetKind.ShowResponseTimeOption, Label: "Show response time", Type: OptionType.Boolean)
       {

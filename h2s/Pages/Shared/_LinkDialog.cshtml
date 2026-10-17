@@ -5,6 +5,7 @@
      data-link-url="@Url.Page("/Admin/Editor", "Link")"
      data-suggest-url="@Url.Page("/Admin/Editor", "SuggestLink")"
      data-preview-url="@Url.Page("/Admin/Editor", "TilePreview")"
+     data-widget-preview-url="@Url.Page("/Admin/Editor", "WidgetPreview")"
      data-create-url="@Url.Page("/Admin/Editor", "CreateLink")"
      data-update-url="@Url.Page("/Admin/Editor", "UpdateLink")"
      data-delete-url="@Url.Page("/Admin/Editor", "DeleteLink")"
@@ -100,7 +101,8 @@
 
                 @* The link's widgets, edited by wwwroot/js/modules/widget-editor.js and posted with the link, so they save and
                    cancel with it. *@
-                <fieldset class="mb-3" data-role="widgets" data-widget-kinds-url="@Url.Page("/Admin/Editor", "WidgetKinds")">
+                <fieldset class="mb-3" data-role="widgets" data-widget-kinds-url="@Url.Page("/Admin/Editor", "WidgetKinds")"
+                          data-choices-url="@Url.Page("/Admin/Editor", "Choices")">
                     <legend class="form-label fs-6 mb-1">Widgets</legend>
                     <ul class="list-group mb-2" data-role="widget-list"></ul>
                     <p class="text-muted small d-none" data-role="widget-empty">No widgets. A widget shows live figures from an integration on the tile.</p>
@@ -122,6 +124,8 @@
                                 <div class="invalid-feedback">Use a whole number of seconds, from 15 to 86400, or leave it blank.</div>
                                 <div class="form-text" id="link-dialog-widget-refresh-help" data-role="widget-refresh-help"></div>
                             </div>
+                            @* What the widget reads now, from the live preview below. *@
+                            <p class="small text-muted mb-3 d-none" data-role="widget-result" aria-live="polite"></p>
                             <div class="d-flex gap-2">
                                 <button type="button" class="btn btn-sm btn-primary" data-role="widget-done">Done</button>
                                 <button type="button" class="btn btn-sm btn-secondary" data-role="widget-cancel">Cancel</button>
@@ -131,7 +135,8 @@
                 </fieldset>
 
                 <div class="form-label" id="link-dialog-preview-label">Preview</div>
-                @* Inert, so the preview's link can't be focused or followed. *@
+                @* Inert, so the preview's link can't be focused or followed. Its widgets are read live, the one being edited
+                   included, but aren't refreshed on an interval as the dashboard's are. *@
                 <div class="link-dialog-preview" data-role="preview" aria-labelledby="link-dialog-preview-label" inert></div>
             </div>
             <div class="modal-footer">

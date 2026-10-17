@@ -1,7 +1,8 @@
 /* The shared add/edit link dialog (Pages/Shared/_LinkDialog.cshtml). URL first: once a URL is entered, the server
    suggests a label, a selfh.st icon (or the site's own icon), and the preview shows the tile the server would render.
    The icon and Uptime Kuma monitor fields have pickers, and widget-editor.js edits the link's widgets, which are saved
-   with it. */
+   with it. The preview shows the widgets too, the one being edited included: it renders with the results already read,
+   then reads the rest one by one through the WidgetPreview handler, so a slow service never holds up the tile. */
 import { IconPicker } from './icon-picker.js';
 import { MonitorPicker } from './monitor-picker.js';
 import { WidgetEditor } from './widget-editor.js';
@@ -86,17 +87,17 @@ export class LinkDialog {
 
         const widgets = element.querySelector('[data-role="widgets"]');
         // While a widget is open, the link can't be saved or deleted: Done or Cancel finishes the widget first.
+        const previewSoon = debounce(() => this.refreshPreview(), 250);
         this.widgetEditor = widgets
             ? new WidgetEditor(widgets, {
                 onEditingChanged: isEditing => {
                     this.saveButton.disabled = isEditing;
                     this.deleteButton.disabled = isEditing;
                     this.showError('');
-                }
+                },
+                onChanged: previewSoon
             })
             : null;
-
-        const previewSoon = debounce(() => this.refreshPreview(), 250);
 
         // Look the page up once the URL is complete: when it's pasted, or when focus leaves the field. Looking up while
         // someone types would chase every partial host name.
@@ -240,21 +241,56 @@ export class LinkDialog {
         return values;
     }
 
-    // Shows the tile the server would render for the current values.
+    // Shows the tile the server would render for the current values, then reads its widgets that haven't been read.
     async refreshPreview() {
         const request = ++this.previewRequest;
         const values = this.values();
+        const { widgets, draftIndex } = this.widgetEditor?.previewValue() ?? { widgets: '[]', draftIndex: null };
 
         try {
             const html = await window.h2sApi.getText(withQuery(this.urls.previewUrl, {
                 ...values,
-                label: values.label || 'Label'
+                label: values.label || 'Label',
+                widgets
             }));
-            if (request === this.previewRequest) {
-                this.preview.innerHTML = html;
+            if (request !== this.previewRequest) {
+                return;
             }
+            this.preview.innerHTML = html;
         } catch {
             // The preview is a convenience; the form still works without it.
+            return;
+        }
+
+        const draft = () => draftIndex === null ? null : this.preview.querySelector(`[data-widget-preview="${draftIndex}"]`);
+        const reportDraft = () => {
+            if (this.widgetEditor?.isEditing) {
+                const element = draft();
+                this.widgetEditor.showResult(draftIndex === null
+                    ? 'Fill in the fields to preview the widget.'
+                    : element === null || element.classList.contains('widget-pending') ? 'Reading…' : element.title);
+            }
+        };
+        reportDraft();
+
+        await Promise.all([...this.preview.querySelectorAll('.widget-pending[data-widget-preview]')].map(async element => {
+            try {
+                const template = document.createElement('template');
+                template.innerHTML = (await window.h2sApi.getText(withQuery(this.urls.widgetPreviewUrl, {
+                    widgets,
+                    index: element.dataset.widgetPreview
+                }))).trim();
+                const fresh = template.content.firstElementChild;
+                if (fresh && request === this.previewRequest && element.isConnected) {
+                    element.replaceWith(fresh);
+                }
+            } catch {
+                // Leave the placeholder; the next change to the form tries again.
+            }
+        }));
+
+        if (request === this.previewRequest) {
+            reportDraft();
         }
     }
 

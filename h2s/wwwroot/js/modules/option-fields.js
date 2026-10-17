@@ -1,7 +1,8 @@
 /* Form fields built from an option schema, as h2s.Options.OptionDescriptions describes it. The panel dialog and the
    Settings → Integrations cards both use them. Fields post as the handlers take them: options[key], booleans as true or
    false; secrets[key] for a newly typed secret; and clearSecrets=key to clear one. A secret's value never reaches the
-   browser, so its field shows only whether it's set. */
+   browser, so its field shows only whether it's set. An option with a choice list (choicesFrom) offers the list's
+   choices, read from the service, beside its usual field for a value the list doesn't hold. */
 
 const make = (tag, className, text) => {
     const element = document.createElement(tag);
@@ -128,14 +129,94 @@ const storedSecret = (field, option, id) => {
     return input;
 };
 
+// A sentinel for the choice that types a value the list doesn't hold.
+const OtherValue = 'h2s:other';
+
+// An option offering a choice list's values: a select of the list (grouped), with "Another value…" showing the option's
+// usual field, which is what's posted. While the list loads, and if it can't be read, the field shows on its own.
+const liveChoices = (field, option, id, value, loadChoices) => {
+    const label = make('label', 'form-label', option.label);
+    const select = make('select', 'form-select d-none');
+    select.id = `${id}-choice`;
+    select.setAttribute('aria-label', option.label);
+
+    const input = textInput(option, id);
+    input.required = option.isRequired;
+    input.value = value ?? '';
+    input.setAttribute('aria-label', option.label);
+    label.htmlFor = id;
+
+    const feedback = make('div', 'invalid-feedback', invalidMessage(option));
+    const status = make('div', 'form-text', 'Loading the choices…');
+    status.setAttribute('aria-live', 'polite');
+    field.append(label, select, input, feedback, status);
+
+    const showInput = visible => {
+        input.classList.toggle('d-none', !visible);
+        input.classList.toggle('mt-2', visible && !select.classList.contains('d-none'));
+        feedback.textContent = visible ? invalidMessage(option) : `Choose ${option.label.toLowerCase()}.`;
+    };
+
+    select.addEventListener('change', () => {
+        const isOther = select.value === OtherValue;
+        showInput(isOther);
+        if (isOther) {
+            input.focus();
+        } else {
+            input.value = select.value;
+            // Let the form's listeners (such as a preview) see the change.
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+
+    loadChoices(option.choicesFrom).then(list => {
+        if (!input.isConnected || !list.choices.length) {
+            status.textContent = list.message ?? 'There are no choices to pick from; enter a value.';
+            return;
+        }
+
+        select.append(new Option(option.isRequired ? `Choose ${option.label.toLowerCase()}…` : option.placeholder ?? 'None', ''));
+        let group = null;
+        for (const choice of list.choices) {
+            if (choice.group && choice.group !== group?.label) {
+                group = make('optgroup');
+                group.label = choice.group;
+                select.append(group);
+            } else if (!choice.group) {
+                group = null;
+            }
+            (group ?? select).append(new Option(choice.label, choice.value));
+        }
+        select.append(new Option('Another value…', OtherValue));
+
+        const current = input.value.trim();
+        const listed = current !== '' && list.choices.some(choice => choice.value === current);
+        select.value = current === '' ? '' : listed ? current : OtherValue;
+        select.required = option.isRequired;
+        select.classList.remove('d-none');
+        label.htmlFor = select.id;
+        status.textContent = '';
+        status.classList.add('d-none');
+        showInput(current !== '' && !listed);
+        // Focus may have gone to the input before the list arrived; keep it on the visible control.
+        if (document.activeElement === input && input.classList.contains('d-none')) {
+            select.focus();
+        }
+    });
+
+    return input;
+};
+
 /**
  * Builds the field for one option.
  * @param {object} option The option, as OptionDescriptions describes it.
  * @param {*} value The current value; ignored for secrets.
- * @param {{ idPrefix: string, secretIsSet?: boolean }} context The prefix for element IDs, and whether a secret is set.
+ * @param {{ idPrefix: string, secretIsSet?: boolean, loadChoices?: (list: string) => Promise<{ choices: object[], message?: string }> }} context
+ *   The prefix for element IDs, whether a secret is set, and how to read a choice list (one that fails resolves with a
+ *   message). Without loadChoices, an option with a choice list is a plain field.
  * @returns {HTMLElement} The field.
  */
-export function createOptionField(option, value, { idPrefix, secretIsSet = false }) {
+export function createOptionField(option, value, { idPrefix, secretIsSet = false, loadChoices = null }) {
     const id = `${idPrefix}${option.key}`;
     const field = make('div', 'mb-3');
     field.dataset.optionKey = option.key;
@@ -167,6 +248,8 @@ export function createOptionField(option, value, { idPrefix, secretIsSet = false
         field.append(label, input, make('div', 'invalid-feedback', `Choose ${option.label.toLowerCase()}.`));
     } else if (option.type === 'secret' && secretIsSet) {
         input = storedSecret(field, option, id);
+    } else if (option.choicesFrom && loadChoices) {
+        input = liveChoices(field, option, id, value, loadChoices);
     } else {
         const label = make('label', 'form-label', option.label);
         label.htmlFor = id;
@@ -187,7 +270,9 @@ export function createOptionField(option, value, { idPrefix, secretIsSet = false
     if (hints.length) {
         const help = make('div', 'form-text', hints.join(' '));
         help.id = `${id}-help`;
-        input.setAttribute('aria-describedby', help.id);
+        for (const control of field.querySelectorAll('input, select')) {
+            control.setAttribute('aria-describedby', help.id);
+        }
         field.append(help);
     }
 
@@ -202,7 +287,8 @@ export function createOptionField(option, value, { idPrefix, secretIsSet = false
 export function readOptionFields(host) {
     const pairs = [];
     for (const field of host.querySelectorAll('[data-option-key]')) {
-        const input = field.querySelector('input, select');
+        // The posted control: a choice list's select only fills in its field.
+        const input = field.querySelector('input[name], select[name]');
         if (field.dataset.optionType === 'boolean') {
             pairs.push([input.name, String(input.checked)]);
         } else if (field.dataset.optionType === 'secret') {

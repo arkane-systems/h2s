@@ -108,7 +108,7 @@ public class WidgetTests
 
   [Theory]
   [InlineData ("""[{ "kind": "weather/now" }]""",                        "Widget 1: h2s has no such kind of widget.")]
-  [InlineData ("""[{ "kind": "uptime-kuma/monitor", "options": {} }]""", "Widget 1 (Monitor status): Monitor ID is required.")]
+  [InlineData ("""[{ "kind": "uptime-kuma/monitor", "options": {} }]""", "Widget 1 (Monitor status): Monitor is required.")]
   [InlineData ("""[{ "kind": "uptime-kuma/monitor", "options": { "monitorId": "1" }, "refreshSeconds": "5" }]""",
                "Widget 1 (Monitor status): the refresh interval must be a whole number of seconds, from 15 to 86400.")]
   [InlineData ("""[{ "kind": "app-test/app" }, { "kind": "app-test/app" }]""",

@@ -14,7 +14,8 @@ public static class OptionDescriptions
   /// <param name="options">The options.</param>
   /// <returns>
   ///   One object per option, its type as <c>text</c>, <c>url</c>, <c>integer</c>, <c>boolean</c>, <c>secret</c> or
-  ///   <c>select</c> (with its choices). A secret's description carries no value.
+  ///   <c>select</c> (with its choices), and the choice list it offers values from, if any. A secret's description carries
+  ///   no value.
   /// </returns>
   public static object[] Describe (IReadOnlyList<SchemaOption> options)
     =>
@@ -39,7 +40,8 @@ public static class OptionDescriptions
                                 o.Pattern,
                                 o.PatternDescription,
                                 o.Placeholder,
-                                Choices = o.Choices.Select (c => new { c.Value, c.Label }),
+                                Choices = o.Choices.Select (c => new { c.Value, c.Label, c.Group }),
+                                o.ChoicesFrom,
                               }),
     ];
 }

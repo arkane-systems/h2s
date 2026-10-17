@@ -1,3 +1,4 @@
+using System.Globalization;
 using h2s.Services;
 using h2s.Validation;
 using h2s.Widgets.Abstractions;
@@ -43,6 +44,11 @@ public sealed class UptimeKumaIntegration : IIntegration
   public const string LegacyDefaultDurationOption = "defaultDuration";
 
   /// <summary>
+  ///   The name of the choice list of every monitor Kuma reports, group monitors first.
+  /// </summary>
+  public const string MonitorsList = "monitors";
+
+  /// <summary>
   ///   The message for a server URL that isn't a base URL.
   /// </summary>
   public const string InvalidServerUrl =
@@ -63,6 +69,18 @@ public sealed class UptimeKumaIntegration : IIntegration
   /// <param name="noun">What, in the singular.</param>
   /// <returns>Such as "1 group" or "16 monitors".</returns>
   private static string Count (int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+
+  /// <summary>
+  ///   Offers a monitor as a choice: its ID, labelled with its name and ID.
+  /// </summary>
+  /// <param name="monitor">The monitor.</param>
+  /// <param name="group">The group it's listed under.</param>
+  /// <returns>The choice.</returns>
+  private static OptionChoice ToChoice (KumaMonitor monitor, KumaMonitorGroup group)
+    => new (Value: monitor.Id.ToString (CultureInfo.InvariantCulture), Label: $"{monitor.Name} (#{monitor.Id})")
+       {
+         Group = group.Name,
+       };
 
   /// <inheritdoc />
   public string Key => UptimeKumaIntegration.IntegrationKey;
@@ -178,5 +196,41 @@ public sealed class UptimeKumaIntegration : IIntegration
              ? UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success, message: $"{found} The status page exists.")
              : UptimeKumaIntegration.Result (level: ConnectionTestLevel.Warning,
                                              message: $"{found} But for the status page: {page.Message}");
+  }
+
+  /// <inheritdoc />
+  /// <remarks>
+  ///   Its one list, <see cref="MonitorsList" />, holds every monitor <c>/metrics</c> reports, as the monitor picker lists
+  ///   them: group monitors under "Groups", then the rest under "Monitors", each by name with its ID.
+  /// </remarks>
+  public async Task<ChoiceList?> GetChoicesAsync (string listKey, ConnectionContext context)
+  {
+    if (listKey != UptimeKumaIntegration.MonitorsList)
+    {
+      return null;
+    }
+
+    if (UptimeKumaSettings.From (context.Options) is not { } settings)
+    {
+      return ChoiceList.Unavailable ("Uptime Kuma's server URL isn't set.");
+    }
+
+    if (settings.ApiKey == null)
+    {
+      return ChoiceList.Unavailable ("Add an API key to the Uptime Kuma settings to pick monitors.");
+    }
+
+    KumaMetrics metrics = await context.Services.GetRequiredService<UptimeKumaClient> ()
+                                       .GetMetricsAsync (serverUrl: settings.ServerUrl,
+                                                         apiKey: settings.ApiKey,
+                                                         cancellationToken: context.CancellationToken);
+    KumaMonitorList list = metrics.ToMonitorList ();
+
+    return list.Message != null
+             ? ChoiceList.Unavailable (list.Message)
+             : new ChoiceList ([
+                                 .. list.Groups.SelectMany (g => g.Monitors.Select (m => UptimeKumaIntegration.ToChoice (monitor: m,
+                                                                                                                         group: g))),
+                               ]);
   }
 }
