@@ -25,25 +25,37 @@ public class HttpBaseUrlAttribute : ValidationAttribute
   {
     // Null or empty strings are valid (use [Required] for mandatory fields)
     if ((value == null) || (value is string str && string.IsNullOrWhiteSpace (str)))
+    {
       return true;
+    }
 
     if (value is not string urlString)
+    {
       return false;
+    }
 
     if (!Uri.TryCreate (uriString: urlString, uriKind: UriKind.Absolute, result: out Uri? uri))
+    {
       return false;
+    }
 
     // Must be HTTP or HTTPS
     if ((uri.Scheme != Uri.UriSchemeHttp) && (uri.Scheme != Uri.UriSchemeHttps))
+    {
       return false;
+    }
 
     // Must not contain credentials
     if (!string.IsNullOrEmpty (uri.UserInfo))
+    {
       return false;
+    }
 
     // Must have no path beyond the root, no query string, and no fragment
     if ((uri.AbsolutePath != "/") || !string.IsNullOrEmpty (uri.Query) || !string.IsNullOrEmpty (uri.Fragment))
+    {
       return false;
+    }
 
     return true;
   }

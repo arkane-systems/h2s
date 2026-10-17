@@ -45,7 +45,9 @@ public partial class SettingsModel
                                    urlTemplate: urlTemplate,
                                    shortcut: shortcut,
                                    isDefault: isDefault || (engines.Count == 0)) is { } error)
+    {
       return this.BadRequestProblem (error);
+    }
 
     this.context.SearchEngines.Add (engine);
     await this.context.SaveChangesAsync ();
@@ -76,10 +78,14 @@ public partial class SettingsModel
     List<SearchEngine> engines = await this.GetOrderedSearchEnginesAsync (tracking: true);
 
     if (engines.FirstOrDefault (e => e.Id == id) is not { } engine)
+    {
       return this.NotFoundProblem ("Search engine not found.");
+    }
 
     if (engine.IsDefault && !isDefault)
+    {
       return this.BadRequestProblem ("This is the default engine. Make another engine the default instead.");
+    }
 
     if (SettingsModel.ApplyEngine (engine: engine,
                                    others: [.. engines.Where (e => e != engine)],
@@ -87,7 +93,9 @@ public partial class SettingsModel
                                    urlTemplate: urlTemplate,
                                    shortcut: shortcut,
                                    isDefault: isDefault) is { } error)
+    {
       return this.BadRequestProblem (error);
+    }
 
     await this.context.SaveChangesAsync ();
 
@@ -107,7 +115,9 @@ public partial class SettingsModel
     List<SearchEngine> engines = await this.GetOrderedSearchEnginesAsync (tracking: true);
 
     if (engines.FirstOrDefault (e => e.Id == id) is not { } engine)
+    {
       return this.NotFoundProblem ("Search engine not found.");
+    }
 
     int position = engines.IndexOf (engine);
 
@@ -115,10 +125,14 @@ public partial class SettingsModel
     _ = engines.Remove (engine);
 
     for (var i = 0; i < engines.Count; i++)
+    {
       engines[i].SortOrder = i;
+    }
 
     if (engine.IsDefault && (engines.Count > 0))
+    {
       engines[0].IsDefault = true;
+    }
 
     await this.context.SaveChangesAsync ();
 
@@ -160,12 +174,16 @@ public partial class SettingsModel
                                    urlTemplate: urlTemplate,
                                    shortcut: shortcut,
                                    isDefault: isDefault || (engines.Count == 0)) is { } error)
+    {
       return this.BadRequestProblem (error);
+    }
 
     engines.Insert (index: Math.Clamp (value: sortOrder, min: 0, max: engines.Count), item: engine);
 
     for (var i = 0; i < engines.Count; i++)
+    {
       engines[i].SortOrder = i;
+    }
 
     this.context.SearchEngines.Add (engine);
     await this.context.SaveChangesAsync ();
@@ -181,18 +199,26 @@ public partial class SettingsModel
   public async Task<IActionResult> OnPostReorderSearchEnginesAsync (string[]? orderedIds)
   {
     if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     List<SearchEngine> engines = await this.GetOrderedSearchEnginesAsync (tracking: true);
 
     if (ids.Any (id => engines.All (e => e.Id != id)))
+    {
       return this.BadRequestProblem ("One or more search engines do not exist.");
+    }
 
     if (ids.Count != engines.Count)
+    {
       return this.BadRequestProblem ("The order must include every search engine.");
+    }
 
     for (var i = 0; i < ids.Count; i++)
+    {
       engines.First (e => e.Id == ids[i]).SortOrder = i;
+    }
 
     await this.context.SaveChangesAsync ();
 
@@ -220,13 +246,19 @@ public partial class SettingsModel
     string trimmedTemplate = (urlTemplate ?? "").Trim ();
 
     if ((SearchEngineRules.CheckName (trimmedName) ?? SearchEngineRules.CheckUrlTemplate (trimmedTemplate)) is { } error)
+    {
       return error;
+    }
 
     if (!SearchEngineRules.TryNormalizeShortcut (value: shortcut, shortcut: out string normalizedShortcut))
+    {
       return SearchEngineRules.InvalidShortcut;
+    }
 
     if ((normalizedShortcut.Length > 0) && others.Any (e => e.Shortcut == normalizedShortcut))
+    {
       return $"Another engine already uses !{normalizedShortcut}.";
+    }
 
     engine.Name        = trimmedName;
     engine.UrlTemplate = trimmedTemplate;
@@ -237,7 +269,9 @@ public partial class SettingsModel
       engine.IsDefault = true;
 
       foreach (SearchEngine other in others)
+      {
         other.IsDefault = false;
+      }
     }
 
     return null;

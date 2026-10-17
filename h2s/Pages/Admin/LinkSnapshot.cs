@@ -14,21 +14,23 @@ namespace h2s.Pages.Admin;
 /// <param name="Url">The link URL.</param>
 /// <param name="SortOrder">The link's position within its category.</param>
 /// <param name="OpenInNewTab">Whether the link opens in a new browser tab.</param>
+/// <param name="Widgets">The link's widgets, in order; none when <c>null</c>.</param>
 public sealed record LinkSnapshot (
-  int     CategoryId,
-  string? Label,
-  string? Description,
-  string? IconName,
-  string? IconUrl,
-  int?    MonitorId,
-  string? Url,
-  int     SortOrder,
-  bool    OpenInNewTab = false)
+  int                   CategoryId,
+  string?               Label,
+  string?               Description,
+  string?               IconName,
+  string?               IconUrl,
+  int?                  MonitorId,
+  string?               Url,
+  int                   SortOrder,
+  bool                  OpenInNewTab = false,
+  List<WidgetSnapshot>? Widgets      = null)
 {
   /// <summary>
   ///   Takes a snapshot of a link.
   /// </summary>
-  /// <param name="link">The link.</param>
+  /// <param name="link">The link, with its widgets loaded.</param>
   /// <returns>The snapshot.</returns>
   public static LinkSnapshot From (Link link)
     => new (CategoryId: link.CategoryId,
@@ -39,5 +41,6 @@ public sealed record LinkSnapshot (
             MonitorId: link.MonitorId,
             Url: link.Url,
             SortOrder: link.SortOrder,
-            OpenInNewTab: link.OpenInNewTab);
+            OpenInNewTab: link.OpenInNewTab,
+            Widgets: [.. link.Widgets.OrderBy (w => w.SortOrder).ThenBy (w => w.Id).Select (WidgetSnapshot.From)]);
 }

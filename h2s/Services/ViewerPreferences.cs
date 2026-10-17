@@ -39,7 +39,9 @@ public static class ViewerPreferences
                            .Take (ViewerPreferences.MaxCollapsedCategories))
     {
       if (int.TryParse (s: part, style: NumberStyles.None, provider: CultureInfo.InvariantCulture, result: out int id) && (id > 0))
+      {
         _ = ids.Add (id);
+      }
     }
 
     return ids;

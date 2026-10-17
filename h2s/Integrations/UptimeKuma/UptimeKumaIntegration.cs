@@ -108,6 +108,9 @@ public sealed class UptimeKumaIntegration : IIntegration
     ];
 
   /// <inheritdoc />
+  public IReadOnlyList<IWidgetKind> WidgetKinds { get; } = [new KumaMonitorWidgetKind ()];
+
+  /// <inheritdoc />
   public string? Validate (OptionValues options)
     => new HttpBaseUrlAttribute ().IsValid (options.GetText (UptimeKumaIntegration.ServerUrlOption).Trim ())
          ? null
@@ -121,7 +124,9 @@ public sealed class UptimeKumaIntegration : IIntegration
   public async Task<ConnectionTestResult> TestAsync (ConnectionContext context)
   {
     if (UptimeKumaSettings.From (context.Options) is not { } settings)
+    {
       return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Danger, message: "Enter the Uptime Kuma server URL to test.");
+    }
 
     switch (await context.Services.GetRequiredService<UrlProbe> ()
                          .CheckAsync (url: settings.ServerUrl, cancellationToken: context.CancellationToken))
@@ -161,7 +166,9 @@ public sealed class UptimeKumaIntegration : IIntegration
       $"Connected. Uptime Kuma reports {UptimeKumaIntegration.Count (count: monitors, noun: "monitor")} and {UptimeKumaIntegration.Count (count: groups, noun: "group")}.";
 
     if (settings.StatusPageSlug == null)
+    {
       return UptimeKumaIntegration.Result (level: ConnectionTestLevel.Success, message: found);
+    }
 
     KumaMonitorList page = await client.GetStatusPageMonitorsAsync (serverUrl: settings.ServerUrl,
                                                                     slug: settings.StatusPageSlug,

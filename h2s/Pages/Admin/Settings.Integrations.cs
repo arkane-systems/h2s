@@ -3,6 +3,7 @@ using h2s.Models;
 using h2s.Options;
 using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace h2s.Pages.Admin;
 
@@ -44,7 +45,9 @@ public partial class SettingsModel
                                                               string[]?                    clearSecrets)
   {
     if (this.integrations.Find (integration ?? "") is not { } found)
+    {
       return this.NotFoundProblem ("h2s has no such integration.");
+    }
 
     Connection? existing = await this.connections.FindFirstAsync (integrationKey: found.Key,
                                                                   cancellationToken: this.HttpContext.RequestAborted);
@@ -56,7 +59,9 @@ public partial class SettingsModel
                                  clearSecrets: clearSecrets,
                                  form: out ConnectionForm? form,
                                  problem: out IActionResult? problem))
+    {
       return problem;
+    }
 
     _ = await this.connections.SaveOnlyAsync (integration: found,
                                               optionsJson: form.Json,
@@ -84,7 +89,9 @@ public partial class SettingsModel
                                                               string[]?                    clearSecrets)
   {
     if (this.integrations.Find (integration ?? "") is not { } found)
+    {
       return this.NotFoundProblem ("h2s has no such integration.");
+    }
 
     Connection? existing = await this.connections.FindFirstAsync (integrationKey: found.Key,
                                                                   cancellationToken: this.HttpContext.RequestAborted);
@@ -96,7 +103,9 @@ public partial class SettingsModel
                                  clearSecrets: clearSecrets,
                                  form: out ConnectionForm? form,
                                  problem: out IActionResult? problem))
+    {
       return problem;
+    }
 
     ConnectionTestResult result =
       await found.TestAsync (new ConnectionContext (Options: form.Values,
@@ -116,7 +125,9 @@ public partial class SettingsModel
   public async Task<IActionResult> OnPostRemoveConnectionAsync (string? integration)
   {
     if (this.integrations.Find (integration ?? "") is not { } found)
+    {
       return this.NotFoundProblem ("h2s has no such integration.");
+    }
 
     await this.connections.DeleteAllAsync (integrationKey: found.Key, cancellationToken: this.HttpContext.RequestAborted);
 
@@ -132,7 +143,9 @@ public partial class SettingsModel
     var cards = new List<object> (this.integrations.Integrations.Count);
 
     foreach (IIntegration integration in this.integrations.Integrations)
+    {
       cards.Add (await this.DescribeIntegrationAsync (integration));
+    }
 
     return cards;
   }
@@ -142,8 +155,8 @@ public partial class SettingsModel
   /// </summary>
   /// <param name="integration">The integration.</param>
   /// <returns>
-  ///   An object with the integration's key, name and description, its options, whether it has a connection, the
-  ///   connection's values (the defaults without one) and which secrets are set.
+  ///   An object with the integration's key, name and description, its options, whether it has a connection, how many
+  ///   widgets use it, the connection's values (the defaults without one) and which secrets are set.
   /// </returns>
   private async Task<object> DescribeIntegrationAsync (IIntegration integration)
   {
@@ -159,6 +172,10 @@ public partial class SettingsModel
              integration.Description,
              Options      = OptionDescriptions.Describe (integration.ConnectionOptions),
              IsConfigured = connection != null,
+             WidgetCount = connection == null
+                             ? 0
+                             : await this.context.Widgets.CountAsync (predicate: w => w.ConnectionId == connection.Id,
+                                                                      cancellationToken: this.HttpContext.RequestAborted),
              values.Values,
              SecretsSet = integration.ConnectionOptions
                                      .Where (o => o.Type == OptionType.Secret)

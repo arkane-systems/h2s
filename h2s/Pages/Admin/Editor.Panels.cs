@@ -52,7 +52,9 @@ public partial class EditorModel
                              .FirstOrDefaultAsync (p => p.Id == id);
 
     if (panel == null)
+    {
       return this.NotFoundProblem ("Panel not found.");
+    }
 
     IPanelKind? kind = this.panelCatalog.Find (panel.Kind);
 
@@ -93,16 +95,24 @@ public partial class EditorModel
   public async Task<IActionResult> OnPostCreatePanelAsync (string? kind, string? zone, Dictionary<string, string?>? options)
   {
     if (this.panelCatalog.Find ((kind ?? "").Trim ()) is not { } panelKind)
+    {
       return this.BadRequestProblem ("Choose a kind of panel to add.");
+    }
 
     if (!EditorModel.TryParseZone (value: zone, zone: out PanelZone target))
+    {
       return this.BadRequestProblem ("The zone must be Top or Bottom.");
+    }
 
     if (await this.CheckSingleInstanceAsync (panelKind) is { } taken)
+    {
       return this.BadRequestProblem (taken);
+    }
 
     if (!OptionForm.TryParse (schema: panelKind.Options, posted: options, json: out string? json, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     int last = await this.context.Panels
                          .Where (p => p.Zone == target)
@@ -131,13 +141,19 @@ public partial class EditorModel
     Panel? panel = await this.context.Panels.FirstOrDefaultAsync (p => p.Id == id);
 
     if (panel == null)
+    {
       return this.NotFoundProblem ("Panel not found.");
+    }
 
     if (this.panelCatalog.Find (panel.Kind) is not { } kind)
+    {
       return this.BadRequestProblem ("This version of h2s doesn't know this panel's kind, so it can't change its options.");
+    }
 
     if (!OptionForm.TryParse (schema: kind.Options, posted: options, json: out string? json, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     panel.OptionsJson = json;
     await this.context.SaveChangesAsync ();
@@ -158,7 +174,9 @@ public partial class EditorModel
     Panel? panel = await this.context.Panels.FirstOrDefaultAsync (p => p.Id == id);
 
     if (panel == null)
+    {
       return this.NotFoundProblem ("Panel not found.");
+    }
 
     List<Panel> zone = await this.context.Panels
                                  .Where (p => p.Zone == panel.Zone)
@@ -172,7 +190,9 @@ public partial class EditorModel
     _ = zone.Remove (panel);
 
     for (var i = 0; i < zone.Count; i++)
+    {
       zone[i].SortOrder = i;
+    }
 
     await this.context.SaveChangesAsync ();
 
@@ -192,13 +212,19 @@ public partial class EditorModel
     var restore = EditorModel.ReadSnapshot<PanelSnapshot> (snapshot);
 
     if ((restore == null) || !Enum.IsDefined (restore.Zone))
+    {
       return this.BadRequestProblem ("The panel to restore is missing or malformed.");
+    }
 
     if (this.panelCatalog.Find ((restore.Kind ?? "").Trim ()) is not { } kind)
+    {
       return this.BadRequestProblem ("This version of h2s doesn't know the panel's kind.");
+    }
 
     if (await this.CheckSingleInstanceAsync (kind) is { } taken)
+    {
       return this.BadRequestProblem (taken);
+    }
 
     List<Panel> zone = await this.context.Panels
                                  .Where (p => p.Zone == restore.Zone)
@@ -218,7 +244,9 @@ public partial class EditorModel
     zone.Insert (index: Math.Clamp (value: restore.SortOrder, min: 0, max: zone.Count), item: panel);
 
     for (var i = 0; i < zone.Count; i++)
+    {
       zone[i].SortOrder = i;
+    }
 
     this.context.Panels.Add (panel);
     await this.context.SaveChangesAsync ();
@@ -237,19 +265,27 @@ public partial class EditorModel
   public async Task<IActionResult> OnPostReorderPanelsAsync (string? zone, string[]? orderedIds)
   {
     if (!EditorModel.TryParseZone (value: zone, zone: out PanelZone target))
+    {
       return this.BadRequestProblem ("The zone must be Top or Bottom.");
+    }
 
     if (!OrderedIdParser.TryParse (values: orderedIds, ids: out List<int>? ids, error: out string? error))
+    {
       return this.BadRequestProblem (error);
+    }
 
     List<Panel>            panels     = await this.context.Panels.ToListAsync ();
     Dictionary<int, Panel> panelsById = panels.ToDictionary (p => p.Id);
 
     if (ids.Any (id => !panelsById.ContainsKey (id)))
+    {
       return this.BadRequestProblem ("One or more panels do not exist.");
+    }
 
     if (panels.Any (p => (p.Zone == target) && !ids.Contains (p.Id)))
+    {
       return this.BadRequestProblem ("The order must include every panel in the zone.");
+    }
 
     for (var i = 0; i < ids.Count; i++)
     {
@@ -261,7 +297,9 @@ public partial class EditorModel
     var position = 0;
 
     foreach (Panel panel in panels.Where (p => p.Zone != target).OrderBy (p => p.SortOrder).ThenBy (p => p.Id))
+    {
       panel.SortOrder = position++;
+    }
 
     await this.context.SaveChangesAsync ();
 

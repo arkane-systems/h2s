@@ -14,6 +14,7 @@ namespace h2s.Services;
 ///   The number of search engines; for a file from before search engines, the number of default engines.
 /// </param>
 /// <param name="Connections">The number of connections.</param>
+/// <param name="Widgets">The number of widgets on links.</param>
 public sealed record BackupSummary (
   string          Title,
   DateTimeOffset? ExportedAt,
@@ -23,4 +24,5 @@ public sealed record BackupSummary (
   int             InfrastructureGroups,
   int             Panels,
   int             SearchEngines,
-  int             Connections);
+  int             Connections,
+  int             Widgets);

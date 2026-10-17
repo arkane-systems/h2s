@@ -28,7 +28,9 @@ public sealed record UptimeKumaSettings (string ServerUrl, string? StatusPageSlu
     string serverUrl = options?.GetText (UptimeKumaIntegration.ServerUrlOption).Trim () ?? "";
 
     if (serverUrl.Length == 0)
+    {
       return null;
+    }
 
     string slug   = options!.GetText (UptimeKumaIntegration.StatusPageSlugOption).Trim ();
     string window = options.GetText (UptimeKumaIntegration.DefaultUptimeWindowOption);

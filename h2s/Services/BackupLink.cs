@@ -10,11 +10,13 @@ namespace h2s.Services;
 /// <param name="IconUrl">The link's own icon image URL.</param>
 /// <param name="MonitorId">The Uptime Kuma monitor ID, if any.</param>
 /// <param name="OpenInNewTab">Whether the link opens in a new browser tab; from format version 4, and off before it.</param>
+/// <param name="Widgets">The link's widgets, in order; from format version 7, and none before it.</param>
 public sealed record BackupLink (
-  string? Label,
-  string? Url,
-  string? Description,
-  string? IconName,
-  string? IconUrl,
-  int?    MonitorId,
-  bool    OpenInNewTab = false);
+  string?             Label,
+  string?             Url,
+  string?             Description,
+  string?             IconName,
+  string?             IconUrl,
+  int?                MonitorId,
+  bool                OpenInNewTab = false,
+  List<BackupWidget>? Widgets      = null);

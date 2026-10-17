@@ -39,7 +39,9 @@ public sealed class TestDatabase : IAsyncDisposable
     await context.Database.MigrateAsync (TestContext.Current.CancellationToken);
 
     if (seed)
+    {
       await DevDataSeeder.SeedAsync (context: context, cancellationToken: TestContext.Current.CancellationToken);
+    }
 
     return database;
   }

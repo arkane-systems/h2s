@@ -300,6 +300,7 @@ footer,
 }
 
 .link-block-content {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -313,6 +314,93 @@ footer,
 .link-block-description {
   color: var(--bs-body-color);
   font-size: 0.9rem;
+}
+
+/* Widgets (Pages/Shared/_LinkWidgets.cshtml and _Widget.cshtml): a row under the label, with the app widget on the left
+   and the status pills right-aligned as one group, which moves to the next line whole when the row is too narrow. */
+.link-widgets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin-top: 0.35rem;
+}
+
+.link-widgets-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.link-widget {
+  --widget-color: var(--bs-secondary-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  line-height: 1.1;
+  color: var(--bs-body-color);
+}
+
+.link-widget-status {
+  padding: 0.18rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--widget-color) 45%, transparent);
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--widget-color) 14%, transparent);
+}
+
+.link-widget-app {
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+}
+
+.widget-dot {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--widget-color);
+}
+
+.widget-stat-label {
+  color: var(--bs-secondary-color);
+}
+
+.widget-ok {
+  --widget-color: var(--bs-success);
+}
+
+.widget-warning {
+  --widget-color: var(--bs-warning);
+}
+
+.widget-error {
+  --widget-color: var(--bs-danger);
+}
+
+.widget-inactive {
+  --widget-color: var(--bs-info);
+}
+
+.widget-pending .widget-dot {
+  animation: widget-pulse 1.2s ease-in-out infinite;
+}
+
+/* A figure with a severity of its own (a certificate about to expire, say) takes its colour. */
+.widget-stat.widget-ok,
+.widget-stat.widget-warning,
+.widget-stat.widget-error,
+.widget-stat.widget-inactive {
+  color: color-mix(in srgb, var(--widget-color) 75%, var(--bs-body-color));
+  font-weight: 600;
+}
+
+@keyframes widget-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* Dashboard edit mode (/?edit=true, wwwroot/js/modules/edit-mode.js) */

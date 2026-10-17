@@ -98,6 +98,38 @@
                     <label class="form-check-label" for="link-dialog-new-tab">Open in a new tab</label>
                 </div>
 
+                @* The link's widgets, edited by wwwroot/js/modules/widget-editor.js and posted with the link, so they save and
+                   cancel with it. *@
+                <fieldset class="mb-3" data-role="widgets" data-widget-kinds-url="@Url.Page("/Admin/Editor", "WidgetKinds")">
+                    <legend class="form-label fs-6 mb-1">Widgets</legend>
+                    <ul class="list-group mb-2" data-role="widget-list"></ul>
+                    <p class="text-muted small d-none" data-role="widget-empty">No widgets. A widget shows live figures from an integration on the tile.</p>
+                    <p class="text-muted small d-none" data-role="widget-unavailable">To add widgets, set up an integration in Settings → Integrations.</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-widget">+ Add widget</button>
+
+                    <div class="card mt-2 d-none" data-role="widget-form">
+                        <div class="card-body">
+                            <h3 class="h6" data-role="widget-form-title">Add widget</h3>
+                            <div class="mb-3">
+                                <label for="link-dialog-widget-kind" class="form-label">Kind</label>
+                                <select class="form-select" id="link-dialog-widget-kind" data-role="widget-kind"></select>
+                            </div>
+                            <div data-role="widget-fields"></div>
+                            <div class="mb-3">
+                                <label for="link-dialog-widget-refresh" class="form-label">Refresh every (seconds) <span class="text-muted">(optional)</span></label>
+                                <input type="number" class="form-control" id="link-dialog-widget-refresh" data-role="widget-refresh" min="15" max="86400"
+                                       step="1" inputmode="numeric" aria-describedby="link-dialog-widget-refresh-help" />
+                                <div class="invalid-feedback">Use a whole number of seconds, from 15 to 86400, or leave it blank.</div>
+                                <div class="form-text" id="link-dialog-widget-refresh-help" data-role="widget-refresh-help"></div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-primary" data-role="widget-done">Done</button>
+                                <button type="button" class="btn btn-sm btn-secondary" data-role="widget-cancel">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
                 <div class="form-label" id="link-dialog-preview-label">Preview</div>
                 @* Inert, so the preview's link can't be focused or followed. *@
                 <div class="link-dialog-preview" data-role="preview" aria-labelledby="link-dialog-preview-label" inert></div>

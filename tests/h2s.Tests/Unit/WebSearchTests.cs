@@ -44,7 +44,9 @@ public class WebSearchTests
     List<SearchEngine> engines = DefaultSearchEngines.Create ();
 
     for (var i = 0; i < engines.Count; i++)
+    {
       engines[i].Id = i + 1;
+    }
 
     Assert.Equal (expected: expected, actual: WebSearch.BuildUrl (engines: engines, query: query, engineId: 2));
   }

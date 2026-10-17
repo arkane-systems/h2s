@@ -124,7 +124,9 @@ public class OptionFormTests
 
     // Secrets are stored apart from the other values, so the form leaves them out.
     if (parsed)
+    {
       Assert.Equal (expected: $$"""{"server":"{{server}}","slug":"{{slug}}"}""", actual: json);
+    }
   }
 
   [Theory]

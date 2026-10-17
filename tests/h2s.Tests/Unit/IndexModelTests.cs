@@ -111,7 +111,11 @@ public class IndexModelTests
                                                                 services: services,
                                                                 logger: NullLogger<PanelService>.Instance),
                                 authorizationService: new AllowAllAuthorizationService (),
-                                connections: connections)
+                                connections: connections,
+                                widgetService: TestConnections.CreateWidgetService (context: context,
+                                                                                    connections: connections,
+                                                                                    cache: cache,
+                                                                                    services: services))
                 {
                   PageContext = new PageContext { HttpContext = new DefaultHttpContext () },
                 };

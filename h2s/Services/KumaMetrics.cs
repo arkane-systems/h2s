@@ -29,7 +29,9 @@ public sealed record KumaMetrics (IReadOnlyDictionary<int, KumaMonitorMetrics> M
           !sample.Labels.TryGetValue (key: "monitor_id", value: out string? idText)             ||
           !int.TryParse (s: idText, result: out int id)                                         ||
           (id <= 0))
+      {
         continue;
+      }
 
       KumaMonitorMetrics monitor = monitors.GetValueOrDefault (id) ??
                                    new KumaMonitorMetrics (Id: id,
@@ -99,7 +101,9 @@ public sealed record KumaMetrics (IReadOnlyDictionary<int, KumaMonitorMetrics> M
   public KumaMonitorList ToMonitorList ()
   {
     if (this.Message != null)
+    {
       return KumaMonitorList.Failed (this.Message);
+    }
 
     var groups = new List<KumaMonitorGroup> ();
 
@@ -115,7 +119,9 @@ public sealed record KumaMetrics (IReadOnlyDictionary<int, KumaMonitorMetrics> M
       ];
 
       if (monitors.Count > 0)
+      {
         groups.Add (new KumaMonitorGroup (Name: isGroup ? "Groups" : "Monitors", Monitors: monitors));
+      }
     }
 
     return new KumaMonitorList (Groups: groups, Message: null);

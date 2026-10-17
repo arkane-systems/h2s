@@ -32,7 +32,9 @@ public static class DevDataSeeder
     if (await context.Categories.AnyAsync (cancellationToken) ||
         await context.Links.AnyAsync (cancellationToken)      ||
         await context.InfrastructureGroups.AnyAsync (cancellationToken))
+    {
       throw new InvalidOperationException ("The database already contains data; reset it before seeding.");
+    }
 
     // The AddDashboardSettings migration inserts the singleton settings row, so update it rather than adding one.
     DashboardSettings? settings =
@@ -193,7 +195,9 @@ public static class DevDataSeeder
   private static Category CreateCategory (string name, bool isAdminCategory, int sortOrder, params Link[] links)
   {
     for (var i = 0; i < links.Length; i++)
+    {
       links[i].SortOrder = i;
+    }
 
     return new Category { Name = name, IsAdminCategory = isAdminCategory, SortOrder = sortOrder, Links = [.. links] };
   }

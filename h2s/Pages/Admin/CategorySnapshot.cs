@@ -15,7 +15,7 @@ public sealed record CategorySnapshot (string? Name, bool IsAdminCategory, int S
   /// <summary>
   ///   Takes a snapshot of a category and its links.
   /// </summary>
-  /// <param name="category">The category, with its links loaded.</param>
+  /// <param name="category">The category, with its links and their widgets loaded.</param>
   /// <returns>The snapshot.</returns>
   public static CategorySnapshot From (Category category)
     => new (Name: category.Name,

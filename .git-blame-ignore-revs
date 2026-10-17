@@ -5,3 +5,6 @@
 # Phase 1d: ReSharper Full Cleanup with the house style
 cd532743a4a8aec6884efa18334a096a3c6de17e
 b57f175f9bd52e995d717d353290964641c845c4
+
+# Always-required braces (Phase 5b2)
+4812fd70d1009479338ac400c7afeddbfbf03407

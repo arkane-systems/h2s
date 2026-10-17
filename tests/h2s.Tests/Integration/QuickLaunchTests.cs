@@ -56,7 +56,9 @@ public partial class QuickLaunchTests
     var (scope, context) = factory.CreateContext ();
 
     using (scope)
+    {
       await context.SearchEngines.ExecuteDeleteAsync (TestContext.Current.CancellationToken);
+    }
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);

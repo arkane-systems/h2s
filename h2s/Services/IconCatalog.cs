@@ -69,14 +69,18 @@ public partial class IconCatalog
                                    .ToList ();
 
     if (names.Count == 0)
+    {
       return null;
+    }
 
     IconIndex index = await this.GetIndexAsync (cancellationToken);
 
     foreach (string name in names)
     {
       if (index.Find (name) is { } reference)
+      {
         return reference;
+      }
     }
 
     return null;
@@ -95,7 +99,9 @@ public partial class IconCatalog
     string compact = IconCatalog.Compact (query ?? "");
 
     if (compact.Length == 0)
+    {
       return [];
+    }
 
     IconIndex index = await this.GetIndexAsync (cancellationToken);
     string    word  = query!.Trim ();
@@ -120,7 +126,9 @@ public partial class IconCatalog
   {
     if (!Uri.TryCreate (uriString: url, uriKind: UriKind.Absolute, result: out Uri? uri) ||
         (uri.HostNameType != UriHostNameType.Dns))
+    {
       return [];
+    }
 
     string[] labels = uri.Host.Split ('.');
 
@@ -147,7 +155,9 @@ public partial class IconCatalog
   private async Task<IconIndex> GetIndexAsync (CancellationToken cancellationToken)
   {
     if (this.cache.TryGetValue (key: IconCatalog.IndexCacheKey, value: out IconIndex? cached) && (cached != null))
+    {
       return cached;
+    }
 
     IconIndex index = await this.DownloadIndexAsync (cancellationToken);
 
@@ -195,15 +205,21 @@ public partial class IconCatalog
     string reference = IconCatalog.Compact (icon.Reference);
 
     if ((name == compactQuery) || (reference == compactQuery))
+    {
       return 0;
+    }
 
     if (name.StartsWith (value: compactQuery, comparisonType: StringComparison.Ordinal) ||
         reference.StartsWith (value: compactQuery, comparisonType: StringComparison.Ordinal))
+    {
       return 1;
+    }
 
     if (name.Contains (value: compactQuery, comparisonType: StringComparison.Ordinal) ||
         reference.Contains (value: compactQuery, comparisonType: StringComparison.Ordinal))
+    {
       return 2;
+    }
 
     return icon.Tags.Contains (value: query, comparisonType: StringComparison.OrdinalIgnoreCase) ? 3 : int.MaxValue;
   }
@@ -248,10 +264,14 @@ public partial class IconCatalog
       foreach (Entry entry in entries)
       {
         if (string.IsNullOrWhiteSpace (entry.Reference))
+        {
           continue;
+        }
 
         if (!this.references.Add (entry.Reference))
+        {
           continue;
+        }
 
         this.icons.Add (new IconInfo (Reference: entry.Reference,
                                       Name: string.IsNullOrWhiteSpace (entry.Name) ? entry.Reference : entry.Name,
@@ -261,7 +281,9 @@ public partial class IconCatalog
         _ = this.byCompactName.TryAdd (key: IconCatalog.Compact (entry.Reference), value: entry.Reference);
 
         if (!string.IsNullOrWhiteSpace (entry.Name))
+        {
           _ = this.byCompactName.TryAdd (key: IconCatalog.Compact (entry.Name), value: entry.Reference);
+        }
       }
     }
 
@@ -285,7 +307,9 @@ public partial class IconCatalog
       string normalized = Link.NormalizeIconName (name);
 
       if (this.references.Contains (normalized))
+      {
         return normalized;
+      }
 
       string compact = IconCatalog.Compact (name);
 

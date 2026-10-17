@@ -222,7 +222,9 @@ public class EditorHandlerTests
     ];
 
     if (monitorId != null)
+    {
       fields.Add (new KeyValuePair<string, string> (key: "monitorId", value: monitorId));
+    }
 
     HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
                                                                pagePath: EditorHandlerTests.EditorPath,

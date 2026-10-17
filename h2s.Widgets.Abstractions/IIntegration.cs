@@ -35,6 +35,12 @@ public interface IIntegration
   IReadOnlyList<SchemaOption> ConnectionOptions { get; }
 
   /// <summary>
+  ///   Gets the kinds of widget the integration offers for links' tiles. Each widget uses one of the integration's
+  ///   connections.
+  /// </summary>
+  IReadOnlyList<IWidgetKind> WidgetKinds => [];
+
+  /// <summary>
   ///   Checks a connection's settings beyond what their schema expresses. The core has already checked each value's type,
   ///   required flag, range and pattern. It runs on every save and import, so it mustn't call the service; that's what
   ///   <see cref="TestAsync" /> is for.

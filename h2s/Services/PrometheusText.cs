@@ -24,7 +24,9 @@ public static class PrometheusText
       string line = rawLine.Trim ();
 
       if ((line.Length > 0) && (line[0] != '#') && PrometheusText.TryParseLine (line: line, sample: out PrometheusSample? sample))
+      {
         samples.Add (sample);
+      }
     }
 
     return samples;
@@ -43,10 +45,14 @@ public static class PrometheusText
     var position = 0;
 
     while ((position < line.Length) && (char.IsAsciiLetterOrDigit (line[position]) || line[position] is '_' or ':'))
+    {
       position++;
+    }
 
     if (position == 0)
+    {
       return false;
+    }
 
     string name   = line[..position];
     var    labels = new Dictionary<string, string> (StringComparer.Ordinal);
@@ -56,14 +62,18 @@ public static class PrometheusText
       position++;
 
       if (!PrometheusText.TryParseLabels (line: line, position: ref position, labels: labels))
+      {
         return false;
+      }
     }
 
     // The value, then an optional timestamp, which is ignored.
     string[] rest = line[position..].Split (separator: ' ', options: StringSplitOptions.RemoveEmptyEntries);
 
     if ((rest.Length == 0) || !PrometheusText.TryParseValue (text: rest[0], value: out double value))
+    {
       return false;
+    }
 
     sample = new PrometheusSample (Name: name, Labels: labels, Value: value);
 
@@ -82,7 +92,9 @@ public static class PrometheusText
     while (position < line.Length)
     {
       while ((position < line.Length) && line[position] is ' ' or ',')
+      {
         position++;
+      }
 
       if ((position < line.Length) && (line[position] == '}'))
       {
@@ -94,12 +106,16 @@ public static class PrometheusText
       int start = position;
 
       while ((position < line.Length) && (char.IsAsciiLetterOrDigit (line[position]) || (line[position] == '_')))
+      {
         position++;
+      }
 
       string key = line[start..position];
 
       if ((key.Length == 0) || (position + 1 >= line.Length) || (line[position] != '=') || (line[position + 1] != '"'))
+      {
         return false;
+      }
 
       position += 2;
 
@@ -113,13 +129,17 @@ public static class PrometheusText
           _ = value.Append (line[position] == 'n' ? '\n' : line[position]);
         }
         else
+        {
           _ = value.Append (line[position]);
+        }
 
         position++;
       }
 
       if (position >= line.Length)
+      {
         return false;
+      }
 
       position++;
       labels[key] = value.ToString ();

@@ -1,5 +1,6 @@
 ﻿@model LinkTile
-@* One link on the dashboard: icon (or fallback dot), label, description, External flag and optional Kuma status badge. *@
+@* One link on the dashboard: icon (or fallback dot), label, description, widgets, External flag and optional Kuma status
+   badge. *@
 <a class="link-block text-decoration-none text-body @(Model.StatusBadgeUrl != null ? "has-link-status-badge" : "")" href="@Model.Link.Url"
    target="@(Model.Link.OpenInNewTab ? "_blank" : null)" rel="@(Model.Link.OpenInNewTab ? "noopener noreferrer" : null)">
     @if (Model.IsExternal)
@@ -26,6 +27,10 @@
         @if (!string.IsNullOrWhiteSpace(Model.Link.Description))
         {
             <span class="link-block-description">@Model.Link.Description</span>
+        }
+        @if (Model.Widgets.Count > 0)
+        {
+            <partial name="_LinkWidgets" model="Model.Widgets" />
         }
         @if (Model.Link.OpenInNewTab)
         {

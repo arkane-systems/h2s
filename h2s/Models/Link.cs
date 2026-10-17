@@ -69,6 +69,11 @@ public class Link
   public Category? Category { get; set; }
 
   /// <summary>
+  ///   Gets or sets the widgets on the link's tile, in their order.
+  /// </summary>
+  public List<Widget> Widgets { get; set; } = [];
+
+  /// <summary>
   ///   Gets the URL of the link's icon: its selfh.st icon when it has an icon name, otherwise its <see cref="IconUrl" />.
   /// </summary>
   /// <param name="format">
@@ -89,7 +94,9 @@ public class Link
     string normalizedIconName = Link.NormalizeIconName (iconName);
 
     if (string.IsNullOrWhiteSpace (normalizedIconName))
+    {
       return "";
+    }
 
     string normalizedFormat = Link.NormalizeFormat (format);
 
@@ -104,7 +111,9 @@ public class Link
   public static string NormalizeIconName (string iconName)
   {
     if (string.IsNullOrWhiteSpace (iconName))
+    {
       return "";
+    }
 
     string normalized = Regex.Replace (input: iconName.Trim ().ToLowerInvariant (), pattern: "[^a-z0-9]+", replacement: "-");
 

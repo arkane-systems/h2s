@@ -1,6 +1,6 @@
 # Writing an integration
 
-An integration connects h2s to another service, such as Uptime Kuma or Home Assistant. This guide grows with Phase 5. So far it covers integrations, their connections and their Settings cards; widgets on tiles and panels come next.
+An integration connects h2s to another service, such as Uptime Kuma or Home Assistant. This guide grows with Phase 5. So far it covers integrations, their connections and Settings cards, and widgets on links' tiles; panels come later.
 
 ## The idea
 
@@ -29,6 +29,20 @@ Settings → Integrations gives every registered integration a card, built from 
 ## Secrets
 
 Declare a password or token as a `Secret` option. h2s stores secrets apart from the other settings, encrypted with ASP.NET Core Data Protection, and never sends them to a browser or puts them in a backup. Settings shows only whether each is set, and can replace it or, when it's optional, clear it. A secret left blank keeps its stored value, for Test as well as Save, so you can test without typing a token again. If the encryption keys are lost, a secret reads as not set (`GetSecret` returns `null`), so handle that as you would an empty field.
+
+## Widgets
+
+An integration offers widget kinds through `WidgetKinds`. A kind (`IWidgetKind`) declares:
+
+- `Key`, stored with each widget and unique within the integration, so never change it;
+- `DisplayName`, shown in the link dialog as "Integration: Name";
+- `Role`: `App` for a widget that belongs to links of one app (at most one per link, on the left of the tile), or `Status` for one that suits any link (compact pills on the right, as many as you like);
+- `Options`, a schema like a connection's;
+- `DefaultRefresh`, how often its widgets are read again (a widget may choose its own, from 15 seconds).
+
+`FetchAsync (WidgetContext)` reads the service. The context carries the connection's settings (secrets included), the widget's own options, the request's services and a cancellation token, which the core cancels after 10 seconds. Return a `WidgetResult`: a `WidgetStatus` for the pill's colour, a few `WidgetStat`s (label, value, unit, and a severity when one figure deserves a colour of its own), and a `Description` sentence, which is the tooltip and what screen readers hear. Return `WidgetResult.Unknown (reason)` when the service can't be read; an exception or a timeout gives an unknown result too, so a widget never breaks the page.
+
+The core keeps each result for the widget's interval and shares one read among everyone looking, so read freely; if your service reports many things in one request, cache that request yourself (Uptime Kuma's client keeps `/metrics` for 30 seconds, so a dashboard of monitor widgets costs one request). `KumaMonitorWidgetKind` is the reference.
 
 ## Registering
 

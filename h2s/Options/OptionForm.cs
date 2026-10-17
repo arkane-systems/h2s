@@ -52,7 +52,9 @@ public static class OptionForm
       string raw = (posted?.GetValueOrDefault (option.Key) ?? "").Trim ();
 
       if (!OptionForm.TryParseValue (option: option, raw: raw, value: out object? value, error: out error))
+      {
         return false;
+      }
 
       values[option.Key] = value;
     }
@@ -97,9 +99,13 @@ public static class OptionForm
       }
 
       if (typed.Length > 0)
+      {
         resolved[option.Key] = typed;
+      }
       else if ((clear?.Contains (option.Key) != true) && stored.TryGetValue (key: option.Key, value: out string? kept))
+      {
         resolved[option.Key] = kept;
+      }
 
       if (option.IsRequired && !resolved.ContainsKey (option.Key))
       {
@@ -210,13 +216,21 @@ public static class OptionForm
                        style: NumberStyles.AllowLeadingSign,
                        provider: CultureInfo.InvariantCulture,
                        result: out int number))
+    {
       error = $"{option.Label} must be a whole number.";
+    }
     else if (number < (option.Minimum ?? int.MinValue))
+    {
       error = $"{option.Label} must be at least {option.Minimum}.";
+    }
     else if (number > (option.Maximum ?? int.MaxValue))
+    {
       error = $"{option.Label} must be at most {option.Maximum}.";
+    }
     else
+    {
       value = number;
+    }
 
     return error == null;
   }

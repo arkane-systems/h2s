@@ -51,14 +51,18 @@ public sealed class OptionValues
     }
 
     if (stored.ValueKind != JsonValueKind.Object)
+    {
       return;
+    }
 
     foreach (SchemaOption option in schema)
     {
       if ((option.Type != OptionType.Secret)                                             &&
           stored.TryGetProperty (propertyName: option.Key, value: out JsonElement value) &&
           OptionValues.TryRead (option: option, element: value, value: out object? read))
+      {
         this.values[option.Key] = read;
+      }
     }
   }
 
@@ -77,7 +81,9 @@ public sealed class OptionValues
   public static bool MatchesPattern (SchemaOption option, string value)
   {
     if (string.IsNullOrEmpty (option.Pattern) || (value.Length == 0))
+    {
       return true;
+    }
 
     try
     {
@@ -154,7 +160,9 @@ public sealed class OptionValues
         if ((option.IsRequired && string.IsNullOrWhiteSpace (text))            ||
             !OptionValues.MatchesPattern (option: option, value: text.Trim ()) ||
             ((option.Type == OptionType.Url) && (text.Trim ().Length > 0) && !OptionValues.IsWebUrl (text.Trim ())))
+        {
           return false;
+        }
 
         value = text;
 

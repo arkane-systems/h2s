@@ -31,7 +31,9 @@ public class ViewerPreferencesTests
     var context = new DefaultHttpContext ();
 
     if (cookie != null)
+    {
       context.Request.Headers.Cookie = $"{ViewerPreferences.CollapsedCategoriesCookie}={cookie}";
+    }
 
     Assert.Equal (expected: expected.Order (), actual: ViewerPreferences.ReadCollapsedCategories (context.Request).Order ());
   }
