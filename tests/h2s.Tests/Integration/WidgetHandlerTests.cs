@@ -94,7 +94,7 @@ public class WidgetHandlerTests
 
     await FormPoster.AssertProblemAsync (response: response,
                                          status: HttpStatusCode.BadRequest,
-                                         detail: "Widget 1 (Monitor status): Monitor ID is required.");
+                                         detail: "Widget 1 (Monitor status): Monitor is required.");
   }
 
   [Fact]
@@ -263,7 +263,7 @@ public class WidgetHandlerTests
   /// <param name="factory">The application factory.</param>
   /// <param name="widgets">The widgets, as the link dialog posts them.</param>
   /// <returns>The new link's ID.</returns>
-  private static async Task<int> CreateLinkAsync (HttpClient client, DashboardApplicationFactory factory, string widgets)
+  internal static async Task<int> CreateLinkAsync (HttpClient client, DashboardApplicationFactory factory, string widgets)
   {
     HttpResponseMessage response = await FormPoster.PostAsync (client: client,
                                                                pagePath: WidgetHandlerTests.EditorPath,
@@ -350,7 +350,7 @@ public class WidgetHandlerTests
   /// <param name="client">The test client.</param>
   /// <param name="query">The query string, including the handler.</param>
   /// <returns>The JSON.</returns>
-  private static async Task<JsonElement> GetJsonAsync (HttpClient client, string query)
+  internal static async Task<JsonElement> GetJsonAsync (HttpClient client, string query)
   {
     HttpResponseMessage response = await client.GetAsync (requestUri: $"{WidgetHandlerTests.EditorPath}?{query}",
                                                           cancellationToken: TestContext.Current.CancellationToken);

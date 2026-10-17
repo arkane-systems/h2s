@@ -674,13 +674,19 @@ public partial class EditorModel : PageModel
   /// <param name="iconName">The selfh.st icon name.</param>
   /// <param name="iconUrl">The icon image URL; ignored when not an HTTP or HTTPS URL.</param>
   /// <param name="monitorId">The Uptime Kuma monitor ID; ignored when blank or invalid.</param>
+  /// <param name="widgets">
+  ///   The link's widgets, saved or not, as the link handlers take them. They show with the results already read for
+  ///   widgets of the same settings, the rest as placeholders the dialog reads through <see cref="OnGetWidgetPreviewAsync" />;
+  ///   none show when they're blank or don't check out.
+  /// </param>
   /// <returns>The tile's HTML.</returns>
   public async Task<IActionResult> OnGetTilePreviewAsync (string? label,
                                                           string? url,
                                                           string? description,
                                                           string? iconName,
                                                           string? iconUrl,
-                                                          string? monitorId)
+                                                          string? monitorId,
+                                                          string? widgets)
   {
     _ = MonitorIdParser.TryParseOptional (value: monitorId, monitorId: out int? parsedMonitorId);
 
@@ -694,7 +700,12 @@ public partial class EditorModel : PageModel
                  MonitorId   = parsedMonitorId,
                };
 
-    return this.Partial (viewName: "_LinkTile", model: await this.CreateTileAsync (link));
+    List<WidgetView> drafts = await this.ReadPreviewWidgetsAsync (widgets) is { } plan
+                                ? await this.widgetService.DescribeDraftsAsync (plan: plan,
+                                                                                cancellationToken: this.HttpContext.RequestAborted)
+                                : [];
+
+    return this.Partial (viewName: "_LinkTile", model: await this.CreateTileAsync (link: link, widgets: drafts));
   }
 
   /// <summary>
@@ -1001,17 +1012,21 @@ public partial class EditorModel : PageModel
     => [.. (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).Select (c => c.Id)];
 
   /// <summary>
-  ///   Builds a link's tile with the current dashboard and Uptime Kuma settings, and its widgets when it's saved.
+  ///   Builds a link's tile with the current dashboard and Uptime Kuma settings, and its widgets.
   /// </summary>
   /// <param name="link">The link.</param>
+  /// <param name="widgets">The widgets to show, such as a preview's; when <c>null</c>, a saved link's own widgets.</param>
   /// <returns>The tile.</returns>
-  private async Task<LinkTile> CreateTileAsync (Link link)
+  private async Task<LinkTile> CreateTileAsync (Link link, IReadOnlyList<WidgetView>? widgets = null)
   {
-    Dictionary<int, List<WidgetView>> widgets = link.Id == 0 ? [] : await this.widgetService.GetForLinksAsync ([link.Id]);
+    if ((widgets == null) && (link.Id != 0))
+    {
+      widgets = (await this.widgetService.GetForLinksAsync ([link.Id])).GetValueOrDefault (link.Id);
+    }
 
     return new LinkTileFactory (settings: await this.settingsService.GetSettingsAsync (),
                                 uptimeKuma: await UptimeKumaSettings.LoadAsync (this.connections))
-     .Create (link: link, widgets: widgets.GetValueOrDefault (link.Id));
+     .Create (link: link, widgets: widgets);
   }
 
   /// <summary>

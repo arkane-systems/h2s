@@ -10,7 +10,9 @@ namespace h2s.Widgets;
 
 /// <summary>
 ///   Loads links' widgets and reads them through their kinds. Rendering a page only uses results already read, so a slow
-///   service never holds the page up; the page reads the rest through <c>/widgets/{id}</c>.
+///   service never holds the page up; the page reads the rest through <c>/widgets/{id}</c>. The link dialog's preview
+///   does the same with widgets that aren't saved yet (drafts), which share their results with saved widgets of the same
+///   settings.
 /// </summary>
 public sealed class WidgetService
 {
@@ -89,6 +91,94 @@ public sealed class WidgetService
 
     Connection? connection =
       (await this.connections.GetConnectionsAsync (cancellationToken)).FirstOrDefault (c => c.Id == widget.ConnectionId);
+
+    return await this.ReadAsync (widget: widget, connection: connection);
+  }
+
+  /// <summary>
+  ///   Describes widgets that aren't saved, for the link dialog's preview, each with its result if a widget of the same
+  ///   settings was read recently.
+  /// </summary>
+  /// <param name="plan">The widgets, as <see cref="WidgetForm" /> read them.</param>
+  /// <param name="cancellationToken">A token used to cancel the query.</param>
+  /// <returns>The widgets, in order, each with its position as its <see cref="WidgetView.PreviewIndex" />.</returns>
+  public async Task<List<WidgetView>> DescribeDraftsAsync (IReadOnlyList<WidgetPlan> plan,
+                                                           CancellationToken         cancellationToken = default)
+  {
+    List<Connection> connections = await this.connections.GetConnectionsAsync (cancellationToken);
+
+    return
+    [
+      .. plan.Select ((p, i) =>
+                      {
+                        Widget widget = WidgetService.Draft (plan: p, index: i);
+
+                        return this.Describe (widget: widget,
+                                              connection: connections.FirstOrDefault (c => c.Id == widget.ConnectionId)) with
+                               {
+                                 PreviewIndex = i,
+                               };
+                      }),
+    ];
+  }
+
+  /// <summary>
+  ///   Reads one widget that isn't saved, for the link dialog's preview, unless a widget of the same settings was read
+  ///   recently. What it reads is kept for saved widgets of the same settings too.
+  /// </summary>
+  /// <param name="plan">The widgets, as <see cref="WidgetForm" /> read them.</param>
+  /// <param name="index">The position of the widget to read.</param>
+  /// <param name="cancellationToken">A token used to cancel the query.</param>
+  /// <returns>The widget with its result, or <c>null</c> when there's no widget at that position.</returns>
+  public async Task<WidgetView?> ReadDraftAsync (IReadOnlyList<WidgetPlan> plan,
+                                                 int                       index,
+                                                 CancellationToken         cancellationToken = default)
+  {
+    if ((index < 0) || (index >= plan.Count))
+    {
+      return null;
+    }
+
+    Widget widget = WidgetService.Draft (plan: plan[index], index: index);
+    Connection? connection =
+      (await this.connections.GetConnectionsAsync (cancellationToken)).FirstOrDefault (c => c.Id == widget.ConnectionId);
+
+    return await this.ReadAsync (widget: widget, connection: connection) with { PreviewIndex = index };
+  }
+
+  /// <summary>
+  ///   Gets how often a widget is read, in seconds: its own interval, or its kind's default, never under the minimum.
+  /// </summary>
+  /// <param name="widget">The widget.</param>
+  /// <param name="kind">Its kind, if known.</param>
+  /// <returns>The interval.</returns>
+  public static int RefreshSecondsOf (Widget widget, IWidgetKind? kind)
+    => Math.Max (val1: widget.RefreshSeconds ?? (int)(kind?.DefaultRefresh.TotalSeconds ?? 60), val2: Widget.MinRefreshSeconds);
+
+  /// <summary>
+  ///   Makes an unsaved widget of a planned one, so drafts are described and read as saved widgets are.
+  /// </summary>
+  /// <param name="plan">The planned widget.</param>
+  /// <param name="index">Its position.</param>
+  /// <returns>The widget, with no ID or link.</returns>
+  private static Widget Draft (WidgetPlan plan, int index)
+    => new ()
+       {
+         ConnectionId   = plan.ConnectionId,
+         Kind           = plan.Kind,
+         OptionsJson    = plan.OptionsJson,
+         RefreshSeconds = plan.RefreshSeconds,
+         SortOrder      = index,
+       };
+
+  /// <summary>
+  ///   Reads a widget through its kind, unless it was read recently.
+  /// </summary>
+  /// <param name="widget">The widget.</param>
+  /// <param name="connection">Its connection, if it still exists.</param>
+  /// <returns>The widget with its result.</returns>
+  private async Task<WidgetView> ReadAsync (Widget widget, Connection? connection)
+  {
     WidgetView view = this.Describe (widget: widget, connection: connection);
 
     if ((view.Result != null) ||
@@ -101,7 +191,9 @@ public sealed class WidgetService
     OptionValues connectionOptions = this.connections.ReadOptions (connection)!;
     var          options           = new OptionValues (schema: entry.Kind.Options, json: widget.OptionsJson);
 
-    WidgetResult result = await this.fetcher.GetAsync (key: WidgetService.CacheKey (widget: widget, connection: connection),
+    WidgetResult result = await this.fetcher.GetAsync (key: WidgetService.CacheKey (widget: widget,
+                                                                                    connection: connection,
+                                                                                    refreshSeconds: view.RefreshSeconds),
                                                        widgetId: widget.Id,
                                                        lifetime: TimeSpan.FromSeconds (view.RefreshSeconds),
                                                        fetch: token
@@ -117,15 +209,6 @@ public sealed class WidgetService
   }
 
   /// <summary>
-  ///   Gets how often a widget is read, in seconds: its own interval, or its kind's default, never under the minimum.
-  /// </summary>
-  /// <param name="widget">The widget.</param>
-  /// <param name="kind">Its kind, if known.</param>
-  /// <returns>The interval.</returns>
-  public static int RefreshSecondsOf (Widget widget, IWidgetKind? kind)
-    => Math.Max (val1: widget.RefreshSeconds ?? (int)(kind?.DefaultRefresh.TotalSeconds ?? 60), val2: Widget.MinRefreshSeconds);
-
-  /// <summary>
   ///   Describes a widget, with its cached result, or with why it can't be read.
   /// </summary>
   /// <param name="widget">The widget.</param>
@@ -136,29 +219,40 @@ public sealed class WidgetService
     WidgetKindEntry? entry = connection == null
                                ? null
                                : this.catalog.Find (integrationKey: connection.IntegrationKey, kindKey: widget.Kind);
+    int refreshSeconds = WidgetService.RefreshSecondsOf (widget: widget, kind: entry?.Kind);
     WidgetResult? result = entry == null
                              ? WidgetResult.Unknown ("This version of h2s doesn't know this kind of widget.")
-                             : this.fetcher.GetCached (WidgetService.CacheKey (widget: widget, connection: connection!));
+                             : this.fetcher.GetCached (WidgetService.CacheKey (widget: widget,
+                                                                               connection: connection!,
+                                                                               refreshSeconds: refreshSeconds));
 
     return new WidgetView (Id: widget.Id,
                            LinkId: widget.LinkId,
                            Role: entry?.Kind.Role ?? WidgetRole.Status,
                            SortOrder: widget.SortOrder,
-                           RefreshSeconds: WidgetService.RefreshSecondsOf (widget: widget, kind: entry?.Kind),
+                           RefreshSeconds: refreshSeconds,
                            Result: result);
   }
 
   /// <summary>
-  ///   Builds a widget's cache key, which changes whenever the widget's or its connection's settings do.
+  ///   Builds a widget's cache key from its settings and its connection's, so it changes whenever they do. It leaves out
+  ///   the widget's ID, so widgets of the same settings, saved or not (such as one in the link dialog's preview), share
+  ///   one result.
   /// </summary>
   /// <param name="widget">The widget.</param>
   /// <param name="connection">Its connection.</param>
+  /// <param name="refreshSeconds">How long its result is kept, in seconds.</param>
   /// <returns>The key.</returns>
-  private static string CacheKey (Widget widget, Connection connection)
+  private static string CacheKey (Widget widget, Connection connection, int refreshSeconds)
   {
-    byte[] hash =
-      SHA256.HashData (Encoding.UTF8.GetBytes ($"{widget.Kind}\n{widget.OptionsJson}\n{connection.OptionsJson}\n{connection.SecretsJson}"));
+    byte[] hash = SHA256.HashData (Encoding.UTF8.GetBytes (string.Join (separator: '\n',
+                                                                        connection.Id,
+                                                                        connection.OptionsJson,
+                                                                        connection.SecretsJson,
+                                                                        widget.Kind,
+                                                                        widget.OptionsJson,
+                                                                        refreshSeconds)));
 
-    return $"widget:{widget.Id}:{Convert.ToHexString (inArray: hash, offset: 0, length: 8)}";
+    return $"widget:{Convert.ToHexString (inArray: hash, offset: 0, length: 16)}";
   }
 }
