@@ -10,7 +10,6 @@ namespace h2s.Pages.Admin;
 /// <param name="Description">The link description.</param>
 /// <param name="IconName">The selfh.st icon name.</param>
 /// <param name="IconUrl">The icon image URL, used when there is no icon name.</param>
-/// <param name="MonitorId">The Uptime Kuma monitor ID, if any.</param>
 /// <param name="Url">The link URL.</param>
 /// <param name="SortOrder">The link's position within its category.</param>
 /// <param name="OpenInNewTab">Whether the link opens in a new browser tab.</param>
@@ -21,7 +20,6 @@ public sealed record LinkSnapshot (
   string?               Description,
   string?               IconName,
   string?               IconUrl,
-  int?                  MonitorId,
   string?               Url,
   int                   SortOrder,
   bool                  OpenInNewTab = false,
@@ -38,7 +36,6 @@ public sealed record LinkSnapshot (
             Description: link.Description,
             IconName: link.IconName,
             IconUrl: link.IconUrl,
-            MonitorId: link.MonitorId,
             Url: link.Url,
             SortOrder: link.SortOrder,
             OpenInNewTab: link.OpenInNewTab,

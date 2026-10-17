@@ -37,23 +37,6 @@ public class IndexModelTests
     Assert.Equal (expected: expected, actual: model.IsExternalLink (url));
   }
 
-  [Theory]
-  [InlineData ("https://status.home.arpa/", 11,   "https://status.home.arpa/api/badge/11/status?style=flat&label=")]
-  [InlineData ("https://status.home.arpa/", null, null)]
-  [InlineData (null,                        11,   null)]
-  public async Task CreateLinkTile_ShowsBadgeOnlyForMonitoredLinksWithKuma (string? kumaServerUrl,
-                                                                            int?    monitorId,
-                                                                            string? expectedBadgeUrl)
-  {
-    IndexModel model = await IndexModelTests.LoadAsync (localDomains: "home.arpa", kumaServerUrl: kumaServerUrl);
-
-    LinkTile tile =
-      model.CreateLinkTile (new Link { Label = "Jellyfin", Url = "https://jellyfin.home.arpa/", MonitorId = monitorId });
-
-    Assert.Equal (expected: expectedBadgeUrl, actual: tile.StatusBadgeUrl);
-    Assert.False (tile.IsExternal);
-  }
-
   [Fact]
   public async Task CreateLinkTile_FlagsExternalLinks ()
   {
@@ -74,9 +57,8 @@ public class IndexModelTests
   ///   Creates an <see cref="IndexModel" /> over a fresh database with the given settings and runs its GET handler.
   /// </summary>
   /// <param name="localDomains">The local domains setting.</param>
-  /// <param name="kumaServerUrl">The Uptime Kuma server URL setting.</param>
   /// <returns>The loaded page model.</returns>
-  private static async Task<IndexModel> LoadAsync (string localDomains, string? kumaServerUrl = null)
+  private static async Task<IndexModel> LoadAsync (string localDomains)
   {
     await using var              database = await TestDatabase.CreateAsync ();
     await using DashboardContext context  = database.CreateContext ();
@@ -85,12 +67,6 @@ public class IndexModelTests
                                                                                               x => x.LocalDomains,
                                                                                               valueExpression: localDomains),
                                                         cancellationToken: TestContext.Current.CancellationToken);
-
-    if (kumaServerUrl != null)
-    {
-      context.Connections.Add (TestConnections.UptimeKuma (serverUrl: kumaServerUrl));
-      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
-    }
 
     using var         cache           = new MemoryCache (new MemoryCacheOptions ());
     var               settingsService = new DashboardSettingsService (context: context, cache: cache);

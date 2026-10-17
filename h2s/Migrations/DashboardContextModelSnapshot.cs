@@ -143,9 +143,6 @@ namespace h2s.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("MonitorId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("OpenInNewTab")
                         .HasColumnType("INTEGER");
 

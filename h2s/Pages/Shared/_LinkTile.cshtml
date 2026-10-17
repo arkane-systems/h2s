@@ -1,15 +1,10 @@
 ﻿@model LinkTile
-@* One link on the dashboard: icon (or fallback dot), label, description, widgets, External flag and optional Kuma status
-   badge. *@
-<a class="link-block text-decoration-none text-body @(Model.StatusBadgeUrl != null ? "has-link-status-badge" : "")" href="@Model.Link.Url"
+@* One link on the dashboard: icon (or fallback dot), label, description, widgets and External flag. *@
+<a class="link-block text-decoration-none text-body" href="@Model.Link.Url"
    target="@(Model.Link.OpenInNewTab ? "_blank" : null)" rel="@(Model.Link.OpenInNewTab ? "noopener noreferrer" : null)">
     @if (Model.IsExternal)
     {
         <span class="link-external-flag" title="External site">External</span>
-    }
-    @if (Model.StatusBadgeUrl != null)
-    {
-        <img class="link-status-badge" src="@Model.StatusBadgeUrl" alt="@($"{Model.Link.Label} status")" loading="lazy" />
     }
     <div class="link-block-icon-wrap">
         @* A selfh.st icon, else the link's own icon URL, else a dot. wwwroot/js/site.js swaps in the dot if the image fails. *@

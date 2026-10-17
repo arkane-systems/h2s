@@ -12,7 +12,7 @@ namespace h2s.Pages.Admin;
 /// <param name="IconName">The selfh.st icon name.</param>
 /// <param name="IconUrl">The link's own icon image URL.</param>
 /// <param name="IconSrc">The icon the dashboard shows: the selfh.st icon, else the icon URL, else empty.</param>
-/// <param name="MonitorId">The Uptime Kuma monitor ID, if any.</param>
+/// <param name="WidgetCount">How many widgets the link has.</param>
 /// <param name="Url">The link URL.</param>
 /// <param name="OpenInNewTab">Whether the link opens in a new browser tab.</param>
 /// <param name="SortOrder">The link's position within its category.</param>
@@ -26,7 +26,7 @@ public sealed record LinkRow (
   string IconName,
   string IconUrl,
   string IconSrc,
-  int?   MonitorId,
+  int    WidgetCount,
   string Url,
   bool   OpenInNewTab,
   int    SortOrder);

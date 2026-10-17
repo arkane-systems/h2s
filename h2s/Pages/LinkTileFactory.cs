@@ -36,16 +36,9 @@ public sealed class LinkTileFactory
   /// </summary>
   /// <param name="link">The link to show.</param>
   /// <param name="widgets">The link's widgets, in order; none when <c>null</c>.</param>
-  /// <returns>
-  ///   The tile, with its external flag, its widgets and, when Uptime Kuma is configured and the link has a monitor, its
-  ///   status badge.
-  /// </returns>
+  /// <returns>The tile, with its external flag and its widgets.</returns>
   public LinkTile Create (Link link, IReadOnlyList<WidgetView>? widgets = null)
-    => new (Link: link,
-            IsExternal: this.IsExternalLink (link.Url),
-            StatusBadgeUrl: this.IsUptimeKumaConfigured && link.MonitorId.HasValue
-                              ? this.BuildBadgeUrl (monitorId: link.MonitorId.Value, type: "status", label: "")
-                              : null) { Widgets = widgets ?? [] };
+    => new (Link: link, IsExternal: this.IsExternalLink (link.Url)) { Widgets = widgets ?? [] };
 
   /// <summary>
   ///   Builds the URL for an Uptime Kuma badge.

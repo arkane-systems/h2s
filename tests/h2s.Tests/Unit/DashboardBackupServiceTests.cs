@@ -401,8 +401,7 @@ public class DashboardBackupServiceTests
                                                                               Url: "https://one.home.arpa/",
                                                                               Description: null,
                                                                               IconName: "One App",
-                                                                              IconUrl: null,
-                                                                              MonitorId: 5),
+                                                                              IconUrl: null),
                                                             ]),
                                       ],
                                       InfrastructureGroups: [],
@@ -418,7 +417,6 @@ public class DashboardBackupServiceTests
     Assert.Equal (expected: "Only",    actual: link.Category!.Name);
     Assert.Equal (expected: "one-app", actual: link.IconName);
     Assert.Equal (expected: "",        actual: link.Description);
-    Assert.Equal (expected: 5,         actual: link.MonitorId);
     Assert.Empty (await context.InfrastructureGroups.ToListAsync (TestContext.Current.CancellationToken));
     Assert.Equal (expected: "Imported",     actual: settings.Title);
     Assert.Equal (expected: ColorMode.Dark, actual: settings.ColorMode);
@@ -428,8 +426,8 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 8 }""",
-               "The file is from a newer version of h2s (format version 8); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 9 }""",
+               "The file is from a newer version of h2s (format version 9); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
@@ -593,6 +591,98 @@ public class DashboardBackupServiceTests
   }
 
   [Fact]
+  public void TryRead_TurnsTheMonitorsOfAFileFromBeforeMonitorWidgetsIntoWidgets ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 7,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "panels": [], "searchEngines": [],
+                          "connections": [ { "integration": "uptime-kuma", "name": "Kuma", "options": { "serverUrl": "https://status.home.arpa" } } ],
+                          "categories": [ { "name": "Apps", "links": [
+                            { "label": "Plain", "url": "https://a.home.arpa/", "monitorId": 11 },
+                            { "label": "Widgeted", "url": "https://b.home.arpa/", "monitorId": 12,
+                              "widgets": [ { "kind": "uptime-kuma/monitor", "connection": "Kuma", "options": { "monitorId": 99 } } ] },
+                            { "label": "Number", "url": "https://c.home.arpa/", "monitorId": 13,
+                              "widgets": [ { "kind": "uptime-kuma/monitor", "connection": "Kuma", "options": { "monitorId": 13 } } ] },
+                            { "label": "Text", "url": "https://d.home.arpa/", "monitorId": 14,
+                              "widgets": [ { "kind": "uptime-kuma/monitor", "connection": "Kuma", "options": { "monitorId": "14" } } ] },
+                            { "label": "None", "url": "https://e.home.arpa/" }
+                          ] } ]
+                        }
+                        """;
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: Json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out DashboardBackup? backup,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
+
+    static string Converted (int monitorId)
+    {
+      return $$"""{"monitorId":{{monitorId}},"showResponseTime":true,"showUptime":true,"uptimeWindow":""}""";
+    }
+
+    Assert.Equal (expected:
+                  [
+                    // A link gets its monitor as its first widget, unless it has one for that monitor already.
+                    ("Plain", [Converted (11)]),
+                    ("Widgeted", [Converted (12), """{"monitorId":99}"""]),
+                    ("Number", ["""{"monitorId":13}"""]),
+                    ("Text", ["""{"monitorId":"14"}"""]),
+                    ("None", []),
+                  ],
+                  actual: backup!.Categories![0]
+                                 .Links!
+                                 .Select (l => (l.Label,
+                                                (string[])
+                                                [
+                                                  .. (l.Widgets ?? []).Select (w => JsonSerializer.Serialize (w.Options!.Value)),
+                                                ])));
+    Assert.All (collection: backup.Categories[0].Links!, action: l => Assert.Null (l.MonitorId));
+    Assert.All (collection: backup.Categories[0].Links!.SelectMany (l => l.Widgets ?? []),
+                action: w => Assert.Equal (expected: ("uptime-kuma/monitor", "Kuma"), actual: (w.Kind, w.Connection)));
+  }
+
+  [Fact]
+  public void TryRead_DropsTheMonitorsOfAFileFromBeforeMonitorWidgetsWithoutKuma ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 7,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "panels": [], "searchEngines": [], "connections": [],
+                          "categories": [ { "name": "Apps", "links": [ { "label": "Plain", "url": "https://a.home.arpa/", "monitorId": 11 } ] } ]
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+
+    BackupLink link = Assert.Single (backup!.Categories![0].Links!);
+
+    Assert.Null (link.MonitorId);
+    Assert.Empty (link.Widgets ?? []);
+  }
+
+  [Fact]
+  public async Task ExportAsync_WritesNoMonitorIds ()
+  {
+    await using var              database = await TestDatabase.CreateAsync (seed: true);
+    await using DashboardContext context  = database.CreateContext ();
+
+    DashboardBackup backup = await DashboardBackupServiceTests.CreateService (context)
+                                                              .ExportAsync (TestContext.Current.CancellationToken);
+    string json = JsonSerializer.Serialize (value: backup with { InfrastructureGroups = [] }, options: DashboardBackup.JsonOptions);
+
+    Assert.DoesNotContain (expectedSubstring: "monitorId", actualString: json);
+  }
+
+  [Fact]
   public void TryRead_LeavesUptimeKumaOffForAFileFromBeforeConnectionsWithoutAServer ()
   {
     const string Json = """
@@ -686,8 +776,7 @@ public class DashboardBackupServiceTests
                                                                               Url: "https://a/",
                                                                               Description: null,
                                                                               IconName: null,
-                                                                              IconUrl: null,
-                                                                              MonitorId: null),
+                                                                              IconUrl: null),
                                                             ]),
                                         new BackupCategory (Name: "B",
                                                             IsAdminCategory: true,
@@ -697,14 +786,12 @@ public class DashboardBackupServiceTests
                                                                               Url: "https://b/",
                                                                               Description: null,
                                                                               IconName: null,
-                                                                              IconUrl: null,
-                                                                              MonitorId: null),
+                                                                              IconUrl: null),
                                                               new BackupLink (Label: "3",
                                                                               Url: "https://c/",
                                                                               Description: null,
                                                                               IconName: null,
-                                                                              IconUrl: null,
-                                                                              MonitorId: null),
+                                                                              IconUrl: null),
                                                             ]),
                                       ],
                                       InfrastructureGroups: [new BackupInfrastructureGroup (Name: "G", MonitorId: 1)]);
@@ -776,6 +863,6 @@ public class DashboardBackupServiceTests
                      .ToListAsync (TestContext.Current.CancellationToken))
       .SelectMany (c => new[] { $"{c.Name} admin={c.IsAdminCategory} order={c.SortOrder}" }
                     .Concat (c.Links.OrderBy (l => l.SortOrder)
-                              .Select (l => $"  {l.SortOrder} {l.Label} {l.Url} {l.Description} {l.IconName} {l.IconUrl} {l.MonitorId}")))
+                              .Select (l => $"  {l.SortOrder} {l.Label} {l.Url} {l.Description} {l.IconName} {l.IconUrl}")))
       .ToList ();
 }

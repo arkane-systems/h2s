@@ -50,7 +50,7 @@ public sealed record DashboardBackup (
   /// <summary>
   ///   The format version this build of h2s writes. It also reads every earlier version.
   /// </summary>
-  public const int CurrentVersion = 7;
+  public const int CurrentVersion = 8;
 
   /// <summary>
   ///   The first format version with panels.
@@ -83,6 +83,12 @@ public sealed record DashboardBackup (
   ///   The first format version with each link's widgets. Earlier files' links have none.
   /// </summary>
   public const int WidgetsVersion = 7;
+
+  /// <summary>
+  ///   The first format version without links' Uptime Kuma monitor IDs, which became Uptime Kuma monitor widgets. Earlier
+  ///   files' monitor IDs read as such widgets.
+  /// </summary>
+  public const int MonitorWidgetsVersion = 8;
 
   /// <summary>
   ///   The JSON options for dashboard files: camel-case names, enums as names, and indented so the file reads (and

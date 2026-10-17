@@ -26,7 +26,7 @@ public class DevDataSeederTests
     Assert.Contains (collection: await context.Categories.ToListAsync (cancellationToken), filter: c => c.IsAdminCategory);
     Assert.Contains (collection: await context.Categories.ToListAsync (cancellationToken), filter: c => !c.IsAdminCategory);
     Assert.Contains (collection: await context.Links.ToListAsync (cancellationToken),      filter: l => l.IconName == "");
-    Assert.Contains (collection: await context.Links.ToListAsync (cancellationToken),      filter: l => l.MonitorId is not null);
+    Assert.Empty (await context.Widgets.ToListAsync (cancellationToken));
     Assert.NotEmpty (await context.InfrastructureGroups.ToListAsync (cancellationToken));
   }
 

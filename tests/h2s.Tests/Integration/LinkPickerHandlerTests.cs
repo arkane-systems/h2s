@@ -192,9 +192,9 @@ public class LinkPickerHandlerTests
                                                 cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Contains (expectedSubstring: """data-search-icons-url="/Admin/Editor?handler=SearchIcons""", actualString: html);
-    Assert.Contains (expectedSubstring: """data-monitors-url="/Admin/Editor?handler=KumaMonitors""",    actualString: html);
-    Assert.Contains (expectedSubstring: """data-role="monitor-select""",                                actualString: html);
-    Assert.Contains (expectedSubstring: """name="iconUrl""",                                            actualString: html);
+    Assert.Contains (expectedSubstring: """data-choices-url="/Admin/Editor?handler=Choices""",          actualString: html);
+    Assert.DoesNotContain (expectedSubstring: """data-role="monitor-select""", actualString: html);
+    Assert.Contains (expectedSubstring: """name="iconUrl""", actualString: html);
   }
 
   /// <summary>

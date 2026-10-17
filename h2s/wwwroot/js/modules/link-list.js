@@ -27,7 +27,7 @@ const compare = {
     label: (a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
     url: (a, b) => a.url.localeCompare(b.url),
     category: (a, b) => (categoryOrder.get(a.categoryId) ?? 0) - (categoryOrder.get(b.categoryId) ?? 0) || a.sortOrder - b.sortOrder,
-    monitor: (a, b) => (a.monitorId ?? Infinity) - (b.monitorId ?? Infinity)
+    widgets: (a, b) => a.widgetCount - b.widgetCount
 };
 
 const shownLinks = () => {
@@ -110,10 +110,10 @@ const renderRow = link => {
         categoryCell.append(badge);
     }
 
-    row.append(cell(check), cell(icon), labelCell, cell(anchor), categoryCell);
-    if (data.showMonitors) {
-        row.append(cell(document.createTextNode(link.monitorId ? `#${link.monitorId}` : '')));
-    }
+    // How many widgets the link has; blank for none, so links with widgets stand out.
+    const widgets = cell(document.createTextNode(link.widgetCount ? String(link.widgetCount) : ''));
+
+    row.append(cell(check), cell(icon), labelCell, cell(anchor), categoryCell, widgets);
     return row;
 };
 

@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using h2s.Models;
 using h2s.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -81,7 +80,6 @@ public class EditorHandlerTests
                                                                                                    "https://music.home.arpa/"),
                                                                  new KeyValuePair<string, string> (key: "iconName",
                                                                                                    value: "Navidrome"),
-                                                                 new KeyValuePair<string, string> (key: "monitorId", value: "14"),
                                                                ]);
 
     Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
@@ -90,44 +88,14 @@ public class EditorHandlerTests
 
     Assert.Equal (expected: "Media",     actual: json.GetProperty ("categoryName").GetString ());
     Assert.Equal (expected: "navidrome", actual: json.GetProperty ("iconName").GetString ());
-    Assert.Equal (expected: 14,          actual: json.GetProperty ("monitorId").GetInt32 ());
-  }
-
-  [Fact]
-  public async Task CreateLink_StoresBlankMonitorIdAsNone ()
-  {
-    await using var factory    = new DashboardApplicationFactory ();
-    int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Media");
-
-    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
-                                                               pagePath: EditorHandlerTests.EditorPath,
-                                                               handler: "CreateLink",
-                                                               fields:
-                                                               [
-                                                                 new KeyValuePair<string, string> (key: "categoryId",
-                                                                                                   value: categoryId.ToString ()),
-                                                                 new KeyValuePair<string, string> (key: "label",
-                                                                                                   value: "Navidrome"),
-                                                                 new KeyValuePair<string, string> (key: "url",
-                                                                                                   value:
-                                                                                                   "https://music.home.arpa/"),
-                                                                 new KeyValuePair<string, string> (key: "monitorId", value: "  "),
-                                                               ]);
-
-    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
-    Assert.Equal (expected: JsonValueKind.Null,
-                  actual: (await FormPoster.ReadJsonAsync (response)).GetProperty ("monitorId").ValueKind);
+    Assert.False (json.TryGetProperty (propertyName: "monitorId", value: out _));
   }
 
   [Theory]
-  [InlineData ("",          "https://music.home.arpa/", "")]
-  [InlineData ("Navidrome", "",                         "")]
-  [InlineData ("Navidrome", "ftp://music.home.arpa/",   "")]
-  [InlineData ("Navidrome", "https://music.home.arpa/", "0")]
-  [InlineData ("Navidrome", "https://music.home.arpa/", "-3")]
-  [InlineData ("Navidrome", "https://music.home.arpa/", "abc")]
-  [InlineData ("Navidrome", "https://music.home.arpa/", "99999999999")]
-  public async Task CreateLink_RejectsInvalidInput (string label, string url, string monitorId)
+  [InlineData ("",          "https://music.home.arpa/")]
+  [InlineData ("Navidrome", "")]
+  [InlineData ("Navidrome", "ftp://music.home.arpa/")]
+  public async Task CreateLink_RejectsInvalidInput (string label, string url)
   {
     await using var factory    = new DashboardApplicationFactory ();
     int             categoryId = await EditorHandlerTests.GetCategoryIdAsync (factory: factory, name: "Media");
@@ -141,8 +109,6 @@ public class EditorHandlerTests
                                                                                                    value: categoryId.ToString ()),
                                                                  new KeyValuePair<string, string> (key: "label", value: label),
                                                                  new KeyValuePair<string, string> (key: "url",   value: url),
-                                                                 new KeyValuePair<string, string> (key: "monitorId",
-                                                                                                   value: monitorId),
                                                                ]);
 
     Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
@@ -191,57 +157,6 @@ public class EditorHandlerTests
                                                             cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Equal (expected: HttpStatusCode.BadRequest, actual: response.StatusCode);
-  }
-
-  [Theory]
-  [InlineData (null, 11)]
-  [InlineData ("",   null)]
-  [InlineData ("15", 15)]
-  public async Task UpdateLink_ChangesMonitorIdOnlyWhenPosted (string? monitorId, int? expected)
-  {
-    await using var factory = new DashboardApplicationFactory ();
-    var (scope, context) = factory.CreateContext ();
-    Link jellyfin;
-
-    using (scope)
-    {
-      jellyfin = await context.Links.AsNoTracking ()
-                              .SingleAsync (predicate: l => l.Label == "Jellyfin",
-                                            cancellationToken: TestContext.Current.CancellationToken);
-    }
-
-    Assert.Equal (expected: 11, actual: jellyfin.MonitorId);
-
-    // The editor omits the field entirely when Uptime Kuma is not configured.
-    List<KeyValuePair<string, string>> fields =
-    [
-      new (key: "id", value: jellyfin.Id.ToString ()),
-      new (key: "categoryId", value: jellyfin.CategoryId.ToString ()),
-      new (key: "label", value: jellyfin.Label),
-      new (key: "url", value: jellyfin.Url),
-    ];
-
-    if (monitorId != null)
-    {
-      fields.Add (new KeyValuePair<string, string> (key: "monitorId", value: monitorId));
-    }
-
-    HttpResponseMessage response = await FormPoster.PostAsync (client: factory.CreateClient (),
-                                                               pagePath: EditorHandlerTests.EditorPath,
-                                                               handler: "UpdateLink",
-                                                               fields: fields);
-
-    Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
-
-    var (verifyScope, verifyContext) = factory.CreateContext ();
-
-    using (verifyScope)
-    {
-      Assert.Equal (expected: expected,
-                    actual: (await verifyContext.Links.SingleAsync (predicate: l => l.Id == jellyfin.Id,
-                                                                    cancellationToken: TestContext.Current.CancellationToken))
-                   .MonitorId);
-    }
   }
 
   [Fact]
