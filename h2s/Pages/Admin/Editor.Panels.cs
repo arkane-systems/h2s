@@ -1,7 +1,9 @@
+using System.Text.Encodings.Web;
 using h2s.Models;
 using h2s.Options;
 using h2s.Panels;
 using h2s.Validation;
+using h2s.Widgets;
 using h2s.Widgets.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +35,11 @@ public partial class EditorModel
                                                                   k.Key,
                                                                   k.DisplayName,
                                                                   IsAvailable = !k.IsSingleInstance || !present.Contains (k.Key),
-                                                                  Options     = OptionDescriptions.Describe (k.Options),
+                                                                  Options = OptionDescriptions.Describe (k.Options),
+                                                                  WidgetPlacement = EditorModel.PlacementName (k.WidgetPlacement),
+                                                                  MaxWidgets = k.WidgetPlacement == WidgetPlacements.None
+                                                                                 ? 0
+                                                                                 : WidgetForm.MaxWidgets (k.WidgetPlacement),
                                                                 }));
   }
 
@@ -48,6 +54,7 @@ public partial class EditorModel
   public async Task<IActionResult> OnGetPanelAsync (int id)
   {
     Panel? panel = await this.context.Panels
+                             .Include (p => p.Widgets)
                              .AsNoTracking ()
                              .FirstOrDefaultAsync (p => p.Id == id);
 
@@ -57,6 +64,8 @@ public partial class EditorModel
     }
 
     IPanelKind? kind = this.panelCatalog.Find (panel.Kind);
+    Dictionary<int, Connection> connections =
+      (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).ToDictionary (c => c.Id);
 
     return new JsonResult (new
                            {
@@ -69,6 +78,12 @@ public partial class EditorModel
                              Values = kind == null
                                         ? new Dictionary<string, object?> ()
                                         : new OptionValues (schema: kind.Options, json: panel.OptionsJson).Values,
+                             WidgetPlacement = EditorModel.PlacementName (kind?.WidgetPlacement ?? WidgetPlacements.None),
+                             MaxWidgets = kind is { WidgetPlacement: not WidgetPlacements.None }
+                                            ? WidgetForm.MaxWidgets (kind.WidgetPlacement)
+                                            : 0,
+                             Widgets = this.DescribeWidgets (widgets: panel.Widgets.OrderBy (w => w.SortOrder).ThenBy (w => w.Id),
+                                                             connections: connections),
                            });
   }
 
@@ -121,6 +136,12 @@ public partial class EditorModel
 
     var panel = new Panel { Kind = panelKind.Key, Zone = target, SortOrder = last + 1, OptionsJson = json };
 
+    if ((panelKind.WidgetPlacement != WidgetPlacements.None) &&
+        await this.ApplyPostedWidgetsAsync (widgets: panel.Widgets, placement: panelKind.WidgetPlacement) is { } widgetError)
+    {
+      return this.BadRequestProblem (widgetError);
+    }
+
     this.context.Panels.Add (panel);
     await this.context.SaveChangesAsync ();
 
@@ -138,7 +159,7 @@ public partial class EditorModel
   /// </returns>
   public async Task<IActionResult> OnPostUpdatePanelAsync (int id, Dictionary<string, string?>? options)
   {
-    Panel? panel = await this.context.Panels.FirstOrDefaultAsync (p => p.Id == id);
+    Panel? panel = await this.context.Panels.Include (p => p.Widgets).FirstOrDefaultAsync (p => p.Id == id);
 
     if (panel == null)
     {
@@ -153,6 +174,12 @@ public partial class EditorModel
     if (!OptionForm.TryParse (schema: kind.Options, posted: options, json: out string? json, error: out string? error))
     {
       return this.BadRequestProblem (error);
+    }
+
+    if ((kind.WidgetPlacement != WidgetPlacements.None) &&
+        await this.ApplyPostedWidgetsAsync (widgets: panel.Widgets, placement: kind.WidgetPlacement) is { } widgetError)
+    {
+      return this.BadRequestProblem (widgetError);
     }
 
     panel.OptionsJson = json;
@@ -171,7 +198,7 @@ public partial class EditorModel
   /// </returns>
   public async Task<IActionResult> OnPostDeletePanelAsync (int id)
   {
-    Panel? panel = await this.context.Panels.FirstOrDefaultAsync (p => p.Id == id);
+    Panel? panel = await this.context.Panels.Include (p => p.Widgets).FirstOrDefaultAsync (p => p.Id == id);
 
     if (panel == null)
     {
@@ -240,6 +267,13 @@ public partial class EditorModel
                   // Kept as it was, however it reads: the snapshot came from this panel.
                   OptionsJson = string.IsNullOrWhiteSpace (restore.OptionsJson) ? "{}" : restore.OptionsJson,
                 };
+
+    if (kind.WidgetPlacement != WidgetPlacements.None)
+    {
+      EditorModel.RestoreWidgets (widgets: panel.Widgets,
+                                  snapshot: restore.Widgets,
+                                  connectionIds: await this.GetConnectionIdsAsync ());
+    }
 
     zone.Insert (index: Math.Clamp (value: restore.SortOrder, min: 0, max: zone.Count), item: panel);
 
@@ -315,6 +349,74 @@ public partial class EditorModel
     => kind.IsSingleInstance && await this.context.Panels.AnyAsync (p => p.Kind == kind.Key)
          ? $"The dashboard already has a {kind.DisplayName.ToLowerInvariant ()} panel, and can only have one."
          : null;
+
+  /// <summary>
+  ///   Renders a panel as the dashboard would show it, for the panel dialog's live preview. Nothing is saved.
+  /// </summary>
+  /// <param name="kind">The panel's kind.</param>
+  /// <param name="options">The option values, as the dialog posts them.</param>
+  /// <param name="widgets">
+  ///   The panel's widgets, saved or not, as the panel handlers take them. They show with the results already read for
+  ///   widgets of the same settings, the rest as placeholders the dialog reads through <see cref="OnGetWidgetPreviewAsync" />.
+  /// </param>
+  /// <returns>
+  ///   The panel's HTML, or a sentence saying why it would be empty or can't be previewed; a 404 problem response for an
+  ///   unknown kind.
+  /// </returns>
+  public async Task<IActionResult> OnGetPanelPreviewAsync (string? kind, Dictionary<string, string?>? options, string? widgets)
+  {
+    if (this.panelCatalog.Find ((kind ?? "").Trim ()) is not { } panelKind)
+    {
+      return this.NotFoundProblem ("There's no such kind of panel.");
+    }
+
+    if (!OptionForm.TryParse (schema: panelKind.Options, posted: options, json: out string? json, error: out string? error))
+    {
+      return EditorModel.PreviewNote (error);
+    }
+
+    List<WidgetView> drafts = (panelKind.WidgetPlacement != WidgetPlacements.None) &&
+                              await this.ReadPreviewWidgetsAsync (widgets: widgets, placement: panelKind.WidgetPlacement) is
+                                { } plan
+                                ? await this.widgetService.DescribeDraftsAsync (plan: plan,
+                                                                                cancellationToken: this.HttpContext.RequestAborted)
+                                : [];
+
+    PanelContent content =
+      await panelKind.GetContentAsync (new PanelContext (Options: new OptionValues (schema: panelKind.Options, json: json),
+                                                         Widgets: drafts,
+                                                         Services: this.HttpContext.RequestServices,
+                                                         CancellationToken: this.HttpContext.RequestAborted));
+
+    return content.IsEmpty
+             ? EditorModel.PreviewNote (content.EmptyMessage ?? "")
+             : this.Partial (viewName: content.PartialName!, model: content.Model);
+  }
+
+  /// <summary>
+  ///   Answers a panel preview with a sentence instead of the panel.
+  /// </summary>
+  /// <param name="message">The sentence.</param>
+  /// <returns>The sentence as an HTML paragraph.</returns>
+  private static ContentResult PreviewNote (string message)
+    => new ()
+       {
+         Content     = $"<p class=\"text-body-secondary small mb-0\">{HtmlEncoder.Default.Encode (message)}</p>",
+         ContentType = "text/html; charset=utf-8",
+       };
+
+  /// <summary>
+  ///   Names a widget placement as the dialogs do.
+  /// </summary>
+  /// <param name="placement">The placement.</param>
+  /// <returns><c>tile</c>, <c>statusBar</c>, or <c>null</c> for none.</returns>
+  private static string? PlacementName (WidgetPlacements placement)
+    => placement switch
+       {
+         WidgetPlacements.Tile      => "tile",
+         WidgetPlacements.StatusBar => "statusBar",
+         _                          => null,
+       };
 
   /// <summary>
   ///   Describes a saved panel for the dialog's callers.

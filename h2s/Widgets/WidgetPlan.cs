@@ -8,4 +8,11 @@ namespace h2s.Widgets;
 /// <param name="Kind">Its kind's key within the connection's integration.</param>
 /// <param name="OptionsJson">Its option values, as stored.</param>
 /// <param name="RefreshSeconds">Its refresh interval in seconds, or <c>null</c> for the kind's default.</param>
-public sealed record WidgetPlan (int? ExistingId, int ConnectionId, string Kind, string OptionsJson, int? RefreshSeconds);
+/// <param name="Label">Its label, such as a status bar item's name; <c>null</c> for none.</param>
+public sealed record WidgetPlan (
+  int?    ExistingId,
+  int     ConnectionId,
+  string  Kind,
+  string  OptionsJson,
+  int?    RefreshSeconds,
+  string? Label = null);

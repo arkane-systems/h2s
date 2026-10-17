@@ -75,6 +75,11 @@ public class IndexModelTests
     await using ServiceProvider services = new ServiceCollection ().AddSingleton (context)
                                                                    .AddSingleton (settingsService)
                                                                    .AddSingleton (connections)
+                                                                   .AddSingleton (provider => TestConnections
+                                                                                   .CreateWidgetService (context: context,
+                                                                                                         connections: connections,
+                                                                                                         cache: cache,
+                                                                                                         services: provider))
                                                                    .BuildServiceProvider ();
 
     var model = new IndexModel (context: context,
@@ -87,7 +92,6 @@ public class IndexModelTests
                                                                 services: services,
                                                                 logger: NullLogger<PanelService>.Instance),
                                 authorizationService: new AllowAllAuthorizationService (),
-                                connections: connections,
                                 widgetService: TestConnections.CreateWidgetService (context: context,
                                                                                     connections: connections,
                                                                                     cache: cache,

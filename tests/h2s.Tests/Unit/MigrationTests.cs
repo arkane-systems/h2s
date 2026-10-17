@@ -249,7 +249,7 @@ public class MigrationTests
                                                   """,
                                             cancellationToken: cancellationToken);
 
-    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+    await migrator.MigrateAsync (targetMigration: "20261016051106_UseUptimeWindows", cancellationToken: cancellationToken);
 
     Assert.Equal (expected: $$"""{"serverUrl":"https://status.home.arpa","statusPageSlug":"","defaultUptimeWindow":"{{window}}"}""",
                   actual: (await context.Connections.AsNoTracking ().SingleAsync (cancellationToken)).OptionsJson);
@@ -361,7 +361,7 @@ public class MigrationTests
     Assert.Equal (expected:
                   [
                     // A plain link gets its widget; one with others gets it first, ahead of the rest.
-                    (1, 2, "monitor", Converted (11), (int?)null, 0),
+                    (1, 2, "monitor", Converted (11), null, 0),
                     (2, 2, "monitor", Converted (12), null, 0),
                     (2, 2, "monitor", """{"monitorId":99}""", 30, 1),
                     (2, 2, "monitor", """{"monitorId":98}""", null, 2),
@@ -422,6 +422,98 @@ public class MigrationTests
 
     Assert.Equal (expected: "Plain", actual: (await context.Links.AsNoTracking ().SingleAsync (cancellationToken)).Label);
     Assert.False (await context.Widgets.AnyAsync (cancellationToken));
+  }
+
+  [Theory]
+  [InlineData (true)]
+  [InlineData (false)]
+  public async Task ConvertGroupsToStatusBarWidgets_MakesEachGroupAnItemOfTheFirstBar_AndBack (bool showUptime)
+  {
+    const string Before = "20261017134029_ConvertLinkMonitorsToWidgets";
+
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    // The AddPanels migration inserted the status bar.
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+
+    await using (SqliteCommand seed = connection.CreateCommand ())
+    {
+      seed.CommandText = $$"""
+                           INSERT INTO "Connections" ("Id", "IntegrationKey", "Name", "OptionsJson") VALUES
+                             (1, 'uptime-kuma', 'Uptime Kuma', '{"serverUrl":"https://status.home.arpa/","statusPageSlug":"main","defaultUptimeWindow":"1d"}');
+                           UPDATE "Panels" SET "OptionsJson" = '{"showUptime":{{(showUptime ? "true" : "false")}},"uptimeWindow":"30d"}'
+                           WHERE "Kind" = 'status-bar';
+                           INSERT INTO "InfrastructureGroups" ("Name", "MonitorId", "SortOrder") VALUES
+                             ('Storage', 2, 1), (' Compute ', 1, 0), ('Broken', 0, 2);
+                           """;
+      _ = await seed.ExecuteNonQueryAsync (cancellationToken);
+    }
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    Panel bar = await context.Panels
+                             .AsNoTracking ()
+                             .Include (p => p.Widgets)
+                             .SingleAsync (predicate: p => p.Kind == "status-bar", cancellationToken: cancellationToken);
+    string show = showUptime ? "true" : "false";
+
+    Assert.Equal (expected: """{"linkUrl":"https://status.home.arpa/status/main"}""", actual: bar.OptionsJson);
+    Assert.Equal (expected:
+                  [
+                    ("Compute", $$"""{"monitorId":1,"showResponseTime":false,"showUptime":{{show}},"uptimeWindow":"30d"}""", 0),
+                    ("Storage", $$"""{"monitorId":2,"showResponseTime":false,"showUptime":{{show}},"uptimeWindow":"30d"}""", 1),
+                  ],
+                  actual: bar.Widgets.OrderBy (w => w.SortOrder).Select (w => (w.Label, w.OptionsJson, w.SortOrder)));
+    Assert.All (collection: bar.Widgets,
+                action: w => Assert.Equal (expected: (1, "monitor", (int?)null), actual: (w.ConnectionId, w.Kind, w.LinkId)));
+    Assert.Equal (expected: """{"serverUrl":"https://status.home.arpa/","defaultUptimeWindow":"1d"}""",
+                  actual: (await context.Connections.AsNoTracking ().SingleAsync (cancellationToken)).OptionsJson);
+
+    // Going back makes the first bar's Kuma items groups again, and its link the status page.
+    await migrator.MigrateAsync (targetMigration: Before, cancellationToken: cancellationToken);
+
+    Assert.Equal (expected: [("Compute", 0L), ("Storage", 1L)],
+                  actual: await MigrationTests.ReadSortOrdersAsync (connection: connection,
+                                                                    table: "InfrastructureGroups",
+                                                                    nameColumn: "Name",
+                                                                    cancellationToken: cancellationToken));
+
+    await using SqliteCommand slug = connection.CreateCommand ();
+    slug.CommandText = """SELECT json_extract("OptionsJson", '$.statusPageSlug') FROM "Connections" """;
+
+    Assert.Equal (expected: "main", actual: await slug.ExecuteScalarAsync (cancellationToken));
+  }
+
+  [Fact]
+  public async Task ConvertGroupsToStatusBarWidgets_DropsTheGroupsWithoutAKumaConnection ()
+  {
+    CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    await using var   connection        = new SqliteConnection ("Data Source=:memory:");
+    await connection.OpenAsync (cancellationToken);
+
+    await using var context =
+      new DashboardContext (new DbContextOptionsBuilder<DashboardContext> ().UseSqlite (connection).Options);
+    var migrator = context.GetService<IMigrator> ();
+
+    await migrator.MigrateAsync (targetMigration: "20261017134029_ConvertLinkMonitorsToWidgets",
+                                 cancellationToken: cancellationToken);
+    await context.Database.ExecuteSqlRawAsync (sql:
+                                               """INSERT INTO "InfrastructureGroups" ("Name", "MonitorId", "SortOrder") VALUES ('Compute', 1, 0);""",
+                                               cancellationToken: cancellationToken);
+
+    await migrator.MigrateAsync (cancellationToken: cancellationToken);
+
+    Assert.False (await context.Widgets.AnyAsync (cancellationToken));
+    Assert.Equal (expected: "{}",
+                  actual: (await context.Panels.AsNoTracking ()
+                                        .SingleAsync (predicate: p => p.Kind == "status-bar", cancellationToken: cancellationToken))
+                 .OptionsJson);
   }
 
   /// <summary>

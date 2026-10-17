@@ -1,9 +1,10 @@
 /* The shared add/edit link dialog (Pages/Shared/_LinkDialog.cshtml). URL first: once a URL is entered, the server
    suggests a label, a selfh.st icon (or the site's own icon), and the preview shows the tile the server would render.
-   The icon field has a picker, and widget-editor.js edits the link's widgets, which are saved with it. The preview shows the widgets too, the one being edited included: it renders with the results already read,
-   then reads the rest one by one through the WidgetPreview handler, so a slow service never holds up the tile. */
+   The icon field has a picker, and widget-editor.js edits the link's widgets, which are saved with it. The preview
+   shows the widgets too, the one being edited included (widget-preview.js). */
 import { IconPicker } from './icon-picker.js';
 import { WidgetEditor } from './widget-editor.js';
+import { describeDraft, readPreviewWidgets } from './widget-preview.js';
 
 const debounce = (action, wait) => {
     let timer = 0;
@@ -244,32 +245,19 @@ export class LinkDialog {
             return;
         }
 
-        const draft = () => draftIndex === null ? null : this.preview.querySelector(`[data-widget-preview="${draftIndex}"]`);
         const reportDraft = () => {
             if (this.widgetEditor?.isEditing) {
-                const element = draft();
-                this.widgetEditor.showResult(draftIndex === null
-                    ? 'Fill in the fields to preview the widget.'
-                    : element === null || element.classList.contains('widget-pending') ? 'Reading…' : element.title);
+                this.widgetEditor.showResult(describeDraft(this.preview, draftIndex));
             }
         };
         reportDraft();
 
-        await Promise.all([...this.preview.querySelectorAll('.widget-pending[data-widget-preview]')].map(async element => {
-            try {
-                const template = document.createElement('template');
-                template.innerHTML = (await window.h2sApi.getText(withQuery(this.urls.widgetPreviewUrl, {
-                    widgets,
-                    index: element.dataset.widgetPreview
-                }))).trim();
-                const fresh = template.content.firstElementChild;
-                if (fresh && request === this.previewRequest && element.isConnected) {
-                    element.replaceWith(fresh);
-                }
-            } catch {
-                // Leave the placeholder; the next change to the form tries again.
-            }
-        }));
+        await readPreviewWidgets(this.preview, {
+            url: this.urls.widgetPreviewUrl,
+            widgets,
+            placement: 'tile',
+            isCurrent: () => request === this.previewRequest
+        });
 
         if (request === this.previewRequest) {
             reportDraft();

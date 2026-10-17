@@ -18,7 +18,10 @@ namespace h2s.Services;
 /// <param name="ExportedAt">When the file was exported.</param>
 /// <param name="Settings">The dashboard settings.</param>
 /// <param name="Categories">The categories, with their links.</param>
-/// <param name="InfrastructureGroups">The Uptime Kuma status bar's infrastructure groups.</param>
+/// <param name="InfrastructureGroups">
+///   The Uptime Kuma status bar's infrastructure groups; only before format version 9, which made them the status bar's
+///   items. Reading such a file turns them into Uptime Kuma monitor widgets on its first status bar.
+/// </param>
 /// <param name="Panels">
 ///   The panels, from format version 2. Version 1 files have none, and importing one gives the dashboard its default
 ///   panels.
@@ -32,15 +35,16 @@ namespace h2s.Services;
 ///   reading one turns them into a connection.
 /// </param>
 public sealed record DashboardBackup (
-  string?                          Format,
-  int                              Version,
-  DateTimeOffset?                  ExportedAt,
-  BackupSettings?                  Settings,
-  List<BackupCategory>?            Categories,
+  string?               Format,
+  int                   Version,
+  DateTimeOffset?       ExportedAt,
+  BackupSettings?       Settings,
+  List<BackupCategory>? Categories,
+  [property: JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
   List<BackupInfrastructureGroup>? InfrastructureGroups,
-  List<BackupPanel>?               Panels        = null,
-  List<BackupSearchEngine>?        SearchEngines = null,
-  List<BackupConnection>?          Connections   = null)
+  List<BackupPanel>?        Panels        = null,
+  List<BackupSearchEngine>? SearchEngines = null,
+  List<BackupConnection>?   Connections   = null)
 {
   /// <summary>
   ///   The value of <see cref="Format" /> in every dashboard file.
@@ -50,7 +54,7 @@ public sealed record DashboardBackup (
   /// <summary>
   ///   The format version this build of h2s writes. It also reads every earlier version.
   /// </summary>
-  public const int CurrentVersion = 8;
+  public const int CurrentVersion = 9;
 
   /// <summary>
   ///   The first format version with panels.
@@ -89,6 +93,13 @@ public sealed record DashboardBackup (
   ///   files' monitor IDs read as such widgets.
   /// </summary>
   public const int MonitorWidgetsVersion = 8;
+
+  /// <summary>
+  ///   The first format version in which status bars hold their items as widgets, with a title and link of their own,
+  ///   rather than the infrastructure groups and Uptime Kuma's status page. Earlier files' groups read as Uptime Kuma
+  ///   monitor widgets on the first status bar, and its status page as the bar's link.
+  /// </summary>
+  public const int StatusBarWidgetsVersion = 9;
 
   /// <summary>
   ///   The JSON options for dashboard files: camel-case names, enums as names, and indented so the file reads (and

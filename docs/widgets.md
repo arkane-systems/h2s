@@ -1,6 +1,6 @@
 # Writing an integration
 
-An integration connects h2s to another service, such as Uptime Kuma or Home Assistant. This guide grows with Phase 5. So far it covers integrations, their connections and Settings cards, and widgets on links' tiles; panels come later.
+An integration connects h2s to another service, such as Uptime Kuma or Home Assistant. This guide grows with Phase 5. So far it covers integrations, their connections and Settings cards, and widgets on links' tiles and status bars.
 
 ## The idea
 
@@ -38,6 +38,7 @@ An integration offers widget kinds through `WidgetKinds`. A kind (`IWidgetKind`)
 - `Key`, stored with each widget and unique within the integration, so never change it;
 - `DisplayName`, shown in the link dialog as "Integration: Name";
 - `Role`: `App` for a widget that belongs to links of one app (at most one per link, on the left of the tile), or `Status` for one that suits any link (compact pills on the right, as many as you like);
+- `Placements` (optional): where its widgets make sense, as flags of `WidgetPlacements`: `Tile` (a link's tile) and `StatusBar` (a status bar's items, each under a label). By default a status widget allows both and an app widget only tiles; declare it when yours belong in only one place, and h2s will offer and accept them only there;
 - `Options`, a schema like a connection's;
 - `DefaultRefresh`, how often its widgets are read again (a widget may choose its own, from 15 seconds).
 

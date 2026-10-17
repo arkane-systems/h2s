@@ -9,20 +9,25 @@ using Microsoft.Extensions.Primitives;
 namespace h2s.Pages.Admin;
 
 /// <summary>
-///   The link dialog's widget handlers (<c>wwwroot/js/modules/widget-editor.js</c>). A link's widgets are posted with the
-///   link, as a JSON <c>widgets</c> field <see cref="WidgetForm" /> reads, so they save, cancel and undo with it.
+///   The link and panel dialogs' widget handlers (<c>wwwroot/js/modules/widget-editor.js</c>). A link's or panel's widgets
+///   are posted with it, as a JSON <c>widgets</c> field <see cref="WidgetForm" /> reads, so they save, cancel and undo with
+///   it. Handlers that depend on where the widgets go take a <c>placement</c>: <c>tile</c> (the default) or
+///   <c>statusBar</c>.
 /// </summary>
 public partial class EditorModel
 {
   /// <summary>
-  ///   Lists the widget kinds a link can have: those whose integration has a connection.
+  ///   Lists the widget kinds that can go in a place: those that allow it and whose integration has a connection.
   /// </summary>
+  /// <param name="placement">The place: <c>tile</c> (the default) or <c>statusBar</c>.</param>
   /// <returns>
   ///   A JSON payload with each kind's reference (<c>integration/kind</c>), name, role (<c>app</c> or <c>status</c>),
   ///   option schema and default refresh interval in seconds.
   /// </returns>
-  public async Task<IActionResult> OnGetWidgetKindsAsync ()
+  public async Task<IActionResult> OnGetWidgetKindsAsync (string? placement)
   {
+    WidgetPlacements place = EditorModel.ParsePlacement (placement);
+
     HashSet<string> connected =
     [
       .. (await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted)).Select (c => c.IntegrationKey),
@@ -30,7 +35,7 @@ public partial class EditorModel
 
     return new JsonResult (this.widgetCatalog
                                .Kinds
-                               .Where (e => connected.Contains (e.Integration.Key))
+                               .Where (e => connected.Contains (e.Integration.Key) && e.Kind.Placements.HasFlag (place))
                                .Select (e => new
                                              {
                                                e.Reference,
@@ -65,13 +70,14 @@ public partial class EditorModel
   /// </summary>
   /// <param name="widgets">The widgets the preview was rendered from, as <see cref="OnGetTilePreviewAsync" /> took them.</param>
   /// <param name="index">The widget's position among them.</param>
+  /// <param name="placement">Where the widgets go: <c>tile</c> (the default) or <c>statusBar</c>.</param>
   /// <returns>
   ///   The widget's HTML; a 400 problem response when the widgets don't check out, or a 404 one when there's no widget at
   ///   that position.
   /// </returns>
-  public async Task<IActionResult> OnGetWidgetPreviewAsync (string? widgets, int index)
+  public async Task<IActionResult> OnGetWidgetPreviewAsync (string? widgets, int index, string? placement)
   {
-    if (await this.ReadPreviewWidgetsAsync (widgets) is not { } plan)
+    if (await this.ReadPreviewWidgetsAsync (widgets: widgets, placement: EditorModel.ParsePlacement (placement)) is not { } plan)
     {
       return this.BadRequestProblem ("The widgets to preview don't check out.");
     }
@@ -86,30 +92,42 @@ public partial class EditorModel
   }
 
   /// <summary>
-  ///   Reads the widgets the link dialog previews, as the link handlers take them, without the saved widgets they may
+  ///   Reads the widgets a dialog previews, as the link and panel handlers take them, without the saved widgets they may
   ///   replace: a preview only needs their settings.
   /// </summary>
   /// <param name="widgets">The widgets as JSON.</param>
+  /// <param name="placement">Where the widgets go.</param>
   /// <returns>The widgets, or <c>null</c> when there are none or they don't check out.</returns>
-  private async Task<List<WidgetPlan>?> ReadPreviewWidgetsAsync (string? widgets)
+  private async Task<List<WidgetPlan>?> ReadPreviewWidgetsAsync (string? widgets, WidgetPlacements placement)
     => !string.IsNullOrWhiteSpace (widgets) &&
        WidgetForm.TryRead (json: widgets,
                            catalog: this.widgetCatalog,
                            connections: await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted),
                            existing: [],
+                           placement: placement,
                            plan: out List<WidgetPlan>? plan,
                            error: out _)
          ? plan
          : null;
 
   /// <summary>
-  ///   Describes a link's widgets for the link dialog.
+  ///   Reads a place's name as the dialogs send it.
+  /// </summary>
+  /// <param name="placement"><c>statusBar</c> for a status bar; anything else is a tile.</param>
+  /// <returns>The place.</returns>
+  private static WidgetPlacements ParsePlacement (string? placement)
+    => string.Equals (a: placement?.Trim (), b: "statusBar", comparisonType: StringComparison.OrdinalIgnoreCase)
+         ? WidgetPlacements.StatusBar
+         : WidgetPlacements.Tile;
+
+  /// <summary>
+  ///   Describes a link's or panel's widgets for its dialog.
   /// </summary>
   /// <param name="widgets">The widgets, in order.</param>
   /// <param name="connections">The connections, by ID.</param>
   /// <returns>
-  ///   One object per widget: its ID, kind reference, name, role and option values, and its refresh interval when it has
-  ///   one of its own. A widget of a kind this version of h2s doesn't know says so, with no values.
+  ///   One object per widget: its ID, kind reference, name, role, label and option values, and its refresh interval when
+  ///   it has one of its own. A widget of a kind this version of h2s doesn't know says so, with no values.
   /// </returns>
   private object[] DescribeWidgets (IEnumerable<Widget> widgets, IReadOnlyDictionary<int, Connection> connections)
     =>
@@ -133,17 +151,19 @@ public partial class EditorModel
                                                ? new Dictionary<string, object?> ()
                                                : new OptionValues (schema: entry.Kind.Options, json: w.OptionsJson).Values,
                                     w.RefreshSeconds,
+                                    w.Label,
                                   };
                          }),
     ];
 
   /// <summary>
-  ///   Applies the widgets posted with a link, if the form posted any: an older form without the field leaves the link's
-  ///   widgets alone.
+  ///   Applies the widgets posted with a link or panel, if the form posted any: an older form without the field leaves the
+  ///   widgets alone. Widgets taken out are deleted when the context is saved.
   /// </summary>
-  /// <param name="link">The link, with its widgets loaded.</param>
+  /// <param name="widgets">The link's or panel's widgets, loaded.</param>
+  /// <param name="placement">Where they go.</param>
   /// <returns>What's wrong with the posted widgets, or <c>null</c> when they were applied (or not posted).</returns>
-  private async Task<string?> ApplyPostedWidgetsAsync (Link link)
+  private async Task<string?> ApplyPostedWidgetsAsync (List<Widget> widgets, WidgetPlacements placement)
   {
     if (!this.Request.HasFormContentType || !this.Request.Form.TryGetValue (key: "widgets", value: out StringValues posted))
     {
@@ -153,35 +173,37 @@ public partial class EditorModel
     if (!WidgetForm.TryRead (json: posted.ToString (),
                              catalog: this.widgetCatalog,
                              connections: await this.connections.GetConnectionsAsync (this.HttpContext.RequestAborted),
-                             existing: link.Widgets,
+                             existing: widgets,
+                             placement: placement,
                              plan: out List<WidgetPlan>? plan,
                              error: out string? error))
     {
       return error;
     }
 
-    WidgetForm.Apply (link: link, plan: plan);
+    this.context.Widgets.RemoveRange (WidgetForm.Apply (widgets: widgets, plan: plan));
 
     return null;
   }
 
   /// <summary>
-  ///   Recreates a snapshot's widgets on a restored link, leaving out any whose connection no longer exists.
+  ///   Recreates a snapshot's widgets on a restored link or panel, leaving out any whose connection no longer exists.
   /// </summary>
-  /// <param name="link">The restored link.</param>
-  /// <param name="snapshot">The link's snapshot.</param>
+  /// <param name="widgets">The restored link's or panel's widgets.</param>
+  /// <param name="snapshot">The snapshot's widgets, in order; none when <c>null</c>.</param>
   /// <param name="connectionIds">The connections that exist.</param>
-  private static void RestoreWidgets (Link link, LinkSnapshot snapshot, IReadOnlySet<int> connectionIds)
-    => link.Widgets.AddRange ((snapshot.Widgets ?? [])
-                             .Where (w => connectionIds.Contains (w.ConnectionId) && !string.IsNullOrWhiteSpace (w.Kind))
-                             .Select ((w, i) => new Widget
-                                                {
-                                                  ConnectionId   = w.ConnectionId,
-                                                  Kind           = w.Kind!,
-                                                  OptionsJson    = string.IsNullOrWhiteSpace (w.OptionsJson) ? "{}" : w.OptionsJson,
-                                                  RefreshSeconds = w.RefreshSeconds,
-                                                  SortOrder      = i,
-                                                }));
+  private static void RestoreWidgets (List<Widget> widgets, IEnumerable<WidgetSnapshot>? snapshot, IReadOnlySet<int> connectionIds)
+    => widgets.AddRange ((snapshot ?? [])
+                        .Where (w => connectionIds.Contains (w.ConnectionId) && !string.IsNullOrWhiteSpace (w.Kind))
+                        .Select ((w, i) => new Widget
+                                           {
+                                             ConnectionId   = w.ConnectionId,
+                                             Kind           = w.Kind!,
+                                             OptionsJson    = string.IsNullOrWhiteSpace (w.OptionsJson) ? "{}" : w.OptionsJson,
+                                             RefreshSeconds = w.RefreshSeconds,
+                                             Label          = string.IsNullOrWhiteSpace (w.Label) ? null : w.Label.Trim (),
+                                             SortOrder      = i,
+                                           }));
 
   /// <summary>
   ///   Names a widget role as the browser does.

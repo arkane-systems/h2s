@@ -40,4 +40,10 @@ public class Panel
   ///   ones take the option's default.
   /// </summary>
   public string OptionsJson { get; set; } = "{}";
+
+  /// <summary>
+  ///   Gets or sets the panel's widgets, in no particular order (see <see cref="Widget.SortOrder" />), for a kind of panel
+  ///   that holds them, such as a status bar.
+  /// </summary>
+  public List<Widget> Widgets { get; set; } = [];
 }

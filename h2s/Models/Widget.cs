@@ -3,9 +3,9 @@ using System.ComponentModel.DataAnnotations;
 namespace h2s.Models;
 
 /// <summary>
-///   A widget on a link's tile, such as an Uptime Kuma monitor's status. What it shows comes from its kind
+///   A widget on a link's tile or a panel, such as an Uptime Kuma monitor's status. What it shows comes from its kind
 ///   (<see cref="h2s.Widgets.Abstractions.IWidgetKind" />), which belongs to the integration of the connection it uses.
-///   Deleting the link or the connection deletes the widget.
+///   It belongs to exactly one link or panel, and deleting that or the connection deletes the widget.
 /// </summary>
 public class Widget
 {
@@ -25,19 +25,40 @@ public class Widget
   public const int MaxRefreshSeconds = 24 * 60 * 60;
 
   /// <summary>
+  ///   The longest label that can be stored.
+  /// </summary>
+  public const int MaxLabelLength = 100;
+
+  /// <summary>
   ///   Gets or sets the unique identifier for the widget.
   /// </summary>
   public int Id { get; set; }
 
   /// <summary>
-  ///   Gets or sets the identifier of the link whose tile shows the widget.
+  ///   Gets or sets the identifier of the link whose tile shows the widget, when it's on a tile.
   /// </summary>
-  public int LinkId { get; set; }
+  public int? LinkId { get; set; }
 
   /// <summary>
   ///   Gets or sets the link whose tile shows the widget.
   /// </summary>
   public Link? Link { get; set; }
+
+  /// <summary>
+  ///   Gets or sets the identifier of the panel that shows the widget, when it's on a panel such as a status bar.
+  /// </summary>
+  public int? PanelId { get; set; }
+
+  /// <summary>
+  ///   Gets or sets the panel that shows the widget.
+  /// </summary>
+  public Panel? Panel { get; set; }
+
+  /// <summary>
+  ///   Gets or sets the widget's label, such as a status bar item's name; <c>null</c> for none. Tiles don't show it.
+  /// </summary>
+  [MaxLength (Widget.MaxLabelLength)]
+  public string? Label { get; set; }
 
   /// <summary>
   ///   Gets or sets the identifier of the connection the widget reads its service through.

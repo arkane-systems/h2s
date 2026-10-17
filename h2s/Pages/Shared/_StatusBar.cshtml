@@ -1,0 +1,43 @@
+@using h2s.Panels
+@using h2s.Widgets
+@model StatusBarPanelModel
+@* A status bar panel: its optional title, then each item's label over its widget, drawn by _Widget as on tiles, and kept
+   current the same way by widgets.js. With a link it opens that page, such as a status page; otherwise it isn't
+   clickable. *@
+@{
+    async Task RenderItems()
+    {
+        <div class="category-box-body status-bar-body">
+            @if (Model.Title is not null)
+            {
+                <div class="status-bar-title">@Model.Title</div>
+            }
+            <div class="status-bar-items">
+                @foreach (WidgetView item in Model.Items)
+                {
+                    <div class="status-bar-item">
+                        @if (!string.IsNullOrWhiteSpace(item.Label))
+                        {
+                            <div class="status-bar-label">@item.Label</div>
+                        }
+                        <partial name="_Widget" model="item" />
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+@if (Model.LinkUrl is not null)
+{
+    <a class="status-bar status-bar-link category-box border text-decoration-none" href="@Model.LinkUrl" target="_blank" rel="noopener noreferrer"
+       title="Open @Model.LinkUrl">
+        @{ await RenderItems(); }
+        <span class="visually-hidden">Open @(Model.Title ?? "the status page")</span>
+    </a>
+}
+else
+{
+    <div class="status-bar status-bar-static category-box border">
+        @{ await RenderItems(); }
+    </div>
+}

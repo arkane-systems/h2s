@@ -1,14 +1,13 @@
 @page
 @model h2s.Pages.Admin.SettingsModel
 @using System.Text.Json
-@using h2s.Integrations.UptimeKuma
 @using h2s.Models
 @using h2s.Widgets.Abstractions
 @{
     ViewData["Title"] = "Settings";
 }
 @* Settings as section cards that each save on their own (wwwroot/js/modules/settings.js), with the search engines
-   (search-engines.js), the infrastructure groups (infrastructure-groups.js) and Backup (backup.js). *@
+   (search-engines.js), the integrations (integrations.js) and Backup (backup.js). *@
 
 <div class="settings-page">
     <div class="d-flex flex-wrap align-items-baseline gap-3 mb-3">
@@ -82,7 +81,7 @@
         </form>
     </section>
 
-    @* The engines save as they change (search-engines.js), like the infrastructure groups. *@
+    @* The engines save as they change (search-engines.js). *@
     <section id="search" class="category-box border settings-card" aria-labelledby="search-title">
         <div class="category-box-body" id="search-engines"
              data-engines-url="@Url.Page("/Admin/Settings", "SearchEngines")"
@@ -145,28 +144,6 @@
                         </div>
                     </form>
 
-                    @if (integration.Key == UptimeKumaIntegration.IntegrationKey)
-                    {
-                        @* The groups save as they change, apart from the settings and Save above, so a divider sets them off.
-                           data-shown-with hides them while Uptime Kuma has no connection. 5d retires them. *@
-                        <div id="infrastructure-groups" class="@(Model.IsUptimeKumaConfigured ? "" : "d-none")" data-shown-with="@integration.Key"
-                             data-groups-url="@Url.Page("/Admin/Settings", "InfrastructureGroups")"
-                             data-create-url="@Url.Page("/Admin/Settings", "CreateInfrastructureGroup")"
-                             data-update-url="@Url.Page("/Admin/Settings", "UpdateInfrastructureGroup")"
-                             data-delete-url="@Url.Page("/Admin/Settings", "DeleteInfrastructureGroup")"
-                             data-restore-url="@Url.Page("/Admin/Settings", "RestoreInfrastructureGroup")"
-                             data-reorder-url="@Url.Page("/Admin/Settings", "ReorderInfrastructureGroups")">
-                            <hr class="settings-divider" />
-                            <h4 class="h6">Infrastructure groups</h4>
-                            <p class="text-muted small">
-                                Each group shows a status and an uptime badge in the bar across the top of the dashboard. Drag the
-                                <span aria-hidden="true">⠿</span> handles, or focus one and use the arrow keys, to reorder them.
-                            </p>
-                            <ul class="list-group mb-2 group-list" data-role="group-list"></ul>
-                            <p class="text-muted small d-none" data-role="group-empty">No infrastructure groups yet.</p>
-                            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-group">+ Add group</button>
-                        </div>
-                    }
                 </div>
             </section>
         }
@@ -179,8 +156,8 @@
         <div class="category-box-body">
             <h2 class="h5" id="backup-title">Backup</h2>
             <p class="text-muted">
-                Export the whole configuration (settings, categories, links, infrastructure groups, panels, search engines and
-                integrations, without their secrets) as a JSON file, or import one to replace it.
+                Export the whole configuration (settings, categories, links, panels, search engines, integrations without their
+                secrets, and widgets) as a JSON file, or import one to replace it.
             </p>
 
             <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -206,11 +183,6 @@
     </section>
 </div>
 
-<script type="application/json" id="infrastructure-groups-data">
-    @Html.Raw(JsonSerializer.Serialize(Model.InfrastructureGroups.Select(g => new { g.Id, g.Name, g.MonitorId, g.SortOrder }),
-                                       JsonSerializerOptions.Web))
-</script>
-
 <script type="application/json" id="integrations-data">
     @Html.Raw(JsonSerializer.Serialize(Model.IntegrationCards, JsonSerializerOptions.Web))
 </script>
@@ -221,14 +193,12 @@
 </script>
 
 @section Dialogs {
-    <partial name="_InfrastructureGroupDialog" />
     <partial name="_SearchEngineDialog" />
 }
 
 @section Scripts {
     <script type="module" src="~/js/modules/settings.js" asp-append-version="true"></script>
     <script type="module" src="~/js/modules/integrations.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/modules/infrastructure-groups.js" asp-append-version="true"></script>
     <script type="module" src="~/js/modules/search-engines.js" asp-append-version="true"></script>
     <script type="module" src="~/js/modules/backup.js" asp-append-version="true"></script>
 }

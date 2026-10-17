@@ -9,7 +9,13 @@ namespace h2s.Pages.Admin;
 /// <param name="Zone">Whether the panel sat above or below the categories.</param>
 /// <param name="SortOrder">The panel's position within its zone.</param>
 /// <param name="OptionsJson">The panel's stored options.</param>
-public sealed record PanelSnapshot (string? Kind, PanelZone Zone, int SortOrder, string? OptionsJson)
+/// <param name="Widgets">The panel's widgets, in order, for a kind that holds them; none when <c>null</c>.</param>
+public sealed record PanelSnapshot (
+  string?               Kind,
+  PanelZone             Zone,
+  int                   SortOrder,
+  string?               OptionsJson,
+  List<WidgetSnapshot>? Widgets = null)
 {
   /// <summary>
   ///   Takes a snapshot of a panel.
@@ -18,5 +24,9 @@ public sealed record PanelSnapshot (string? Kind, PanelZone Zone, int SortOrder,
   /// <param name="position">The panel's position within its zone, counting from 0.</param>
   /// <returns>The snapshot.</returns>
   public static PanelSnapshot From (Panel panel, int position)
-    => new (Kind: panel.Kind, Zone: panel.Zone, SortOrder: position, OptionsJson: panel.OptionsJson);
+    => new (Kind: panel.Kind,
+            Zone: panel.Zone,
+            SortOrder: position,
+            OptionsJson: panel.OptionsJson,
+            Widgets: [.. panel.Widgets.OrderBy (w => w.SortOrder).ThenBy (w => w.Id).Select (WidgetSnapshot.From)]);
 }

@@ -1,5 +1,6 @@
 ﻿@* The add/edit panel dialog for dashboard edit mode, driven by wwwroot/js/modules/panel-dialog.js. Its option fields
-   are built from the kind's schema. *@
+   are built from the kind's schema; a kind that holds widgets, such as a status bar, gets the widget editor for its
+   items; and the preview is the panel the server would render. *@
 <div class="modal fade" id="panel-dialog" tabindex="-1" aria-labelledby="panel-dialog-title" aria-hidden="true"
      data-kinds-url="@Url.Page("/Admin/Editor", "PanelKinds")"
      data-panel-url="@Url.Page("/Admin/Editor", "Panel")"
@@ -7,8 +8,10 @@
      data-create-url="@Url.Page("/Admin/Editor", "CreatePanel")"
      data-update-url="@Url.Page("/Admin/Editor", "UpdatePanel")"
      data-delete-url="@Url.Page("/Admin/Editor", "DeletePanel")"
-     data-restore-url="@Url.Page("/Admin/Editor", "RestorePanel")">
-    <div class="modal-dialog">
+     data-restore-url="@Url.Page("/Admin/Editor", "RestorePanel")"
+     data-preview-url="@Url.Page("/Admin/Editor", "PanelPreview")"
+     data-widget-preview-url="@Url.Page("/Admin/Editor", "WidgetPreview")">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <form class="modal-content" novalidate>
             <div class="modal-header">
                 <h2 class="modal-title fs-5" id="panel-dialog-title">Add panel</h2>
@@ -35,7 +38,18 @@
                 </div>
 
                 <div data-role="options"></div>
-                <p class="text-body-secondary mb-0 d-none" data-role="no-options"></p>
+                <p class="text-body-secondary d-none" data-role="no-options"></p>
+
+                <div class="d-none" data-role="widgets-host">
+                    <partial name="_WidgetEditor"
+                             model='new WidgetEditorModel(IdPrefix: "panel-dialog-", Legend: "Items", EmptyText: "No items yet. Each is a status widget from an integration, such as an Uptime Kuma monitor.")' />
+                </div>
+
+                <div class="d-none" data-role="preview-host">
+                    <div class="form-label" id="panel-dialog-preview-label">Preview</div>
+                    @* Inert, so the preview's link can't be focused or followed. *@
+                    <div class="panel-dialog-preview" data-role="preview" aria-labelledby="panel-dialog-preview-label" inert></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-danger me-auto d-none" data-role="delete">Delete panel</button>

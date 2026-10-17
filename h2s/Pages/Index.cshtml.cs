@@ -1,7 +1,5 @@
 using h2s.Authorization;
 using h2s.Data;
-using h2s.Integrations;
-using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
@@ -18,13 +16,12 @@ namespace h2s.Pages;
 public class IndexModel : PageModel
 {
   private readonly IAuthorizationService    authorizationService;
-  private readonly ConnectionService        connections;
   private readonly DashboardContext         context;
   private readonly PanelService             panelService;
   private readonly DashboardSettingsService settingsService;
   private readonly WidgetService            widgetService;
 
-  private LinkTileFactory tiles = new (settings: new DashboardSettings (), uptimeKuma: null);
+  private LinkTileFactory tiles = new (new DashboardSettings ());
 
   private Dictionary<int, List<WidgetView>> widgets = [];
 
@@ -35,17 +32,14 @@ public class IndexModel : PageModel
   /// <param name="settingsService">The service used to load dashboard settings.</param>
   /// <param name="panelService">The service used to load the panels above and below the categories.</param>
   /// <param name="authorizationService">The service used to check whether the user may enter edit mode.</param>
-  /// <param name="connections">The service holding the Uptime Kuma connection that link badges come from.</param>
   /// <param name="widgetService">The service used to load the links' widgets.</param>
   public IndexModel (DashboardContext         context,
                      DashboardSettingsService settingsService,
                      PanelService             panelService,
                      IAuthorizationService    authorizationService,
-                     ConnectionService        connections,
                      WidgetService            widgetService)
   {
     this.widgetService        = widgetService;
-    this.connections          = connections;
     this.panelService         = panelService;
     this.context              = context;
     this.settingsService      = settingsService;
@@ -111,9 +105,7 @@ public class IndexModel : PageModel
                                                  cancellationToken: cancellationToken);
 
     DashboardSettings settings = await this.settingsService.GetSettingsAsync ();
-    this.tiles = new LinkTileFactory (settings: settings,
-                                      uptimeKuma: await UptimeKumaSettings.LoadAsync (connections: this.connections,
-                                                                                      cancellationToken: cancellationToken));
+    this.tiles          = new LinkTileFactory (settings);
     this.DashboardTitle = settings.Title;
 
     List<PanelView> panels = (await this.panelService.GetPanelsAsync (cancellationToken))

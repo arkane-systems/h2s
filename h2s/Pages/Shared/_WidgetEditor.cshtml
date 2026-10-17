@@ -1,0 +1,41 @@
+@model WidgetEditorModel
+@* A dialog's widgets section, edited by wwwroot/js/modules/widget-editor.js and posted with the link or panel, so they
+   save and cancel with it. The label field shows only where widgets have labels, such as a status bar's items. *@
+<fieldset class="mb-3" data-role="widgets" data-widget-kinds-url="@Url.Page("/Admin/Editor", "WidgetKinds")"
+          data-choices-url="@Url.Page("/Admin/Editor", "Choices")">
+    <legend class="form-label fs-6 mb-1">@Model.Legend</legend>
+    <ul class="list-group mb-2" data-role="widget-list"></ul>
+    <p class="text-muted small d-none" data-role="widget-empty">@Model.EmptyText</p>
+    <p class="text-muted small d-none" data-role="widget-unavailable">To add widgets, set up an integration in Settings → Integrations.</p>
+    <p class="text-muted small d-none" data-role="widget-full"></p>
+    <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-widget">+ Add widget</button>
+
+    <div class="card mt-2 d-none" data-role="widget-form">
+        <div class="card-body">
+            <h3 class="h6" data-role="widget-form-title">Add widget</h3>
+            <div class="mb-3">
+                <label for="@(Model.IdPrefix)widget-kind" class="form-label">Kind</label>
+                <select class="form-select" id="@(Model.IdPrefix)widget-kind" data-role="widget-kind"></select>
+            </div>
+            <div class="mb-3 d-none" data-role="widget-label-field">
+                <label for="@(Model.IdPrefix)widget-label" class="form-label">Label <span class="text-muted">(optional)</span></label>
+                <input type="text" class="form-control" id="@(Model.IdPrefix)widget-label" data-role="widget-label" maxlength="100"
+                       autocomplete="off" placeholder="Compute" />
+            </div>
+            <div data-role="widget-fields"></div>
+            <div class="mb-3">
+                <label for="@(Model.IdPrefix)widget-refresh" class="form-label">Refresh every (seconds) <span class="text-muted">(optional)</span></label>
+                <input type="number" class="form-control" id="@(Model.IdPrefix)widget-refresh" data-role="widget-refresh" min="15" max="86400"
+                       step="1" inputmode="numeric" aria-describedby="@(Model.IdPrefix)widget-refresh-help" />
+                <div class="invalid-feedback">Use a whole number of seconds, from 15 to 86400, or leave it blank.</div>
+                <div class="form-text" id="@(Model.IdPrefix)widget-refresh-help" data-role="widget-refresh-help"></div>
+            </div>
+            @* What the widget reads now, from the dialog's live preview. *@
+            <p class="small text-muted mb-3 d-none" data-role="widget-result" aria-live="polite"></p>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-primary" data-role="widget-done">Done</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-role="widget-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+</fieldset>

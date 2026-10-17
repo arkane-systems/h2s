@@ -8,7 +8,6 @@ namespace h2s.Services;
 /// <param name="Categories">The number of categories.</param>
 /// <param name="AdminCategories">How many of those are admin categories.</param>
 /// <param name="Links">The number of links.</param>
-/// <param name="InfrastructureGroups">The number of infrastructure groups.</param>
 /// <param name="Panels">The number of panels; for a file from before panels, the number of default panels.</param>
 /// <param name="SearchEngines">
 ///   The number of search engines; for a file from before search engines, the number of default engines.
@@ -21,7 +20,6 @@ public sealed record BackupSummary (
   int             Categories,
   int             AdminCategories,
   int             Links,
-  int             InfrastructureGroups,
   int             Panels,
   int             SearchEngines,
   int             Connections,

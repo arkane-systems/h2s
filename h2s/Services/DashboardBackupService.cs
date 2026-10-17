@@ -65,12 +65,6 @@ public class DashboardBackupService
                                           .ThenBy (c => c.Name)
                                           .ToListAsync (cancellationToken);
 
-    List<InfrastructureGroup> groups = await this.context.InfrastructureGroups
-                                                 .AsNoTracking ()
-                                                 .OrderBy (g => g.SortOrder)
-                                                 .ThenBy (g => g.Name)
-                                                 .ToListAsync (cancellationToken);
-
     List<SearchEngine> engines = await this.context.SearchEngines
                                            .AsNoTracking ()
                                            .OrderBy (e => e.SortOrder)
@@ -79,6 +73,7 @@ public class DashboardBackupService
 
     List<Panel> panels = await this.context.Panels
                                    .AsNoTracking ()
+                                   .Include (p => p.Widgets)
                                    .OrderBy (p => p.Zone)
                                    .ThenBy (p => p.SortOrder)
                                    .ThenBy (p => p.Id)
@@ -114,16 +109,11 @@ public class DashboardBackupService
                                                                                                               connectionsById)),
                                                                                  ])),
                                 ],
-                                InfrastructureGroups:
-                                [
-                                  .. groups.Select (g => new BackupInfrastructureGroup (Name: g.Name, MonitorId: g.MonitorId)),
-                                ],
+                                InfrastructureGroups: null,
                                 Panels:
                                 [
-                                  .. panels.Select (p => new BackupPanel (Kind: p.Kind,
-                                                                          Zone: p.Zone,
-                                                                          Options: DashboardBackupService
-                                                                           .ReadOptions (p.OptionsJson))),
+                                  .. panels.Select (p => DashboardBackupService.ExportPanel (panel: p,
+                                                                                             connections: connectionsById)),
                                 ],
                                 SearchEngines:
                                 [
@@ -226,6 +216,15 @@ public class DashboardBackupService
       read = DashboardBackupService.UseMonitorWidgets (read);
     }
 
+    if (read.Version < DashboardBackup.StatusBarWidgetsVersion)
+    {
+      read = DashboardBackupService.UseStatusBarWidgets (read);
+    }
+    else
+    {
+      read = read with { InfrastructureGroups = null };
+    }
+
     DashboardBackupService.Validate (backup: read, kinds: kinds, integrations: integrations, errors: errors);
 
     if (errors.Count > 0)
@@ -246,14 +245,14 @@ public class DashboardBackupService
   public static BackupSummary Summarize (DashboardBackup backup)
     => new (Title: backup.Settings?.Title ?? "",
             ExportedAt: backup.ExportedAt,
-            Categories: backup.Categories?.Count ?? 0,
+            Categories: backup.Categories?.Count                               ?? 0,
             AdminCategories: backup.Categories?.Count (c => c.IsAdminCategory) ?? 0,
-            Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0) ?? 0,
-            InfrastructureGroups: backup.InfrastructureGroups?.Count ?? 0,
-            Panels: backup.Panels?.Count ?? DefaultPanels.Create ().Count,
-            SearchEngines: backup.SearchEngines?.Count ?? DefaultSearchEngines.Create ().Count,
-            Connections: backup.Connections?.Count ?? 0,
-            Widgets: backup.Categories?.Sum (c => c.Links?.Sum (l => l.Widgets?.Count ?? 0) ?? 0) ?? 0);
+            Links: backup.Categories?.Sum (c => c.Links?.Count ?? 0)           ?? 0,
+            Panels: backup.Panels?.Count                                       ?? DefaultPanels.Create ().Count,
+            SearchEngines: backup.SearchEngines?.Count                         ?? DefaultSearchEngines.Create ().Count,
+            Connections: backup.Connections?.Count                             ?? 0,
+            Widgets: (backup.Categories?.Sum (c => c.Links?.Sum (l => l.Widgets?.Count ?? 0) ?? 0) ?? 0) +
+                     (backup.Panels?.Sum (p => p.Widgets?.Count                              ?? 0) ?? 0));
 
   /// <summary>
   ///   Replaces the whole configuration with a valid dashboard file's, in one transaction.
@@ -275,12 +274,11 @@ public class DashboardBackupService
 
     _ = await this.context.Links.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Categories.ExecuteDeleteAsync (cancellationToken);
-    _ = await this.context.InfrastructureGroups.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Panels.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.SearchEngines.ExecuteDeleteAsync (cancellationToken);
     _ = await this.context.Connections.ExecuteDeleteAsync (cancellationToken);
 
-    // Connections first, so the links' widgets can use them.
+    // Connections first, so the links' and panels' widgets can use them.
     var importedConnections = new Dictionary<(string IntegrationKey, string Name), Connection> ();
     var widgetCatalog       = new WidgetCatalog (this.integrations);
 
@@ -329,7 +327,7 @@ public class DashboardBackupService
                                                                                      OpenInNewTab = l.OpenInNewTab,
                                                                                      SortOrder    = i,
                                                                                      Widgets = DashboardBackupService
-                                                                                      .ImportWidgets (link: l,
+                                                                                      .ImportWidgets (widgets: l.Widgets,
                                                                                                       connections:
                                                                                                       importedConnections,
                                                                                                       catalog: widgetCatalog),
@@ -337,13 +335,6 @@ public class DashboardBackupService
                                      ],
                                    });
     }
-
-    this.context.InfrastructureGroups.AddRange ((backup.InfrastructureGroups ?? []).Select ((g, i) => new InfrastructureGroup
-                                                                                                      {
-                                                                                                        Name      = g.Name!.Trim (),
-                                                                                                        MonitorId = g.MonitorId,
-                                                                                                        SortOrder = i,
-                                                                                                      }));
 
     // A file from before search engines gets the default ones. One engine is always the default.
     if (backup.SearchEngines == null)
@@ -376,20 +367,13 @@ public class DashboardBackupService
     {
       int top = 0, bottom = 0;
 
-      this.context.Panels.AddRange (backup.Panels.Select (p => new Panel
-                                                               {
-                                                                 Kind      = p.Kind!.Trim (),
-                                                                 Zone      = p.Zone,
-                                                                 SortOrder = p.Zone == PanelZone.Top ? top++ : bottom++,
-
-                                                                 // Stored compact, however the file was indented.
-                                                                 OptionsJson = p.Options is
-                                                                               {
-                                                                                 ValueKind: JsonValueKind.Object,
-                                                                               } options
-                                                                                 ? JsonSerializer.Serialize (options)
-                                                                                 : "{}",
-                                                               }));
+      this.context.Panels.AddRange (backup.Panels.Select (p => DashboardBackupService.ImportPanel (panel: p,
+                                                                                                   sortOrder: p.Zone ==
+                                                                                                              PanelZone.Top
+                                                                                                                ? top++
+                                                                                                                : bottom++,
+                                                                                                   connections: importedConnections,
+                                                                                                   catalog: widgetCatalog)));
     }
 
     await this.context.SaveChangesAsync (cancellationToken);
@@ -492,7 +476,8 @@ public class DashboardBackupService
           Add ($"{linkName}: the monitor ID must be a positive integer.");
         }
 
-        foreach (string error in DashboardBackupService.CheckWidgets (link: link,
+        foreach (string error in DashboardBackupService.CheckWidgets (widgets: link.Widgets,
+                                                                      placement: WidgetPlacements.Tile,
                                                                       catalog: widgetCatalog,
                                                                       connections: fileConnections))
         {
@@ -591,6 +576,23 @@ public class DashboardBackupService
       {
         Add ($"{where}: the options must be a JSON object.");
       }
+
+      WidgetPlacements placement = kinds.Find ((panel.Kind ?? "").Trim ())?.WidgetPlacement ?? WidgetPlacements.None;
+
+      if ((placement == WidgetPlacements.None) && panel.Widgets is { Count: > 0 })
+      {
+        Add ($"{where}: this kind of panel holds no widgets.");
+      }
+      else
+      {
+        foreach (string error in DashboardBackupService.CheckWidgets (widgets: panel.Widgets,
+                                                                      placement: placement,
+                                                                      catalog: widgetCatalog,
+                                                                      connections: fileConnections))
+        {
+          Add ($"{where}, {error}");
+        }
+      }
     }
 
     if ((backup.Version >= DashboardBackup.ConnectionsVersion) && (backup.Connections == null))
@@ -668,8 +670,8 @@ public class DashboardBackupService
 
     var options = new Dictionary<string, object?>
                   {
-                    [UptimeKumaIntegration.ServerUrlOption]      = settings.UptimeKumaServerUrl.Trim (),
-                    [UptimeKumaIntegration.StatusPageSlugOption] = (settings.UptimeKumaStatusPageSlug ?? "").Trim (),
+                    [UptimeKumaIntegration.ServerUrlOption]            = settings.UptimeKumaServerUrl.Trim (),
+                    [UptimeKumaIntegration.LegacyStatusPageSlugOption] = (settings.UptimeKumaStatusPageSlug ?? "").Trim (),
                   };
 
     if (settings.UptimeKumaDefaultDuration is { } duration)
@@ -714,11 +716,171 @@ public class DashboardBackupService
                                                                                             hoursKey: StatusBarPanelKind
                                                                                              .LegacyUptimeHoursOption,
                                                                                             windowKey: StatusBarPanelKind
-                                                                                             .UptimeWindowOption),
+                                                                                             .LegacyUptimeWindowOption),
                                           }
                                         : p)
                         .ToList (),
        };
+
+  /// <summary>
+  ///   Turns a file from before status bar widgets into one with them, as the ConvertGroupsToStatusBarWidgets migration
+  ///   does. Its first status bar (the default one, for a file from before panels) gets an Uptime Kuma monitor widget for
+  ///   each infrastructure group, labelled with the group's name, with the bar's old uptime settings and no response time,
+  ///   using the file's first Uptime Kuma connection; and that connection's status page becomes the bar's link. Without
+  ///   an Uptime Kuma connection the groups are dropped. Groups are left in the file for validation, which still refuses
+  ///   one without a name or a positive monitor ID, and import ignores them.
+  /// </summary>
+  /// <param name="backup">The file.</param>
+  /// <returns>The file with status bar widgets.</returns>
+  private static DashboardBackup UseStatusBarWidgets (DashboardBackup backup)
+  {
+    BackupConnection?               kuma   = backup.Connections?.FirstOrDefault (DashboardBackupService.IsUptimeKuma);
+    List<BackupInfrastructureGroup> groups = backup.InfrastructureGroups ?? [];
+
+    // A file from before panels gets the default ones on import; the groups need its status bar now.
+    List<BackupPanel>? panels = backup.Panels;
+
+    if ((panels == null) && (groups.Count > 0) && (kuma != null))
+    {
+      panels = [.. DefaultPanels.Create ().Select (p => new BackupPanel (Kind: p.Kind, Zone: p.Zone, Options: null))];
+    }
+
+    int first = panels?.FindIndex (p => p.Kind?.Trim () == StatusBarPanelKind.KindKey) ?? -1;
+
+    return backup with
+           {
+             Panels = panels?.Select ((p, i) => DashboardBackupService.UseStatusBarWidgets (panel: p,
+                                                                                            kuma: i == first ? kuma : null,
+                                                                                            groups: groups))
+                             .ToList (),
+
+             // The slug is the bar's link now, so the connection doesn't keep it.
+             Connections = backup.Connections?.Select (DashboardBackupService.WithoutStatusPageSlug).ToList (),
+           };
+  }
+
+  /// <summary>
+  ///   Turns one panel of a file from before status bar widgets into one with them (see
+  ///   <see cref="UseStatusBarWidgets (DashboardBackup)" />): a status bar loses its old uptime options, and the first gets
+  ///   the groups and the status page.
+  /// </summary>
+  /// <param name="panel">The panel.</param>
+  /// <param name="kuma">The file's Uptime Kuma connection, for the first status bar; <c>null</c> otherwise.</param>
+  /// <param name="groups">The file's infrastructure groups.</param>
+  /// <returns>The panel.</returns>
+  private static BackupPanel UseStatusBarWidgets (BackupPanel panel, BackupConnection? kuma, List<BackupInfrastructureGroup> groups)
+  {
+    if ((panel.Kind?.Trim () != StatusBarPanelKind.KindKey) ||
+        panel.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
+    {
+      return panel;
+    }
+
+    JsonObject options = DashboardBackupService.ToJsonObject (panel.Options) ?? [];
+    bool showUptime = DashboardBackupService.ReadBoolean (options: options, key: StatusBarPanelKind.LegacyShowUptimeOption) ?? true;
+    string window = DashboardBackupService.ReadText (options: options, key: StatusBarPanelKind.LegacyUptimeWindowOption) ?? "";
+
+    _ = options.Remove (StatusBarPanelKind.LegacyShowUptimeOption);
+    _ = options.Remove (StatusBarPanelKind.LegacyUptimeWindowOption);
+    _ = options.Remove (StatusBarPanelKind.LegacyUptimeHoursOption);
+
+    if (kuma == null)
+    {
+      return panel with { Options = JsonSerializer.SerializeToElement (options) };
+    }
+
+    JsonObject kumaOptions = DashboardBackupService.ToJsonObject (kuma.Options) ?? [];
+    string     serverUrl = DashboardBackupService.ReadText (options: kumaOptions, key: UptimeKumaIntegration.ServerUrlOption) ?? "";
+    string?    slug = DashboardBackupService.ReadText (options: kumaOptions, key: UptimeKumaIntegration.LegacyStatusPageSlugOption);
+
+    if (StatusBarPanelKind.BuildStatusPageUrl (serverUrl: serverUrl, slug: slug) is { } link)
+    {
+      options[StatusBarPanelKind.LinkUrlOption] = link;
+    }
+
+    return panel with
+           {
+             Options = JsonSerializer.SerializeToElement (options),
+             Widgets =
+             [
+               .. groups.Where (g => (g.MonitorId > 0) && !string.IsNullOrWhiteSpace (g.Name))
+                        .Select (g => DashboardBackupService.GroupItem (group: g,
+                                                                        connection: kuma.Name?.Trim (),
+                                                                        showUptime: showUptime,
+                                                                        window: window)),
+             ],
+           };
+  }
+
+  /// <summary>
+  ///   Makes an infrastructure group a status bar item: an Uptime Kuma monitor widget labelled with its name.
+  /// </summary>
+  /// <param name="group">The group.</param>
+  /// <param name="connection">The name of the file's Uptime Kuma connection.</param>
+  /// <param name="showUptime">Whether the status bar showed uptime.</param>
+  /// <param name="window">The status bar's uptime window; blank for the connection's.</param>
+  /// <returns>The item.</returns>
+  private static BackupWidget GroupItem (BackupInfrastructureGroup group, string? connection, bool showUptime, string window)
+  {
+    var options = new Dictionary<string, object>
+                  {
+                    [KumaMonitorWidgetKind.MonitorIdOption]        = group.MonitorId,
+                    [KumaMonitorWidgetKind.ShowResponseTimeOption] = false,
+                    [KumaMonitorWidgetKind.ShowUptimeOption]       = showUptime,
+                    [KumaMonitorWidgetKind.UptimeWindowOption]     = window,
+                  };
+
+    return new BackupWidget (Kind: $"{UptimeKumaIntegration.IntegrationKey}/{KumaMonitorWidgetKind.KindKey}",
+                             Connection: connection,
+                             Options: JsonSerializer.SerializeToElement (options),
+                             Label: group.Name!.Trim ());
+  }
+
+  /// <summary>
+  ///   Takes the status page slug out of an Uptime Kuma connection in a dashboard file.
+  /// </summary>
+  /// <param name="connection">The connection.</param>
+  /// <returns>The connection, without the slug when it's Uptime Kuma's and had one.</returns>
+  private static BackupConnection WithoutStatusPageSlug (BackupConnection connection)
+    => DashboardBackupService.IsUptimeKuma (connection)                        &&
+       DashboardBackupService.ToJsonObject (connection.Options) is { } options &&
+       options.Remove (UptimeKumaIntegration.LegacyStatusPageSlugOption)
+         ? connection with { Options = JsonSerializer.SerializeToElement (options) }
+         : connection;
+
+  /// <summary>
+  ///   Gets whether a connection in a dashboard file is Uptime Kuma's.
+  /// </summary>
+  /// <param name="connection">The connection.</param>
+  /// <returns><c>true</c> when it's an Uptime Kuma connection.</returns>
+  private static bool IsUptimeKuma (BackupConnection connection)
+    => connection.Integration?.Trim () == UptimeKumaIntegration.IntegrationKey;
+
+  /// <summary>
+  ///   Reads a boolean from an options object in a dashboard file.
+  /// </summary>
+  /// <param name="options">The options.</param>
+  /// <param name="key">The option's key.</param>
+  /// <returns>The value, or <c>null</c> when it's missing or not a boolean.</returns>
+  private static bool? ReadBoolean (JsonObject options, string key)
+    => options[key] is JsonValue value && value.TryGetValue (out bool result) ? result : null;
+
+  /// <summary>
+  ///   Reads text from an options object in a dashboard file, trimmed.
+  /// </summary>
+  /// <param name="options">The options.</param>
+  /// <param name="key">The option's key.</param>
+  /// <returns>The value, or <c>null</c> when it's missing or not text.</returns>
+  private static string? ReadText (JsonObject options, string key)
+    => options[key] is JsonValue value && value.TryGetValue (out string? result) ? result.Trim () : null;
+
+  /// <summary>
+  ///   Reads an options object from a dashboard file as a mutable copy.
+  /// </summary>
+  /// <param name="options">The options, if any.</param>
+  /// <returns>A copy, or <c>null</c> when they aren't a JSON object.</returns>
+  private static JsonObject? ToJsonObject (JsonElement? options)
+    => options is { ValueKind: JsonValueKind.Object } element ? JsonNode.Parse (element.GetRawText ()) as JsonObject : null;
 
   /// <summary>
   ///   Turns the links' Uptime Kuma monitor IDs of a file from before monitor widgets into monitor widgets, as the
@@ -847,81 +1009,120 @@ public class DashboardBackupService
             IconName: link.IconName,
             IconUrl: link.IconUrl,
             OpenInNewTab: link.OpenInNewTab,
-            Widgets: DashboardBackupService.ExportWidgets (link: link, connections: connections));
+            Widgets: DashboardBackupService.ExportWidgets (widgets: link.Widgets, connections: connections));
 
   /// <summary>
-  ///   Describes a link's widgets for a dashboard file, naming each one's connection.
+  ///   Creates a panel, with its widgets, from a checked dashboard file.
   /// </summary>
-  /// <param name="link">The link, with its widgets loaded.</param>
+  /// <param name="panel">The panel in the file.</param>
+  /// <param name="sortOrder">Its position within its zone.</param>
+  /// <param name="connections">The connections being imported, by integration and name.</param>
+  /// <param name="catalog">The known widget kinds.</param>
+  /// <returns>The panel.</returns>
+  private static Panel ImportPanel (BackupPanel                                                           panel,
+                                    int                                                                   sortOrder,
+                                    IReadOnlyDictionary<(string IntegrationKey, string Name), Connection> connections,
+                                    WidgetCatalog                                                         catalog)
+    => new ()
+       {
+         Kind      = panel.Kind!.Trim (),
+         Zone      = panel.Zone,
+         SortOrder = sortOrder,
+
+         // Stored compact, however the file was indented.
+         OptionsJson = panel.Options is { ValueKind: JsonValueKind.Object } options ? JsonSerializer.Serialize (options) : "{}",
+         Widgets     = DashboardBackupService.ImportWidgets (widgets: panel.Widgets, connections: connections, catalog: catalog),
+       };
+
+  /// <summary>
+  ///   Describes a panel for a dashboard file.
+  /// </summary>
+  /// <param name="panel">The panel, with its widgets loaded.</param>
   /// <param name="connections">The connections, by ID.</param>
-  /// <returns>The widgets, in order; <c>null</c> when the link has none.</returns>
-  private static List<BackupWidget>? ExportWidgets (Link link, IReadOnlyDictionary<int, Connection> connections)
+  /// <returns>The panel as the file holds it.</returns>
+  private static BackupPanel ExportPanel (Panel panel, IReadOnlyDictionary<int, Connection> connections)
+    => new (Kind: panel.Kind,
+            Zone: panel.Zone,
+            Options: DashboardBackupService.ReadOptions (panel.OptionsJson),
+            Widgets: DashboardBackupService.ExportWidgets (widgets: panel.Widgets, connections: connections));
+
+  /// <summary>
+  ///   Describes a link's or panel's widgets for a dashboard file, naming each one's connection.
+  /// </summary>
+  /// <param name="widgets">The widgets.</param>
+  /// <param name="connections">The connections, by ID.</param>
+  /// <returns>The widgets, in order; <c>null</c> when there are none.</returns>
+  private static List<BackupWidget>? ExportWidgets (IEnumerable<Widget> widgets, IReadOnlyDictionary<int, Connection> connections)
   {
-    List<BackupWidget> widgets =
+    List<BackupWidget> exported =
     [
-      .. link.Widgets
-             .OrderBy (w => w.SortOrder)
-             .ThenBy (w => w.Id)
-             .Where (w => connections.ContainsKey (w.ConnectionId))
-             .Select (w => new BackupWidget (Kind: WidgetKindEntry.ReferenceOf (integrationKey: connections[w.ConnectionId]
-                                                                                 .IntegrationKey,
-                                                                                kindKey: w.Kind),
-                                             Connection: connections[w.ConnectionId].Name,
-                                             Options: DashboardBackupService.ReadOptions (w.OptionsJson),
-                                             RefreshSeconds: w.RefreshSeconds)),
+      .. widgets
+        .OrderBy (w => w.SortOrder)
+        .ThenBy (w => w.Id)
+        .Where (w => connections.ContainsKey (w.ConnectionId))
+        .Select (w => new BackupWidget (Kind: WidgetKindEntry.ReferenceOf (integrationKey: connections[w.ConnectionId]
+                                                                            .IntegrationKey,
+                                                                           kindKey: w.Kind),
+                                        Connection: connections[w.ConnectionId].Name,
+                                        Options: DashboardBackupService.ReadOptions (w.OptionsJson),
+                                        RefreshSeconds: w.RefreshSeconds,
+                                        Label: w.Label)),
     ];
 
-    return widgets.Count == 0 ? null : widgets;
+    return exported.Count == 0 ? null : exported;
   }
 
   /// <summary>
-  ///   Creates a link's widgets from a checked dashboard file.
+  ///   Creates a link's or panel's widgets from a checked dashboard file.
   /// </summary>
-  /// <param name="link">The link in the file.</param>
+  /// <param name="widgets">The widgets in the file; none when <c>null</c>.</param>
   /// <param name="connections">The connections being imported, by integration and name.</param>
   /// <param name="catalog">The known widget kinds.</param>
   /// <returns>The widgets, in order.</returns>
-  private static List<Widget> ImportWidgets (BackupLink                                                            link,
+  private static List<Widget> ImportWidgets (List<BackupWidget>?                                                   widgets,
                                              IReadOnlyDictionary<(string IntegrationKey, string Name), Connection> connections,
                                              WidgetCatalog                                                         catalog)
     =>
     [
-      .. (link.Widgets ?? []).Select ((w, i) =>
-                                      {
-                                        WidgetKindEntry entry = catalog.Find (w.Kind!)!;
+      .. (widgets ?? []).Select ((w, i) =>
+                                 {
+                                   WidgetKindEntry entry = catalog.Find (w.Kind!)!;
 
-                                        _ = DashboardBackupService.TryReadOptions (schema: entry.Kind.Options,
-                                                                                   options: w.Options,
-                                                                                   json: out string? json,
-                                                                                   error: out _);
+                                   _ = DashboardBackupService.TryReadOptions (schema: entry.Kind.Options,
+                                                                              options: w.Options,
+                                                                              json: out string? json,
+                                                                              error: out _);
 
-                                        return new Widget
-                                               {
-                                                 Connection     = connections[(entry.Integration.Key, w.Connection!.Trim ())],
-                                                 Kind           = entry.Kind.Key,
-                                                 OptionsJson    = json!,
-                                                 RefreshSeconds = w.RefreshSeconds,
-                                                 SortOrder      = i,
-                                               };
-                                      }),
+                                   return new Widget
+                                          {
+                                            Connection     = connections[(entry.Integration.Key, w.Connection!.Trim ())],
+                                            Kind           = entry.Kind.Key,
+                                            OptionsJson    = json!,
+                                            RefreshSeconds = w.RefreshSeconds,
+                                            Label          = string.IsNullOrWhiteSpace (w.Label) ? null : w.Label.Trim (),
+                                            SortOrder      = i,
+                                          };
+                                 }),
     ];
 
   /// <summary>
-  ///   Checks a link's widgets in a dashboard file.
+  ///   Checks a link's or panel's widgets in a dashboard file.
   /// </summary>
-  /// <param name="link">The link in the file.</param>
+  /// <param name="widgets">The widgets in the file; none when <c>null</c>.</param>
+  /// <param name="placement">Where they go: a tile or a status bar.</param>
   /// <param name="catalog">The known widget kinds.</param>
   /// <param name="connections">The file's connections, by integration and name.</param>
   /// <returns>What's wrong with them, one problem each.</returns>
-  private static IEnumerable<string> CheckWidgets (BackupLink                     link,
+  private static IEnumerable<string> CheckWidgets (List<BackupWidget>?            widgets,
+                                                   WidgetPlacements               placement,
                                                    WidgetCatalog                  catalog,
                                                    IReadOnlySet<(string, string)> connections)
   {
-    List<BackupWidget> widgets = link.Widgets ?? [];
+    widgets ??= [];
 
-    if (widgets.Count > WidgetForm.MaxWidgetsPerLink)
+    if (widgets.Count > WidgetForm.MaxWidgets (placement))
     {
-      yield return $"a link can have at most {WidgetForm.MaxWidgetsPerLink} widgets.";
+      yield return $"{WidgetForm.Describe (placement)} can have at most {WidgetForm.MaxWidgets (placement)} widgets.";
     }
 
     var apps = 0;
@@ -938,6 +1139,11 @@ public class DashboardBackupService
         continue;
       }
 
+      if (!entry.Kind.Placements.HasFlag (placement))
+      {
+        yield return $"{where}: this kind of widget can't go on {WidgetForm.Describe (placement)}.";
+      }
+
       if (string.IsNullOrWhiteSpace (widget.Connection) ||
           !connections.Contains ((entry.Integration.Key, widget.Connection.Trim ())))
       {
@@ -946,7 +1152,7 @@ public class DashboardBackupService
 
       if ((entry.Kind.Role == WidgetRole.App) && (++apps > 1))
       {
-        yield return $"{where}: a link can have only one app widget.";
+        yield return $"{where}: {WidgetForm.Describe (placement)} can have only one app widget.";
       }
 
       if (widget.Options is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null) })
@@ -959,6 +1165,11 @@ public class DashboardBackupService
                                                        error: out string? error))
       {
         yield return $"{where}: {error}";
+      }
+
+      if (widget.Label?.Trim ().Length > Widget.MaxLabelLength)
+      {
+        yield return $"{where}: the label can be at most {Widget.MaxLabelLength} characters.";
       }
 
       if (widget.RefreshSeconds is < Widget.MinRefreshSeconds or > Widget.MaxRefreshSeconds)

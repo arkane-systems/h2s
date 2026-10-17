@@ -1,4 +1,5 @@
 using h2s.Data;
+using h2s.Integrations;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
@@ -27,11 +28,10 @@ public class PanelServiceTests
     Assert.Equal (expected: [("Status bar", PanelZone.Top), ("Search", PanelZone.Top)],
                   actual: panels.Select (p => (p.DisplayName, p.Zone)));
 
-    // Seeded data leaves Uptime Kuma unconfigured.
+    // Seeded data has no status bar items.
     Assert.True (panels[0].Content.IsEmpty);
-    Assert.Equal (expected: "Uptime Kuma isn't set up. Add its server in Settings → Integrations.",
-                  actual: panels[0].Content.EmptyMessage);
-    Assert.Equal (expected: "_SearchPanel", actual: panels[1].Content.PartialName);
+    Assert.Equal (expected: "No items yet. Add status widgets with the panel's ✎.", actual: panels[0].Content.EmptyMessage);
+    Assert.Equal (expected: "_SearchPanel",                                         actual: panels[1].Content.PartialName);
     var search = (SearchPanelModel)panels[1].Content.Model!;
     Assert.Equal (expected: "Search with Bing", actual: search.Placeholder);
     Assert.Equal (expected: "Bing",             actual: search.EngineName);
@@ -39,42 +39,42 @@ public class PanelServiceTests
                   actual: search.Engines.Select (e => (e.Name, e.Shortcut, e.IsDefault)));
   }
 
-  [Fact]
-  public async Task StatusBar_IsEmptyWithoutInfrastructureGroups ()
-  {
-    await using var              database = await TestDatabase.CreateAsync ();
-    await using DashboardContext context  = database.CreateContext ();
-    await PanelServiceTests.ConfigureKumaAsync (context: context, slug: null);
-
-    PanelView statusBar = (await PanelServiceTests.GetPanelsAsync (context))[0];
-
-    Assert.True (statusBar.Content.IsEmpty);
-    Assert.StartsWith (expectedStartString: "No infrastructure groups yet.", actualString: statusBar.Content.EmptyMessage);
-  }
-
   [Theory]
-  [InlineData ("{}",                                               "main", "https://status.home.arpa/status/main", 24)]
-  [InlineData ("""{ "uptimeWindow": "30d" }""",                    null,   null,                                   720)]
-  [InlineData ("""{ "uptimeWindow": "365d" }""",                   null,   null,                                   8760)]
-  [InlineData ("""{ "showUptime": false }""",                      "main", "https://status.home.arpa/status/main", null)]
-  [InlineData ("""{ "showUptime": true, "uptimeWindow": "7d" }""", null,   null,                                   24)]
-  public async Task StatusBar_AppliesItsOptions (string optionsJson, string? slug, string? statusPageUrl, int? uptimeHours)
+  [InlineData ("{}", null, null)]
+  [InlineData ("""{ "title": "Home", "linkUrl": "https://status.home.arpa/status/main" }""",
+               "Home",
+               "https://status.home.arpa/status/main")]
+  public async Task StatusBar_ShowsItsWidgets_WithItsTitleAndLink (string optionsJson, string? title, string? link)
   {
     await using var              database = await TestDatabase.CreateAsync (seed: true);
     await using DashboardContext context  = database.CreateContext ();
-    await PanelServiceTests.ConfigureKumaAsync (context: context, slug: slug);
-    await context.Panels.Where (p => p.Kind == StatusBarPanelKind.KindKey)
-                 .ExecuteUpdateAsync (setPropertyCalls: s => s.SetProperty (propertyExpression: p => p.OptionsJson,
-                                                                            valueExpression: optionsJson),
-                                      cancellationToken: TestContext.Current.CancellationToken);
+
+    Connection kuma = TestConnections.UptimeKuma ();
+    Panel statusBar = await context.Panels.SingleAsync (predicate: p => p.Kind == StatusBarPanelKind.KindKey,
+                                                        cancellationToken: TestContext.Current.CancellationToken);
+
+    statusBar.OptionsJson = optionsJson;
+    statusBar.Widgets.AddRange (new Widget
+                                {
+                                  Connection = kuma, Kind = "monitor", OptionsJson = """{"monitorId":2}""", SortOrder = 1,
+                                },
+                                new Widget
+                                {
+                                  Connection  = kuma,
+                                  Kind        = "monitor",
+                                  OptionsJson = """{"monitorId":1}""",
+                                  Label       = "Compute",
+                                  SortOrder   = 0,
+                                });
+    await context.SaveChangesAsync (TestContext.Current.CancellationToken);
 
     var model = (StatusBarPanelModel)(await PanelServiceTests.GetPanelsAsync (context))[0].Content.Model!;
 
-    Assert.Equal (expected: statusPageUrl,                                            actual: model.StatusPageUrl);
-    Assert.Equal (expected: ["Compute", "Storage", "Network"],                        actual: model.Items.Select (i => i.Name));
-    Assert.Equal (expected: "https://status.home.arpa/api/badge/1/status?style=flat", actual: model.Items[0].StatusBadgeUrl);
-    Assert.Equal (expected: uptimeHours is { } hours ? $"https://status.home.arpa/api/badge/1/uptime/{hours}?style=flat" : null,
-                  actual: model.Items[0].UptimeBadgeUrl);
+    Assert.Equal (expected: (title, link),     actual: (model.Title, model.LinkUrl));
+    Assert.Equal (expected: ["Compute", null], actual: model.Items.Select (i => i.Label));
+
+    // Not read yet, so the page reads them.
+    Assert.All (collection: model.Items, action: i => Assert.Null (i.Result));
   }
 
   [Fact]
@@ -134,17 +134,6 @@ public class PanelServiceTests
     => Assert.Throws<ArgumentException> (() => new PanelCatalog ([new SearchPanelKind (), new SearchPanelKind ()]));
 
   /// <summary>
-  ///   Configures Uptime Kuma with a server URL and, optionally, a status page slug.
-  /// </summary>
-  /// <param name="context">The database context.</param>
-  /// <param name="slug">The status page slug, or <c>null</c> for none.</param>
-  private static async Task ConfigureKumaAsync (DashboardContext context, string? slug)
-  {
-    context.Connections.Add (TestConnections.UptimeKuma (statusPageSlug: slug ?? ""));
-    await context.SaveChangesAsync (TestContext.Current.CancellationToken);
-  }
-
-  /// <summary>
   ///   Loads the panels through a <see cref="PanelService" /> with the built-in kinds.
   /// </summary>
   /// <param name="context">The database context.</param>
@@ -159,6 +148,13 @@ public class PanelServiceTests
                                                                                                                 cache: cache))
                                                                    .AddSingleton (TestConnections.CreateService (context: context,
                                                                                                                  cache: cache))
+                                                                   .AddSingleton (provider => TestConnections
+                                                                                   .CreateWidgetService (context: context,
+                                                                                                         connections: provider
+                                                                                                          .GetRequiredService<
+                                                                                                             ConnectionService> (),
+                                                                                                         cache: cache,
+                                                                                                         services: provider))
                                                                    .BuildServiceProvider ();
 
     IPanelKind[] kinds = [new StatusBarPanelKind (), new SearchPanelKind (), .. extraKind is null ? [] : new[] { extraKind }];

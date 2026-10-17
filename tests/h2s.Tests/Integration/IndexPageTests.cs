@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using h2s.Authorization;
+using h2s.Models;
+using h2s.Panels;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
@@ -42,14 +44,15 @@ public partial class IndexPageTests
   }
 
   [Fact]
-  public async Task Index_HidesKumaFeaturesWhenUnconfigured ()
+  public async Task Index_HidesAnEmptyStatusBar ()
   {
     await using var factory = new DashboardApplicationFactory ();
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.DoesNotContain (expectedSubstring: "uptime-status-bar", actualString: html);
+    // The seeded status bar has no items, so it isn't shown.
+    Assert.DoesNotContain (expectedSubstring: "status-bar-items",  actualString: html);
     Assert.DoesNotContain (expectedSubstring: "link-status-badge", actualString: html);
   }
 
@@ -128,21 +131,40 @@ public partial class IndexPageTests
     Assert.DoesNotContain (expectedSubstring: "data-reorder", actualString: html);
   }
 
-  [Fact]
-  public async Task Index_RendersTheStatusBarsBadgesButNoLinkBadgesWhenConfigured ()
+  [Theory]
+  [InlineData ("""{"title":"Home","linkUrl":"https://status.home.arpa/status/main"}""", true)]
+  [InlineData ("{}",                                                                    false)]
+  public async Task Index_RendersTheStatusBarsItemsAsWidgets (string optionsJson, bool isLink)
   {
     await using var factory = new DashboardApplicationFactory ();
-    await factory.AddUptimeKumaAsync (statusPageSlug: "main");
+    await factory.AddUptimeKumaAsync (apiKey: TestConnections.KumaApiKey);
+    var (scope, context) = factory.CreateContext ();
+
+    using (scope)
+    {
+      Panel bar = await context.Panels.SingleAsync (predicate: p => p.Kind == StatusBarPanelKind.KindKey,
+                                                    cancellationToken: TestContext.Current.CancellationToken);
+      Connection kuma = await context.Connections.SingleAsync (TestContext.Current.CancellationToken);
+
+      bar.OptionsJson = optionsJson;
+      bar.Widgets.Add (new Widget
+                       {
+                         ConnectionId = kuma.Id, Kind = "monitor", OptionsJson = """{"monitorId":1}""", Label = "Compute",
+                       });
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+    }
 
     string html = await factory.CreateClient ()
                                .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Contains (expectedSubstring: """href="https://status.home.arpa/status/main""",            actualString: html);
-    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/1/uptime/24?style=flat", actualString: html);
+    Assert.Contains (expectedSubstring: """<div class="status-bar-label">Compute</div>""", actualString: html);
+    Assert.Contains (expectedSubstring: "widget-pending",                                  actualString: html);
+    Assert.Equal (expected: isLink,  actual: html.Contains ("""href="https://status.home.arpa/status/main"""));
+    Assert.Equal (expected: isLink,  actual: html.Contains ("""<div class="status-bar-title">Home</div>"""));
+    Assert.Equal (expected: !isLink, actual: html.Contains ("status-bar-static"));
 
-    // Links' monitors are widgets now, not Kuma's badge images.
-    Assert.DoesNotContain (expectedSubstring: "/api/badge/11/",    actualString: html);
-    Assert.DoesNotContain (expectedSubstring: "link-status-badge", actualString: html);
+    // Kuma's badge images are gone, from links and the status bar alike.
+    Assert.DoesNotContain (expectedSubstring: "/api/badge/", actualString: html);
   }
 
   [Fact]
@@ -162,20 +184,6 @@ public partial class IndexPageTests
                                                               cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Equal (expected: HttpStatusCode.OK, actual: script.StatusCode);
-  }
-
-  [Fact]
-  public async Task Index_StatusBarIsStaticWithoutStatusPageSlug ()
-  {
-    await using var factory = new DashboardApplicationFactory ();
-    await factory.AddUptimeKumaAsync ();
-
-    string html = await factory.CreateClient ()
-                               .GetStringAsync (requestUri: "/", cancellationToken: TestContext.Current.CancellationToken);
-
-    Assert.Contains (expectedSubstring: "uptime-status-bar-static", actualString: html);
-    Assert.DoesNotContain (expectedSubstring: "uptime-status-bar-link", actualString: html);
-    Assert.Contains (expectedSubstring: "https://status.home.arpa/api/badge/1/uptime/24?style=flat", actualString: html);
   }
 
   [Fact]

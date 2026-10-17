@@ -1,35 +1,22 @@
-using h2s.Integrations.UptimeKuma;
 using h2s.Models;
 using h2s.Widgets;
 
 namespace h2s.Pages;
 
 /// <summary>
-///   Builds dashboard tiles (<see cref="LinkTile" />) for one set of dashboard and Uptime Kuma settings. The dashboard uses it to
-///   render
-///   its tiles, and the editor uses it to render previews and refreshed tiles that look the same.
+///   Builds dashboard tiles (<see cref="LinkTile" />) for one set of dashboard settings. The dashboard uses it to render its
+///   tiles, and the editor uses it to render previews and refreshed tiles that look the same.
 /// </summary>
 public sealed class LinkTileFactory
 {
   private readonly HashSet<string> localDomains;
 
-  private readonly string? uptimeKumaServerUrl;
-
   /// <summary>
   ///   Initializes a new instance of the <see cref="LinkTileFactory" /> class.
   /// </summary>
   /// <param name="settings">The dashboard settings, whose local domains decide which links are external.</param>
-  /// <param name="uptimeKuma">The Uptime Kuma settings that badges come from, or <c>null</c> when Uptime Kuma is off.</param>
-  public LinkTileFactory (DashboardSettings settings, UptimeKumaSettings? uptimeKuma)
-  {
-    this.localDomains        = LinkTileFactory.ParseLocalDomains (settings.LocalDomains);
-    this.uptimeKumaServerUrl = uptimeKuma?.ServerUrl;
-  }
-
-  /// <summary>
-  ///   Gets a value indicating whether Uptime Kuma integration is configured.
-  /// </summary>
-  public bool IsUptimeKumaConfigured => !string.IsNullOrWhiteSpace (this.uptimeKumaServerUrl);
+  public LinkTileFactory (DashboardSettings settings)
+    => this.localDomains = LinkTileFactory.ParseLocalDomains (settings.LocalDomains);
 
   /// <summary>
   ///   Builds the view model for a link's tile.
@@ -39,38 +26,6 @@ public sealed class LinkTileFactory
   /// <returns>The tile, with its external flag and its widgets.</returns>
   public LinkTile Create (Link link, IReadOnlyList<WidgetView>? widgets = null)
     => new (Link: link, IsExternal: this.IsExternalLink (link.Url)) { Widgets = widgets ?? [] };
-
-  /// <summary>
-  ///   Builds the URL for an Uptime Kuma badge.
-  /// </summary>
-  /// <param name="monitorId">The monitor ID.</param>
-  /// <param name="type">The badge type (status, uptime, ping, etc.).</param>
-  /// <param name="duration">Optional duration in hours for time-based badges.</param>
-  /// <param name="label">Optional override for badge label text. Use an empty string to hide the label.</param>
-  /// <returns>The badge URL, or an empty string if server URL is not configured.</returns>
-  public string BuildBadgeUrl (int monitorId, string type, int? duration = null, string? label = null)
-  {
-    if (string.IsNullOrWhiteSpace (this.uptimeKumaServerUrl))
-    {
-      return "";
-    }
-
-    var baseUrl = $"{this.uptimeKumaServerUrl.TrimEnd ('/')}/api/badge/{monitorId}/{type}";
-
-    if (duration.HasValue)
-    {
-      baseUrl += $"/{duration.Value}";
-    }
-
-    var query = "style=flat";
-
-    if (label != null)
-    {
-      query += $"&label={Uri.EscapeDataString (label)}";
-    }
-
-    return $"{baseUrl}?{query}";
-  }
 
   /// <summary>
   ///   Determines whether a link target should be marked as external based on the configured local domains.

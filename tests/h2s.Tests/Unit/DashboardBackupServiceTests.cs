@@ -42,7 +42,7 @@ public class DashboardBackupServiceTests
                   actual: backup.Categories!.Select (c => c.Name));
     Assert.Equal (expected: ["Jellyfin", "Sonarr", "Radarr", "Audiobookshelf"],
                   actual: backup.Categories![0].Links!.Select (l => l.Label));
-    Assert.Equal (expected: ["Compute", "Storage", "Network"], actual: backup.InfrastructureGroups!.Select (g => g.Name));
+    Assert.Null (backup.InfrastructureGroups);
     Assert.Equal (expected: [(StatusBarPanelKind.KindKey, PanelZone.Top), (SearchPanelKind.KindKey, PanelZone.Top)],
                   actual: backup.Panels!.Select (p => (p.Kind, p.Zone)));
     Assert.Equal (expected: "{}", actual: backup.Panels![0].Options!.Value.GetRawText ());
@@ -414,10 +414,9 @@ public class DashboardBackupServiceTests
     DashboardSettings settings =
       await context.DashboardSettings.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
 
-    Assert.Equal (expected: "Only",    actual: link.Category!.Name);
-    Assert.Equal (expected: "one-app", actual: link.IconName);
-    Assert.Equal (expected: "",        actual: link.Description);
-    Assert.Empty (await context.InfrastructureGroups.ToListAsync (TestContext.Current.CancellationToken));
+    Assert.Equal (expected: "Only",         actual: link.Category!.Name);
+    Assert.Equal (expected: "one-app",      actual: link.IconName);
+    Assert.Equal (expected: "",             actual: link.Description);
     Assert.Equal (expected: "Imported",     actual: settings.Title);
     Assert.Equal (expected: ColorMode.Dark, actual: settings.ColorMode);
     Assert.Empty (await context.Connections.ToListAsync (TestContext.Current.CancellationToken));
@@ -426,8 +425,8 @@ public class DashboardBackupServiceTests
   [Theory]
   [InlineData ("not json",                                         "The file isn't valid JSON for a dashboard")]
   [InlineData ("""{ "format": "something-else", "version": 1 }""", "The file isn't an h2s dashboard export.")]
-  [InlineData ("""{ "format": "h2s-dashboard", "version": 9 }""",
-               "The file is from a newer version of h2s (format version 9); update h2s to import it.")]
+  [InlineData ("""{ "format": "h2s-dashboard", "version": 10 }""",
+               "The file is from a newer version of h2s (format version 10); update h2s to import it.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 0 }""", "The file's format version (0) isn't supported.")]
   [InlineData ("""{ "format": "h2s-dashboard", "version": 1, "categories": [] }""", "The file has no settings.")]
   public void TryRead_RejectsFilesThatArentDashboards (string json, string error)
@@ -488,7 +487,7 @@ public class DashboardBackupServiceTests
 
     await using (DashboardContext context = source.CreateContext ())
     {
-      Connection kuma = TestConnections.UptimeKuma (statusPageSlug: "main", defaultUptimeWindow: "30d");
+      Connection kuma = TestConnections.UptimeKuma (defaultUptimeWindow: "30d");
       kuma.SecretsJson = "never exported";
       context.Connections.Add (kuma);
       await context.SaveChangesAsync (TestContext.Current.CancellationToken);
@@ -519,9 +518,7 @@ public class DashboardBackupServiceTests
 
     Connection imported = await targetContext.Connections.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
 
-    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
-                                                    StatusPageSlug: "main",
-                                                    DefaultUptimeWindow: "30d"),
+    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl, DefaultUptimeWindow: "30d"),
                   actual: await TestConnections.ReadUptimeKumaAsync (targetContext));
     Assert.Equal (expected: "Uptime Kuma", actual: imported.Name);
     Assert.Equal (expected: "kept",        actual: imported.SecretsJson);
@@ -529,12 +526,11 @@ public class DashboardBackupServiceTests
 
   [Theory]
   [InlineData (""" "uptimeKumaServerUrl": " https://status.home.arpa ", "uptimeKumaStatusPageSlug": "main", "uptimeKumaDefaultDuration": 12 """,
-               "main",
                "1d")]
-  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 24 """,   null, "1d")]
-  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 168 """,  null, "30d")]
-  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 1000 """, null, "365d")]
-  public async Task ImportAsync_MovesOldUptimeKumaSettingsIntoAConnection (string kuma, string? slug, string window)
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 24 """,   "1d")]
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 168 """,  "30d")]
+  [InlineData (""" "uptimeKumaServerUrl": "https://status.home.arpa", "uptimeKumaDefaultDuration": 1000 """, "365d")]
+  public async Task ImportAsync_MovesOldUptimeKumaSettingsIntoAConnection (string kuma, string window)
   {
     await using var              database = await TestDatabase.CreateAsync ();
     await using DashboardContext context  = database.CreateContext ();
@@ -558,9 +554,7 @@ public class DashboardBackupServiceTests
     await DashboardBackupServiceTests.CreateService (context)
                                      .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
 
-    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl,
-                                                    StatusPageSlug: slug,
-                                                    DefaultUptimeWindow: window),
+    Assert.Equal (expected: new UptimeKumaSettings (ServerUrl: TestConnections.KumaServerUrl, DefaultUptimeWindow: window),
                   actual: await TestConnections.ReadUptimeKumaAsync (context));
   }
 
@@ -584,8 +578,9 @@ public class DashboardBackupServiceTests
                                                             backup: out DashboardBackup? backup,
                                                             errors: out List<string> errors),
                  userMessage: string.Join (separator: '\n', values: errors));
-    Assert.Equal (expected: """{"showUptime":true,"uptimeWindow":"30d"}""",
-                  actual: backup!.Panels![0].Options!.Value.GetRawText ());
+
+    // The bar's uptime settings went to its items in format version 9, and this file's bar has none.
+    Assert.Equal (expected: "{}", actual: backup!.Panels![0].Options!.Value.GetRawText ());
     Assert.Equal (expected: """{"serverUrl":"https://status.home.arpa","defaultUptimeWindow":"365d"}""",
                   actual: backup.Connections![0].Options!.Value.GetRawText ());
   }
@@ -680,6 +675,164 @@ public class DashboardBackupServiceTests
     string json = JsonSerializer.Serialize (value: backup with { InfrastructureGroups = [] }, options: DashboardBackup.JsonOptions);
 
     Assert.DoesNotContain (expectedSubstring: "monitorId", actualString: json);
+  }
+
+  [Fact]
+  public void TryRead_TurnsTheGroupsOfAFileFromBeforeStatusBarWidgetsIntoItsItems ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 8,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "searchEngines": [],
+                          "connections": [ { "integration": "uptime-kuma", "name": "Kuma",
+                                             "options": { "serverUrl": "https://status.home.arpa/", "statusPageSlug": "main" } } ],
+                          "panels": [ { "kind": "search", "zone": "Top", "options": {} },
+                                      { "kind": "status-bar", "zone": "Top", "options": { "showUptime": false, "uptimeWindow": "30d" } } ],
+                          "infrastructureGroups": [ { "name": " Compute ", "monitorId": 1 }, { "name": "Storage", "monitorId": 2 } ]
+                        }
+                        """;
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: Json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out DashboardBackup? backup,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
+
+    BackupPanel bar = backup!.Panels![1];
+
+    Assert.Equal (expected: """{"linkUrl":"https://status.home.arpa/status/main"}""",
+                  actual: JsonSerializer.Serialize (bar.Options));
+    Assert.Equal (expected:
+                  [
+                    ("Compute", """{"monitorId":1,"showResponseTime":false,"showUptime":false,"uptimeWindow":"30d"}"""),
+                    ("Storage", """{"monitorId":2,"showResponseTime":false,"showUptime":false,"uptimeWindow":"30d"}"""),
+                  ],
+                  actual: bar.Widgets!.Select (w => (w.Label, JsonSerializer.Serialize (w.Options))));
+    Assert.All (collection: bar.Widgets!,
+                action: w => Assert.Equal (expected: ("uptime-kuma/monitor", "Kuma"), actual: (w.Kind, w.Connection)));
+    Assert.Null (backup.Panels[0].Widgets);
+    Assert.Equal (expected: """{"serverUrl":"https://status.home.arpa/"}""",
+                  actual: JsonSerializer.Serialize (backup.Connections![0].Options));
+    Assert.Equal (expected: 2, actual: DashboardBackupService.Summarize (backup).Widgets);
+  }
+
+  [Fact]
+  public void TryRead_PutsTheGroupsOfAFileFromBeforePanelsOnTheDefaultStatusBar ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 1,
+                          "settings": { "title": "Old", "colorMode": "Auto", "uptimeKumaServerUrl": "https://status.home.arpa" },
+                          "categories": [],
+                          "infrastructureGroups": [ { "name": "Compute", "monitorId": 1 } ]
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    Assert.Equal (expected: [(StatusBarPanelKind.KindKey, 1), (SearchPanelKind.KindKey, 0)],
+                  actual: backup!.Panels!.Select (p => (p.Kind, p.Widgets?.Count ?? 0)));
+  }
+
+  [Fact]
+  public void TryRead_DropsTheGroupsOfAFileFromBeforeStatusBarWidgetsWithoutKuma ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 8,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "searchEngines": [], "connections": [],
+                          "panels": [ { "kind": "status-bar", "zone": "Top", "options": { "showUptime": true } } ],
+                          "infrastructureGroups": [ { "name": "Compute", "monitorId": 1 } ]
+                        }
+                        """;
+
+    Assert.True (DashboardBackupService.TryRead (json: Json,
+                                                 kinds: DashboardBackupServiceTests.Kinds,
+                                                 integrations: DashboardBackupServiceTests.Integrations,
+                                                 backup: out DashboardBackup? backup,
+                                                 errors: out _));
+    Assert.Null (backup!.Panels![0].Widgets);
+    Assert.Equal (expected: "{}", actual: JsonSerializer.Serialize (backup.Panels[0].Options));
+  }
+
+  [Fact]
+  public async Task ExportThenImport_ReproducesTheStatusBarsItems ()
+  {
+    await using var source = await TestDatabase.CreateAsync (seed: true);
+    await using var target = await TestDatabase.CreateAsync ();
+    string          json;
+
+    await using (DashboardContext context = source.CreateContext ())
+    {
+      Connection kuma = TestConnections.UptimeKuma ();
+      Panel bar = await context.Panels.SingleAsync (predicate: p => p.Kind == StatusBarPanelKind.KindKey,
+                                                    cancellationToken: TestContext.Current.CancellationToken);
+
+      bar.OptionsJson = """{"title":"Home"}""";
+      bar.Widgets.Add (new Widget
+                       {
+                         Connection     = kuma,
+                         Kind           = "monitor",
+                         OptionsJson    = """{"monitorId":1}""",
+                         Label          = "Compute",
+                         RefreshSeconds = 30,
+                       });
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+
+      json = JsonSerializer.Serialize (value: await DashboardBackupServiceTests.CreateService (context)
+                                                                               .ExportAsync (TestContext.Current.CancellationToken),
+                                       options: DashboardBackup.JsonOptions);
+    }
+
+    Assert.DoesNotContain (expectedSubstring: "infrastructureGroups", actualString: json);
+
+    await using DashboardContext targetContext = target.CreateContext ();
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out DashboardBackup? backup,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
+    await DashboardBackupServiceTests.CreateService (targetContext)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    Panel imported = await targetContext.Panels.Include (p => p.Widgets)
+                                        .SingleAsync (predicate: p => p.Kind == StatusBarPanelKind.KindKey,
+                                                      cancellationToken: TestContext.Current.CancellationToken);
+    Widget item = Assert.Single (imported.Widgets);
+
+    Assert.Equal (expected: """{"title":"Home"}""", actual: imported.OptionsJson);
+    Assert.Equal (expected: ("Compute", 30, null),
+                  actual: (item.Label, item.RefreshSeconds, item.LinkId));
+  }
+
+  [Fact]
+  public void TryRead_RefusesWidgetsOnAPanelThatHoldsNone ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 9,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "searchEngines": [],
+                          "connections": [ { "integration": "uptime-kuma", "name": "Kuma", "options": { "serverUrl": "https://status.home.arpa" } } ],
+                          "panels": [ { "kind": "search", "zone": "Top", "options": {},
+                                        "widgets": [ { "kind": "uptime-kuma/monitor", "connection": "Kuma", "options": { "monitorId": 1 } } ] } ]
+                        }
+                        """;
+
+    Assert.False (DashboardBackupService.TryRead (json: Json,
+                                                  kinds: DashboardBackupServiceTests.Kinds,
+                                                  integrations: DashboardBackupServiceTests.Integrations,
+                                                  backup: out _,
+                                                  errors: out List<string> errors));
+    Assert.Equal (expected: ["Panel 1: this kind of panel holds no widgets."], actual: errors);
   }
 
   [Fact]
@@ -801,7 +954,6 @@ public class DashboardBackupServiceTests
                                                Categories: 2,
                                                AdminCategories: 1,
                                                Links: 3,
-                                               InfrastructureGroups: 1,
                                                Panels: 2,
                                                SearchEngines: 3,
                                                Connections: 0,
