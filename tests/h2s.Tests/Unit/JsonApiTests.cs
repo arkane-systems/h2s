@@ -329,6 +329,9 @@ public class JsonApiTests
   [InlineData ("http://api.home.arpa:8080/api", "/json",         "http://api.home.arpa:8080/api/json")]
   [InlineData ("https://api.home.arpa/api",     "/a/../json",    "https://api.home.arpa/api/json")]
   [InlineData ("https://api.home.arpa/api",     "/",             "https://api.home.arpa/api/")]
+  [InlineData ("https://api.home.arpa/api",
+               "/rooms/living room?name=living room",
+               "https://api.home.arpa/api/rooms/living%20room?name=living%20room")]
   public async Task Value_JoinsThePathToTheBase_KeepingAPathPrefix (string baseUrl, string path, string requested)
   {
     await using var api = new JsonApiFixture (JsonApiTests.ServeSample);
@@ -346,7 +349,6 @@ public class JsonApiTests
   [InlineData ("http:evil")]
   [InlineData ("\\\\evil.example\\json")]
   [InlineData ("/json#fragment")]
-  [InlineData ("/json with spaces")]
   [InlineData ("")]
   public void Resolve_RefusesAnythingButARelativePath (string path)
   {

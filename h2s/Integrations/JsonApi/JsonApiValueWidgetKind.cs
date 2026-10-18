@@ -172,7 +172,7 @@ public sealed class JsonApiValueWidgetKind : IWidgetKind
         Pattern            = @"(?!//)(?![A-Za-z][A-Za-z0-9+.\-]*:).*",
         PatternDescription = "must be a path under the base URL, not a full address",
       },
-      new (Key: JsonApiValueWidgetKind.ValuePathOption, Label: "Value", Type: OptionType.Text)
+      new (Key: JsonApiValueWidgetKind.ValuePathOption, Label: "Value path", Type: OptionType.Text)
       {
         IsRequired  = true,
         Placeholder = "slideshow.slides[1].title",

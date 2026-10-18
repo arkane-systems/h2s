@@ -238,7 +238,7 @@ Connect any service that answers HTTP requests with JSON, for **Value** widgets 
 In the link dialog (or a status bar's items), **+ Add widget → JSON API: Value** takes:
 
 - **Path**: what to request, relative to the base URL, with a query if it needs one (`/json`, `status?full=1`). A full address, or a path that climbs out of the base, is refused.
-- **Value**: where the value is in the answer. Join keys with dots (`slideshow.title`), pick the nth item of a list with `[n]`, counting from 0 (`slideshow.slides[1].title`), and write a key with dots, spaces or brackets as `["odd key"]`. Leave out the key, or write `$`, for the whole answer.
+- **Value path**: where the value is in the answer. Join keys with dots (`slideshow.title`), pick the nth item of a list with `[n]`, counting from 0 (`slideshow.slides[1].title`), and write a key with dots, spaces or brackets as `["odd key"]`. Leave out the key, or write `$`, for the whole answer.
 - **Name** (optional): what the value is called in the tooltip, such as "Slides"; the value path if blank.
 - **Unit** (optional): shown after the value, such as `ms`, `%` or `slides`.
 - **Expected value** (optional): when set, the pill is green if the value is exactly this and red if it isn't. Without it, the pill is green whenever the value can be read.

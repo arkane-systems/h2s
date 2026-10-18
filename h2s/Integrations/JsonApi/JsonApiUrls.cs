@@ -55,7 +55,7 @@ public static partial class JsonApiUrls
 
     if ((path.Length == 0)                                                      ||
         path.StartsWith (value: "//", comparisonType: StringComparison.Ordinal) ||
-        path.Any (c => char.IsControl (c) || c is '\\' or '#' or ' ')           ||
+        path.Any (c => char.IsControl (c) || c is '\\' or '#')                  ||
         JsonApiUrls.SchemePattern ().IsMatch (path)                             ||
         !Uri.TryCreate (uriString: baseUrl, uriKind: UriKind.Absolute, result: out Uri? root))
     {
@@ -64,9 +64,11 @@ public static partial class JsonApiUrls
       return false;
     }
 
-    // The path is joined to the base's own path, whatever it starts with, so it can never replace the host.
-    string prefix = root.AbsolutePath.EndsWith (value: '/') ? root.AbsolutePath : $"{root.AbsolutePath}/";
-    var    joined = $"{root.GetLeftPart (UriPartial.Authority)}{prefix}{path.TrimStart ('/')}";
+    // The path is joined to the base's own path, whatever it starts with, so it can never replace the host. A space, as in
+    // a query typed by hand, is encoded rather than refused.
+    string prefix  = root.AbsolutePath.EndsWith (value: '/') ? root.AbsolutePath : $"{root.AbsolutePath}/";
+    string encoded = path.TrimStart ('/').Replace (oldValue: " ", newValue: "%20", comparisonType: StringComparison.Ordinal);
+    var    joined  = $"{root.GetLeftPart (UriPartial.Authority)}{prefix}{encoded}";
 
     if (!Uri.TryCreate (uriString: joined, uriKind: UriKind.Absolute, result: out Uri? resolved)            ||
         (resolved.Scheme != root.Scheme)                                                                    ||

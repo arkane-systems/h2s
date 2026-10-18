@@ -88,7 +88,7 @@ public class JsonApiHandlerTests
                "Path must be a path under the base URL, not a full address.")]
   [InlineData ("""{ "path": "https://evil.example/json", "valuePath": "a" }""",
                "Path must be a path under the base URL, not a full address.")]
-  [InlineData ("""{ "path": "/json" }""", "Value is required.")]
+  [InlineData ("""{ "path": "/json" }""", "Value path is required.")]
   public async Task Links_RefuseAWidgetWhosePathOrValueIsWrong (string options, string detail)
   {
     await using var factory = new DashboardApplicationFactory ();
