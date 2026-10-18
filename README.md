@@ -202,7 +202,7 @@ Open **Settings** (⚙) from the navbar. It's a page of cards, each saved on its
 - **General**: the **title** and **motto** shown in the navbar, and the **local domains**. Type each domain and press Enter, comma or space to add it as a chip; × removes one. Links to hosts outside these domains get an "External" badge.
 - **Appearance**: the site's **color mode**, which every browser uses until it picks its own with the navbar's ◑ button. Auto follows the device's light or dark setting.
 - **Search**: the search engines, below.
-- **Integrations**: one card per integration; Uptime Kuma, below, is the only one so far.
+- **Integrations**: one card per integration, each with a **Save**, **Test connection** and **Remove**: Uptime Kuma and the JSON API, below.
 - **Backup**: export and import the whole configuration, below.
 
 #### Search engines
@@ -225,6 +225,26 @@ You can optionally connect Uptime Kuma, for monitor widgets on links' tiles (see
 
 > Upgrading from an earlier version converts what Kuma used to draw as its own badge images into widgets, which read Kuma directly and need no published status page. Each link's Uptime Kuma monitor becomes a monitor widget on the link, unless it already had one for that monitor. Each infrastructure group becomes an item of the status bar, labelled with the group's name, and the status page the bar linked to becomes its link. Importing an older backup does the same.
 
+#### JSON API integration
+
+Connect any service that answers HTTP requests with JSON, for **Value** widgets on links' tiles and in status bars: a status, a count, a version, a response time, whatever the service reports. The card has:
+
+- **Base URL**: where the service lives, with a path prefix if it has one (for example `https://host.example.com/api`). No query or fragment. Requests only ever go to this host, and redirects aren't followed (point the URL at where the service really answers).
+- **Authentication**: **None**, **Basic** (a **username** and the credential as the password), **Bearer token** (the credential is the token) or **Custom header** (a **header name** such as `X-Api-Key`, with the credential as its value).
+- **Credential**: the password, token or header value. It's stored encrypted, never shown again and never exported; leave it blank to keep the stored one. After importing a backup, enter it again.
+
+**Test connection** requests the base URL with these settings: success when it answers, a clear failure when the credentials are refused (401 or 403), and a warning for any other status, since widgets read paths under the base and a 404 at the base itself may be fine. Certificate and network problems are told apart as for Uptime Kuma.
+
+In the link dialog (or a status bar's items), **+ Add widget → JSON API: Value** takes:
+
+- **Path**: what to request, relative to the base URL, with a query if it needs one (`/json`, `status?full=1`). A full address, or a path that climbs out of the base, is refused.
+- **Value**: where the value is in the answer. Join keys with dots (`slideshow.title`), pick the nth item of a list with `[n]`, counting from 0 (`slideshow.slides[1].title`), and write a key with dots, spaces or brackets as `["odd key"]`. Leave out the key, or write `$`, for the whole answer.
+- **Name** (optional): what the value is called in the tooltip, such as "Slides"; the value path if blank.
+- **Unit** (optional): shown after the value, such as `ms`, `%` or `slides`.
+- **Expected value** (optional): when set, the pill is green if the value is exactly this and red if it isn't. Without it, the pill is green whenever the value can be read.
+
+The pill shows the value with its unit (`42 ms`, `93%`, `2 slides`). A string is shown as it is, cut to about 40 characters; a number as the service writes it; `true` or `false`; and a list as its number of items, so `slideshow.slides` with the unit `slides` reads `2 slides`. The tooltip says it in a sentence ("Slides is 2 slides."). An object or `null`, or a path the answer doesn't have, gives an amber pill; an error status, an answer that isn't JSON, or one over 256 KB gives a red one; a service h2s can't reach gives a grey one. The widget form's preview shows what it reads, so you can check a path before saving. Widgets on the same service and path share one request (kept for 15 seconds), and refresh every minute by default.
+
 ### Edit mode
 
 Click **Edit** at the right of the navbar to edit the dashboard in place; **Done** returns to the normal view.
@@ -233,7 +253,7 @@ Click **Edit** at the right of the navbar to edit the dashboard in place; **Done
 - Click a tile to edit or delete its link, or **+ Add link** under a category to add one. Start with the URL (paste it, or type it and move on): h2s follows it to the app's page, suggests a label from the page title or app name and a [selfh.st](https://selfh.st/icons/) icon to match, and shows a live preview of the tile.
   - **Browse…** searches the selfh.st icons with thumbnails.
   - When there's no selfh.st icon, the site's own icon (its favicon or app icon) is suggested as the **icon image URL**; you can also paste any image URL there. A tile uses the selfh.st icon first, then the image URL, then a plain dot.
-  - **Widgets** add live figures to the tile from an integration you've set up, such as an Uptime Kuma monitor's status, response time and uptime. **+ Add widget** picks a kind and fills in its settings, such as a monitor picked by name from the ones Kuma reports (or **Another value…** to type an ID); the ↑ ↓ buttons order them, ✎ edits one and × removes it. The dialog's preview shows the widgets live as you edit them, and the widget being edited says what it reads, so you can check it before saving. They're saved with the link. Status widgets show as small coloured pills on the right of the tile (green up, red down, amber pending, blue maintenance, grey unknown), with the details as a tooltip, and refresh on their own (every minute by default).
+  - **Widgets** add live figures to the tile from an integration you've set up, such as an Uptime Kuma monitor's status, response time and uptime, or any value from a JSON API. **+ Add widget** picks a kind and fills in its settings, such as a monitor picked by name from the ones Kuma reports (or **Another value…** to type an ID); the ↑ ↓ buttons order them, ✎ edits one and × removes it. The dialog's preview shows the widgets live as you edit them, and the widget being edited says what it reads, so you can check it before saving. They're saved with the link. Status widgets show as small coloured pills on the right of the tile (green up, red down, amber pending, blue maintenance, grey unknown), with the details as a tooltip, and refresh on their own (every minute by default).
   - **Open in a new tab** makes the tile open its link in a new browser tab. The list view marks such links with ↗.
 - Use a category's ✎ to rename it, move it between the regular and admin sections, or delete it with its links, and **+ Add category** to add one.
 - Use a panel's ✎ to change its options or delete it, and **+ Add panel** to add one above or below the categories. A status bar's dialog has its title, its link and its **Items**, edited like a link's widgets, each with a **label**, and a live preview of the bar; the search box's has its placeholder text. There can be only one search box, so **+ Add panel** offers it only when there isn't one.
@@ -251,7 +271,7 @@ Categories are managed in edit mode.
 
 ### Backup
 
-**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links and widgets in order, the panels with their widgets (such as a status bar's items), the search engines and the integrations' connections (such as Uptime Kuma's). Secrets, such as API tokens, are never exported: importing keeps the ones already set for the same connection, and elsewhere you enter them again. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels or search engines existed still import, and give the dashboard the defaults: the status bar, then search, above the categories, and the three engines above.
+**Settings → Backup** exports the whole configuration as a JSON file: the settings, the categories with their links and widgets in order, the panels with their widgets (such as a status bar's items), the search engines and the integrations' connections (such as Uptime Kuma's and the JSON API's). Secrets, such as API tokens, are never exported: importing keeps the ones already set for the same connection, and elsewhere you enter them again. **Import…** takes such a file. h2s first checks it and shows what it holds, then replaces everything only when you confirm. Export first if you might want the current configuration back. The file is plain, indented JSON, so it also works for keeping a configuration in version control. Files exported before panels or search engines existed still import, and give the dashboard the defaults: the status bar, then search, above the categories, and the three engines above.
 
 ## Future plans (at this time)
 - Authentication and permissions to access the editor and settings (currently these are open to anyone who can access the app, which is fine for my use case but not ideal for everyone).

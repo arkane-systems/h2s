@@ -1,7 +1,9 @@
 using System.Text.Json;
 using h2s.Data;
 using h2s.Integrations;
+using h2s.Integrations.JsonApi;
 using h2s.Integrations.UptimeKuma;
+using h2s.Widgets.Abstractions;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
@@ -24,7 +26,7 @@ public class DashboardBackupServiceTests
   /// <summary>
   ///   The integrations h2s registers.
   /// </summary>
-  private static readonly IntegrationCatalog Integrations = new ([new UptimeKumaIntegration ()]);
+  private static readonly IntegrationCatalog Integrations = new ([new UptimeKumaIntegration (), new JsonApiIntegration ()]);
 
   [Fact]
   public async Task ExportAsync_WritesTheConfigurationInDashboardOrder ()
@@ -811,6 +813,84 @@ public class DashboardBackupServiceTests
     Assert.Equal (expected: """{"title":"Home"}""", actual: imported.OptionsJson);
     Assert.Equal (expected: ("Compute", 30, null),
                   actual: (item.Label, item.RefreshSeconds, item.LinkId));
+  }
+
+  [Fact]
+  public async Task ExportThenImport_ReproducesAJsonApiConnectionAndItsWidgets_WithoutTheCredential ()
+  {
+    await using var source = await TestDatabase.CreateAsync (seed: true);
+    await using var target = await TestDatabase.CreateAsync ();
+    string          json;
+
+    await using (DashboardContext context = source.CreateContext ())
+    {
+      Connection api = TestConnections.JsonApi (baseUrl: "https://api.home.arpa/v1", auth: JsonApiAuth.Bearer);
+      api.SecretsJson = "never exported";
+      Panel bar = await context.Panels.SingleAsync (predicate: p => p.Kind == StatusBarPanelKind.KindKey,
+                                                    cancellationToken: TestContext.Current.CancellationToken);
+
+      bar.Widgets.Add (new Widget
+                       {
+                         Connection  = api,
+                         Kind        = JsonApiValueWidgetKind.KindKey,
+                         OptionsJson = """{"path":"/json","valuePath":"slideshow.slides","name":"Slides","unit":"slides"}""",
+                         Label       = "Slides",
+                       });
+      await context.SaveChangesAsync (TestContext.Current.CancellationToken);
+
+      json = JsonSerializer.Serialize (value: await DashboardBackupServiceTests.CreateService (context)
+                                                                               .ExportAsync (TestContext.Current.CancellationToken),
+                                       options: DashboardBackup.JsonOptions);
+    }
+
+    Assert.DoesNotContain (expectedSubstring: "never exported", actualString: json);
+    Assert.Contains (expectedSubstring: "json-api/value", actualString: json);
+
+    await using DashboardContext targetContext = target.CreateContext ();
+
+    Connection replaced = TestConnections.JsonApi (baseUrl: "https://old.home.arpa", auth: JsonApiAuth.Bearer);
+    replaced.SecretsJson = "kept";
+    targetContext.Connections.Add (replaced);
+    await targetContext.SaveChangesAsync (TestContext.Current.CancellationToken);
+    targetContext.ChangeTracker.Clear ();
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out DashboardBackup? backup,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
+    await DashboardBackupServiceTests.CreateService (targetContext)
+                                     .ImportAsync (backup: backup!, cancellationToken: TestContext.Current.CancellationToken);
+
+    Connection imported = await targetContext.Connections.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
+    Widget     item     = await targetContext.Widgets.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
+    var        settings = JsonApiSettings.From (new OptionValues (schema: new JsonApiIntegration ().ConnectionOptions, json: imported.OptionsJson));
+
+    Assert.Equal (expected: ("https://api.home.arpa/v1", JsonApiAuth.Bearer), actual: (settings!.BaseUrl, settings.Auth));
+    Assert.Equal (expected: "kept", actual: imported.SecretsJson);
+    Assert.Equal (expected: (imported.Id, "value", "Slides"), actual: (item.ConnectionId, item.Kind, item.Label));
+    Assert.Contains (expectedSubstring: "slideshow.slides", actualString: item.OptionsJson);
+  }
+
+  [Fact]
+  public void TryRead_AcceptsAJsonApiConnectionWithoutItsCredential ()
+  {
+    const string Json = """
+                        {
+                          "format": "h2s-dashboard", "version": 9,
+                          "settings": { "title": "Home", "colorMode": "Auto" },
+                          "categories": [], "panels": [], "searchEngines": [],
+                          "connections": [ { "integration": "json-api", "name": "JSON API", "options": { "baseUrl": "https://api.home.arpa", "auth": "basic", "username": "alice" } } ]
+                        }
+                        """;
+
+    Assert.True (condition: DashboardBackupService.TryRead (json: Json,
+                                                            kinds: DashboardBackupServiceTests.Kinds,
+                                                            integrations: DashboardBackupServiceTests.Integrations,
+                                                            backup: out _,
+                                                            errors: out List<string> errors),
+                 userMessage: string.Join (separator: '\n', values: errors));
   }
 
   [Fact]
