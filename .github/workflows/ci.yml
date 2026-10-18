@@ -95,7 +95,7 @@ jobs:
           dotnet jb cleanupcode h2s.slnx --include="**/*.cs" --exclude="**/Migrations/**" --disable-settings-layers="GlobalAll;GlobalPerProduct;SolutionPersonal;ProjectPersonal" --verbosity=ERROR
           if ! git diff --exit-code --stat; then
             git diff > cleanup.patch
-            echo "::error title=Code style::C# code is not in house style. Run Full Cleanup as described in CLAUDE.md (twice if needed) and commit the result. The required changes are in the cleanup-patch artifact."
+            echo "::error title=Code style::C# code is not in house style. Run Full Cleanup as described in CLAUDE.md and commit the result. The required changes are in the cleanup-patch artifact."
             exit 1
           fi
 
