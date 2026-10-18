@@ -43,10 +43,9 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
   public DashboardApplicationFactory () => this.connection.Open ();
 
   /// <summary>
-  ///   Gets or sets how the stubbed network answers the icon catalog, the page metadata reader, the Uptime Kuma client and
-  ///   the URL probe. By default it
-  ///   serves
-  ///   <see cref="IconIndexJson" /> as the icon index and 404 for everything else. Set it before the first request.
+  ///   Gets or sets how the stubbed network answers the icon catalog, the page metadata reader, the Uptime Kuma and JSON API
+  ///   clients and the URL probe. By default it serves <see cref="IconIndexJson" /> as the icon index and 404 for everything
+  ///   else. Set it before the first request.
   /// </summary>
   public Func<HttpRequestMessage, HttpResponseMessage> Outbound { get; set; } = DashboardApplicationFactory.ServeIconIndex;
 
@@ -107,6 +106,7 @@ public sealed class DashboardApplicationFactory : WebApplicationFactory<Program>
                                                                IconCatalog.ClientName,
                                                                PageMetadataReader.ClientName,
                                                                UptimeKumaClient.ClientName,
+                                                               JsonApiClient.ClientName,
                                                                UrlProbe.ClientName,
                                                                UrlProbe.AcceptAnyCertificateClientName,
                                                              })

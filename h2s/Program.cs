@@ -2,6 +2,7 @@ using h2s.Authorization;
 using h2s.Data;
 using h2s.Data.Seeding;
 using h2s.Integrations;
+using h2s.Integrations.JsonApi;
 using h2s.Integrations.UptimeKuma;
 using h2s.Panels;
 using h2s.Services;
@@ -47,11 +48,13 @@ builder.Services.AddScoped<IconCatalog> ();
 builder.Services.AddScoped<UrlProbe> ();
 builder.Services.AddScoped<PageMetadataReader> ();
 builder.Services.AddScoped<UptimeKumaClient> ();
+builder.Services.AddScoped<JsonApiClient> ();
 builder.Services.AddScoped<DashboardBackupService> ();
 
 // Integrations are singletons; the catalog lists them, and ConnectionService reads and saves their connections, whose
 // secrets ConnectionSecrets encrypts.
 builder.Services.AddSingleton<IIntegration, UptimeKumaIntegration> ();
+builder.Services.AddSingleton<IIntegration, JsonApiIntegration> ();
 builder.Services.AddSingleton<IntegrationCatalog> ();
 builder.Services.AddSingleton<ConnectionSecrets> ();
 builder.Services.AddScoped<ConnectionService> ();
@@ -74,6 +77,10 @@ builder.Services.AddScoped<WidgetService> ();
 builder.Services.AddHttpClient (name: IconCatalog.ClientName, configureClient: client => client.Timeout = IconCatalog.Timeout);
 builder.Services.AddHttpClient (name: UptimeKumaClient.ClientName,
                                 configureClient: client => client.Timeout = UptimeKumaClient.Timeout);
+
+// JSON API connections send credentials, so this client never follows a redirect, which could carry them to another host.
+builder.Services.AddHttpClient (name: JsonApiClient.ClientName, configureClient: client => client.Timeout = JsonApiClient.Timeout)
+       .ConfigurePrimaryHttpMessageHandler (() => new HttpClientHandler { AllowAutoRedirect = false });
 
 // Fetches the pages people add links to, for suggestions. It names itself, since some sites refuse anonymous clients,
 // and follows only a few redirects.
