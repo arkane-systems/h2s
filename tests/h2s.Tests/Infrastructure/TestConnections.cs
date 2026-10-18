@@ -49,23 +49,6 @@ public static class TestConnections
                                         """;
 
   /// <summary>
-  ///   Answers like an Uptime Kuma server: <see cref="KumaMetricsText" /> at <c>/metrics</c> for
-  ///   <see cref="KumaApiKey" /> (401 for anything else), OK at its root, and 404 elsewhere.
-  /// </summary>
-  /// <param name="request">The outbound request.</param>
-  /// <returns>The response.</returns>
-  public static HttpResponseMessage ServeKuma (HttpRequestMessage request)
-    => request.RequestUri!.AbsolutePath switch
-       {
-         "/" => new HttpResponseMessage (HttpStatusCode.OK),
-         "/metrics" when request.Headers.Authorization is { Scheme: "Basic", Parameter: { } credentials } &&
-                         (Encoding.UTF8.GetString (Convert.FromBase64String (credentials)) == $":{TestConnections.KumaApiKey}")
-           => new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent (TestConnections.KumaMetricsText) },
-         "/metrics" => new HttpResponseMessage (HttpStatusCode.Unauthorized),
-         _          => new HttpResponseMessage (HttpStatusCode.NotFound),
-       };
-
-  /// <summary>
   ///   The JSON API the tests' connections point at.
   /// </summary>
   public const string JsonApiBaseUrl = "https://api.home.arpa";
@@ -101,6 +84,23 @@ public static class TestConnections
                                       }
                                     }
                                     """;
+
+  /// <summary>
+  ///   Answers like an Uptime Kuma server: <see cref="KumaMetricsText" /> at <c>/metrics</c> for
+  ///   <see cref="KumaApiKey" /> (401 for anything else), OK at its root, and 404 elsewhere.
+  /// </summary>
+  /// <param name="request">The outbound request.</param>
+  /// <returns>The response.</returns>
+  public static HttpResponseMessage ServeKuma (HttpRequestMessage request)
+    => request.RequestUri!.AbsolutePath switch
+       {
+         "/" => new HttpResponseMessage (HttpStatusCode.OK),
+         "/metrics" when request.Headers.Authorization is { Scheme: "Basic", Parameter: { } credentials } &&
+                         (Encoding.UTF8.GetString (Convert.FromBase64String (credentials)) == $":{TestConnections.KumaApiKey}")
+           => new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent (TestConnections.KumaMetricsText) },
+         "/metrics" => new HttpResponseMessage (HttpStatusCode.Unauthorized),
+         _          => new HttpResponseMessage (HttpStatusCode.NotFound),
+       };
 
   /// <summary>
   ///   Answers like a JSON API: <see cref="HttpbinJson" /> at <c>/json</c>, and at its root OK for a request bearing
@@ -170,7 +170,10 @@ public static class TestConnections
       if (credential != null)
       {
         connection.SecretsJson = scope.ServiceProvider.GetRequiredService<ConnectionSecrets> ()
-                                      .Protect (new Dictionary<string, string> { [JsonApiIntegration.CredentialOption] = credential });
+                                      .Protect (new Dictionary<string, string>
+                                                {
+                                                  [JsonApiIntegration.CredentialOption] = credential,
+                                                });
       }
 
       context.Connections.Add (connection);

@@ -12,14 +12,14 @@ public class JsonValuePathTests
   private static readonly JsonElement Document = JsonDocument.Parse (TestConnections.HttpbinJson).RootElement.Clone ();
 
   [Theory]
-  [InlineData ("slideshow.title",                 "Sample Slide Show")]
-  [InlineData ("$.slideshow.title",               "Sample Slide Show")]
-  [InlineData ("  slideshow.title  ",             "Sample Slide Show")]
-  [InlineData ("slideshow.slides[0].title",       "Wake up to WonderWidgets!")]
-  [InlineData ("slideshow.slides[1].title",       "Overview")]
-  [InlineData ("slideshow.slides[1].items[0]",    "Why <em>WonderWidgets</em> are great")]
-  [InlineData ("slideshow[\"author\"]",           "Yours Truly")]
-  [InlineData ("slideshow['author']",             "Yours Truly")]
+  [InlineData ("slideshow.title",                     "Sample Slide Show")]
+  [InlineData ("$.slideshow.title",                   "Sample Slide Show")]
+  [InlineData ("  slideshow.title  ",                 "Sample Slide Show")]
+  [InlineData ("slideshow.slides[0].title",           "Wake up to WonderWidgets!")]
+  [InlineData ("slideshow.slides[1].title",           "Overview")]
+  [InlineData ("slideshow.slides[1].items[0]",        "Why <em>WonderWidgets</em> are great")]
+  [InlineData ("slideshow[\"author\"]",               "Yours Truly")]
+  [InlineData ("slideshow['author']",                 "Yours Truly")]
   [InlineData ("[\"slideshow\"].slides[0][\"type\"]", "all")]
   public void Evaluate_FindsTheValue (string path, string expected)
   {
@@ -43,12 +43,17 @@ public class JsonValuePathTests
   [Fact]
   public void Evaluate_QuotedKeys_CanHoldDotsSpacesBracketsAndQuotes ()
   {
-    using JsonDocument document = JsonDocument.Parse ("""{ "a.b": { "odd key": 1, "x[0]": 2, "say \"hi\"": 3, "back\\slash": 4 } }""");
+    using JsonDocument document =
+      JsonDocument.Parse ("""{ "a.b": { "odd key": 1, "x[0]": 2, "say \"hi\"": 3, "back\\slash": 4 } }""");
 
-    Assert.Equal (expected: 1, actual: JsonValuePathTests.Find (path: """["a.b"]["odd key"]""", root: document.RootElement).GetInt32 ());
-    Assert.Equal (expected: 2, actual: JsonValuePathTests.Find (path: """["a.b"]["x[0]"]""",     root: document.RootElement).GetInt32 ());
-    Assert.Equal (expected: 3, actual: JsonValuePathTests.Find (path: """["a.b"]["say \"hi\""]""", root: document.RootElement).GetInt32 ());
-    Assert.Equal (expected: 4, actual: JsonValuePathTests.Find (path: """["a.b"]["back\\slash"]""", root: document.RootElement).GetInt32 ());
+    Assert.Equal (expected: 1,
+                  actual: JsonValuePathTests.Find (path: """["a.b"]["odd key"]""", root: document.RootElement).GetInt32 ());
+    Assert.Equal (expected: 2,
+                  actual: JsonValuePathTests.Find (path: """["a.b"]["x[0]"]""", root: document.RootElement).GetInt32 ());
+    Assert.Equal (expected: 3,
+                  actual: JsonValuePathTests.Find (path: """["a.b"]["say \"hi\""]""", root: document.RootElement).GetInt32 ());
+    Assert.Equal (expected: 4,
+                  actual: JsonValuePathTests.Find (path: """["a.b"]["back\\slash"]""", root: document.RootElement).GetInt32 ());
   }
 
   [Fact]
@@ -64,7 +69,7 @@ public class JsonValuePathTests
   {
     using JsonDocument document = JsonDocument.Parse ("""[ "a", { "b": [ 10, 20 ] } ]""");
 
-    Assert.Equal (expected: 20, actual: JsonValuePathTests.Find (path: "[1].b[1]", root: document.RootElement).GetInt32 ());
+    Assert.Equal (expected: 20, actual: JsonValuePathTests.Find (path: "[1].b[1]",  root: document.RootElement).GetInt32 ());
     Assert.Equal (expected: 20, actual: JsonValuePathTests.Find (path: "$[1].b[1]", root: document.RootElement).GetInt32 ());
   }
 
@@ -84,21 +89,21 @@ public class JsonValuePathTests
   }
 
   [Theory]
-  [InlineData ("a..b",       "Expected a key at character 3.")]
-  [InlineData ("a.",         "Expected a key at character 3.")]
-  [InlineData ("$.",         "Expected a key at character 3.")]
-  [InlineData ("a[",         "Expected an array index or a quoted key at character 3.")]
-  [InlineData ("a[0",        "The '[' at character 2 isn't closed with ']'.")]
-  [InlineData ("a[]",        "Expected an array index or a quoted key at character 3.")]
-  [InlineData ("a[x]",       "Expected an array index or a quoted key at character 3.")]
-  [InlineData ("a[-1]",      "Expected an array index or a quoted key at character 3.")]
-  [InlineData ("a[1.5]",     "The '[' at character 2 isn't closed with ']'.")]
+  [InlineData ("a..b",           "Expected a key at character 3.")]
+  [InlineData ("a.",             "Expected a key at character 3.")]
+  [InlineData ("$.",             "Expected a key at character 3.")]
+  [InlineData ("a[",             "Expected an array index or a quoted key at character 3.")]
+  [InlineData ("a[0",            "The '[' at character 2 isn't closed with ']'.")]
+  [InlineData ("a[]",            "Expected an array index or a quoted key at character 3.")]
+  [InlineData ("a[x]",           "Expected an array index or a quoted key at character 3.")]
+  [InlineData ("a[-1]",          "Expected an array index or a quoted key at character 3.")]
+  [InlineData ("a[1.5]",         "The '[' at character 2 isn't closed with ']'.")]
   [InlineData ("a[99999999999]", "The array index at character 3 is too large.")]
-  [InlineData ("a[\"b]",     "The quoted key at character 2 never ends.")]
-  [InlineData ("a[\"b\"",    "The '[' at character 2 isn't closed with ']'.")]
-  [InlineData ("a[0]b",      "Unexpected 'b' at character 5; a key needs a '.' before it.")]
-  [InlineData ("a[\"b\"]c",  "Unexpected 'c' at character 7; a key needs a '.' before it.")]
-  [InlineData ("]",          "Unexpected ']' at character 1.")]
+  [InlineData ("a[\"b]",         "The quoted key at character 2 never ends.")]
+  [InlineData ("a[\"b\"",        "The '[' at character 2 isn't closed with ']'.")]
+  [InlineData ("a[0]b",          "Unexpected 'b' at character 5; a key needs a '.' before it.")]
+  [InlineData ("a[\"b\"]c",      "Unexpected 'c' at character 7; a key needs a '.' before it.")]
+  [InlineData ("]",              "Unexpected ']' at character 1.")]
   public void TryParse_ExplainsBadSyntax (string path, string expected)
   {
     Assert.False (condition: JsonValuePath.TryParse (text: path, path: out JsonValuePath? parsed, error: out string? error));
@@ -112,7 +117,7 @@ public class JsonValuePathTests
   {
     Assert.True (condition: JsonValuePath.TryParse (text: path, path: out JsonValuePath? parsed, error: out string? error),
                  userMessage: error);
-    Assert.True (parsed.TryEvaluate (root: root, value: out JsonElement value), userMessage: $"{path} wasn't found.");
+    Assert.True (condition: parsed.TryEvaluate (root: root, value: out JsonElement value), userMessage: $"{path} wasn't found.");
 
     return value;
   }

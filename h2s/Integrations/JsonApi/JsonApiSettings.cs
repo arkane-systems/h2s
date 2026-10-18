@@ -25,9 +25,12 @@ public sealed record JsonApiSettings (string BaseUrl, string Auth, string Userna
     => this.Auth switch
        {
          JsonApiAuth.None => null,
-         JsonApiAuth.Basic when string.IsNullOrEmpty (this.Username) => "The JSON API connection uses basic authentication but has no username.",
-         JsonApiAuth.Header when string.IsNullOrEmpty (this.HeaderName) => "The JSON API connection uses a custom header but has no header name.",
-         _ when string.IsNullOrEmpty (this.Credential) => "The JSON API connection needs a credential; add one in Settings → Integrations.",
+         JsonApiAuth.Basic when string.IsNullOrEmpty (this.Username) =>
+           "The JSON API connection uses basic authentication but has no username.",
+         JsonApiAuth.Header when string.IsNullOrEmpty (this.HeaderName) =>
+           "The JSON API connection uses a custom header but has no header name.",
+         _ when string.IsNullOrEmpty (this.Credential) =>
+           "The JSON API connection needs a credential; add one in Settings → Integrations.",
          _ => null,
        };
 
@@ -52,7 +55,9 @@ public sealed record JsonApiSettings (string BaseUrl, string Auth, string Userna
                                 Username: options.GetText (JsonApiIntegration.UsernameOption).Trim (),
                                 HeaderName: options.GetText (JsonApiIntegration.HeaderNameOption).Trim ())
            {
-             Credential = options.GetSecret (JsonApiIntegration.CredentialOption)?.Trim () is { Length: > 0 } credential ? credential : null,
+             Credential = options.GetSecret (JsonApiIntegration.CredentialOption)?.Trim () is { Length: > 0 } credential
+                            ? credential
+                            : null,
            };
   }
 

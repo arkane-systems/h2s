@@ -3,11 +3,11 @@ using h2s.Data;
 using h2s.Integrations;
 using h2s.Integrations.JsonApi;
 using h2s.Integrations.UptimeKuma;
-using h2s.Widgets.Abstractions;
 using h2s.Models;
 using h2s.Panels;
 using h2s.Services;
 using h2s.Tests.Infrastructure;
+using h2s.Widgets.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -865,11 +865,12 @@ public class DashboardBackupServiceTests
 
     Connection imported = await targetContext.Connections.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
     Widget     item     = await targetContext.Widgets.AsNoTracking ().SingleAsync (TestContext.Current.CancellationToken);
-    var        settings = JsonApiSettings.From (new OptionValues (schema: new JsonApiIntegration ().ConnectionOptions, json: imported.OptionsJson));
+    JsonApiSettings? settings =
+      JsonApiSettings.From (new OptionValues (schema: new JsonApiIntegration ().ConnectionOptions, json: imported.OptionsJson));
 
     Assert.Equal (expected: ("https://api.home.arpa/v1", JsonApiAuth.Bearer), actual: (settings!.BaseUrl, settings.Auth));
-    Assert.Equal (expected: "kept", actual: imported.SecretsJson);
-    Assert.Equal (expected: (imported.Id, "value", "Slides"), actual: (item.ConnectionId, item.Kind, item.Label));
+    Assert.Equal (expected: "kept",                                           actual: imported.SecretsJson);
+    Assert.Equal (expected: (imported.Id, "value", "Slides"),                 actual: (item.ConnectionId, item.Kind, item.Label));
     Assert.Contains (expectedSubstring: "slideshow.slides", actualString: item.OptionsJson);
   }
 

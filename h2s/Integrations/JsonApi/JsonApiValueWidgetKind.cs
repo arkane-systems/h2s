@@ -68,6 +68,85 @@ public sealed class JsonApiValueWidgetKind : IWidgetKind
     return $"{text[..length].TrimEnd ()}…";
   }
 
+  /// <summary>
+  ///   Creates the result of a service that answered, but not with a usable document.
+  /// </summary>
+  /// <param name="description">What went wrong.</param>
+  /// <returns>An error result.</returns>
+  private static WidgetResult Failed (string description) => new (Status: WidgetStatus.Error, Stats: [], Description: description);
+
+  /// <summary>
+  ///   Describes a value: its figure, and its status, which an expected value decides.
+  /// </summary>
+  /// <param name="label">What the value is called.</param>
+  /// <param name="value">The value.</param>
+  /// <param name="options">The widget's options.</param>
+  /// <returns>The result.</returns>
+  private static WidgetResult Describe (string label, JsonElement value, OptionValues options)
+  {
+    string  unit = options.GetText (JsonApiValueWidgetKind.UnitOption).Trim ();
+    string? text;
+
+    switch (value.ValueKind)
+    {
+      case JsonValueKind.String:
+        text = value.GetString ();
+
+        break;
+
+      case JsonValueKind.Number:
+        text = value.GetRawText ();
+
+        break;
+
+      case JsonValueKind.True:
+        text = "true";
+
+        break;
+
+      case JsonValueKind.False:
+        text = "false";
+
+        break;
+
+      case JsonValueKind.Array:
+        int count = value.GetArrayLength ();
+        text = count.ToString (CultureInfo.InvariantCulture);
+
+        if (unit.Length == 0)
+        {
+          unit = count == 1 ? "item" : "items";
+        }
+
+        break;
+
+      case JsonValueKind.Object:
+        return new WidgetResult (Status: WidgetStatus.Warning,
+                                 Stats: [],
+                                 Description:
+                                 $"{label} is an object, not a single value; point the value path at one of its keys.");
+
+      default:
+        return new WidgetResult (Status: WidgetStatus.Warning, Stats: [], Description: $"{label} is null.");
+    }
+
+    var stat = new WidgetStat (Label: label,
+                               Value: JsonApiValueWidgetKind.Shorten (text ?? ""),
+                               Unit: unit.Length == 0 ? null : unit);
+    string expected = options.GetText (JsonApiValueWidgetKind.ExpectedOption).Trim ();
+
+    if (expected.Length == 0)
+    {
+      return new WidgetResult (Status: WidgetStatus.Ok, Stats: [stat], Description: $"{label} is {stat.Text}.");
+    }
+
+    return string.Equals (a: text?.Trim (), b: expected, comparisonType: StringComparison.Ordinal)
+             ? new WidgetResult (Status: WidgetStatus.Ok, Stats: [stat], Description: $"{label} is {stat.Text}, as expected.")
+             : new WidgetResult (Status: WidgetStatus.Error,
+                                 Stats: [stat],
+                                 Description: $"{label} is {stat.Text}, not {expected}.");
+  }
+
   /// <inheritdoc />
   public string Key => JsonApiValueWidgetKind.KindKey;
 
@@ -85,9 +164,9 @@ public sealed class JsonApiValueWidgetKind : IWidgetKind
     [
       new (Key: JsonApiValueWidgetKind.PathOption, Label: "Path", Type: OptionType.Text)
       {
-        IsRequired  = true,
+        IsRequired = true,
         Placeholder = "/status",
-        HelpText    = "What to request, relative to the connection's base URL, with a query if it needs one: /json or status?full=1.",
+        HelpText = "What to request, relative to the connection's base URL, with a query if it needs one: /json or status?full=1.",
 
         // Not a scheme and not //, so a path can't name another host; the fetch checks it again.
         Pattern            = @"(?!//)(?![A-Za-z][A-Za-z0-9+.\-]*:).*",
@@ -178,86 +257,16 @@ public sealed class JsonApiValueWidgetKind : IWidgetKind
 
     using (document)
     {
-      string name  = context.Options.GetText (JsonApiValueWidgetKind.NameOption).Trim ();
-      string label = name.Length > 0 ? name : valuePathText.Length > 0 ? valuePathText : "$";
+      string name = context.Options.GetText (JsonApiValueWidgetKind.NameOption).Trim ();
+      string label = name.Length > 0
+                       ? name
+                       : valuePathText.Length > 0
+                         ? valuePathText
+                         : "$";
 
       return valuePath.TryEvaluate (root: document.RootElement, value: out JsonElement value)
                ? JsonApiValueWidgetKind.Describe (label: label, value: value, options: context.Options)
                : new WidgetResult (Status: WidgetStatus.Warning, Stats: [], Description: $"{label} not found in the response.");
     }
-  }
-
-  /// <summary>
-  ///   Creates the result of a service that answered, but not with a usable document.
-  /// </summary>
-  /// <param name="description">What went wrong.</param>
-  /// <returns>An error result.</returns>
-  private static WidgetResult Failed (string description) => new (Status: WidgetStatus.Error, Stats: [], Description: description);
-
-  /// <summary>
-  ///   Describes a value: its figure, and its status, which an expected value decides.
-  /// </summary>
-  /// <param name="label">What the value is called.</param>
-  /// <param name="value">The value.</param>
-  /// <param name="options">The widget's options.</param>
-  /// <returns>The result.</returns>
-  private static WidgetResult Describe (string label, JsonElement value, OptionValues options)
-  {
-    string  unit = options.GetText (JsonApiValueWidgetKind.UnitOption).Trim ();
-    string? text;
-
-    switch (value.ValueKind)
-    {
-      case JsonValueKind.String:
-        text = value.GetString ();
-
-        break;
-
-      case JsonValueKind.Number:
-        text = value.GetRawText ();
-
-        break;
-
-      case JsonValueKind.True:
-        text = "true";
-
-        break;
-
-      case JsonValueKind.False:
-        text = "false";
-
-        break;
-
-      case JsonValueKind.Array:
-        int count = value.GetArrayLength ();
-        text = count.ToString (CultureInfo.InvariantCulture);
-
-        if (unit.Length == 0)
-        {
-          unit = count == 1 ? "item" : "items";
-        }
-
-        break;
-
-      case JsonValueKind.Object:
-        return new WidgetResult (Status: WidgetStatus.Warning,
-                                 Stats: [],
-                                 Description: $"{label} is an object, not a single value; point the value path at one of its keys.");
-
-      default:
-        return new WidgetResult (Status: WidgetStatus.Warning, Stats: [], Description: $"{label} is null.");
-    }
-
-    var stat = new WidgetStat (Label: label, Value: JsonApiValueWidgetKind.Shorten (text ?? ""), Unit: unit.Length == 0 ? null : unit);
-    string expected = options.GetText (JsonApiValueWidgetKind.ExpectedOption).Trim ();
-
-    if (expected.Length == 0)
-    {
-      return new WidgetResult (Status: WidgetStatus.Ok, Stats: [stat], Description: $"{label} is {stat.Text}.");
-    }
-
-    return string.Equals (a: text?.Trim (), b: expected, comparisonType: StringComparison.Ordinal)
-             ? new WidgetResult (Status: WidgetStatus.Ok, Stats: [stat], Description: $"{label} is {stat.Text}, as expected.")
-             : new WidgetResult (Status: WidgetStatus.Error, Stats: [stat], Description: $"{label} is {stat.Text}, not {expected}.");
   }
 }

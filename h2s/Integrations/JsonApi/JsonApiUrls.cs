@@ -26,10 +26,12 @@ public static partial class JsonApiUrls
   /// <param name="baseUrl">The base URL, already trimmed.</param>
   /// <returns><c>true</c> when it is.</returns>
   public static bool IsValidBaseUrl (string baseUrl)
-    => Uri.TryCreate (uriString: baseUrl, uriKind: UriKind.Absolute, result: out Uri? uri)                    &&
-       ((uri.Scheme == Uri.UriSchemeHttp) || (uri.Scheme == Uri.UriSchemeHttps))                              &&
-       string.IsNullOrEmpty (uri.UserInfo)                                                                    &&
-       !baseUrl.Contains (value: '?') && !baseUrl.Contains (value: '#') && !baseUrl.Contains (value: '\\');
+    => Uri.TryCreate (uriString: baseUrl, uriKind: UriKind.Absolute, result: out Uri? uri) &&
+       ((uri.Scheme == Uri.UriSchemeHttp) || (uri.Scheme == Uri.UriSchemeHttps))           &&
+       string.IsNullOrEmpty (uri.UserInfo)                                                 &&
+       !baseUrl.Contains (value: '?')                                                      &&
+       !baseUrl.Contains (value: '#')                                                      &&
+       !baseUrl.Contains (value: '\\');
 
   /// <summary>
   ///   Resolves a widget's path against a connection's base URL: a path-prefixed base keeps its prefix, so <c>/json</c>
@@ -43,15 +45,18 @@ public static partial class JsonApiUrls
   ///   <c>true</c> when the path is relative, and the URL it gives stays on the base URL's scheme, host and port and under its
   ///   path prefix.
   /// </returns>
-  public static bool TryResolve (string baseUrl, string path, [NotNullWhen (true)] out Uri? url, [NotNullWhen (false)] out string? error)
+  public static bool TryResolve (string                            baseUrl,
+                                 string                            path,
+                                 [NotNullWhen (true)] out  Uri?    url,
+                                 [NotNullWhen (false)] out string? error)
   {
     url  = null;
     path = path.Trim ();
 
-    if ((path.Length == 0)                              ||
+    if ((path.Length == 0)                                                      ||
         path.StartsWith (value: "//", comparisonType: StringComparison.Ordinal) ||
-        path.Any (c => char.IsControl (c) || (c is '\\' or '#' or ' ')) ||
-        JsonApiUrls.SchemePattern ().IsMatch (path)     ||
+        path.Any (c => char.IsControl (c) || c is '\\' or '#' or ' ')           ||
+        JsonApiUrls.SchemePattern ().IsMatch (path)                             ||
         !Uri.TryCreate (uriString: baseUrl, uriKind: UriKind.Absolute, result: out Uri? root))
     {
       error = JsonApiUrls.NotRelative;
@@ -63,11 +68,11 @@ public static partial class JsonApiUrls
     string prefix = root.AbsolutePath.EndsWith (value: '/') ? root.AbsolutePath : $"{root.AbsolutePath}/";
     var    joined = $"{root.GetLeftPart (UriPartial.Authority)}{prefix}{path.TrimStart ('/')}";
 
-    if (!Uri.TryCreate (uriString: joined, uriKind: UriKind.Absolute, result: out Uri? resolved) ||
-        (resolved.Scheme != root.Scheme)                                                         ||
+    if (!Uri.TryCreate (uriString: joined, uriKind: UriKind.Absolute, result: out Uri? resolved)            ||
+        (resolved.Scheme != root.Scheme)                                                                    ||
         !string.Equals (a: resolved.Host, b: root.Host, comparisonType: StringComparison.OrdinalIgnoreCase) ||
-        (resolved.Port != root.Port)                                                             ||
-        !string.IsNullOrEmpty (resolved.UserInfo)                                                ||
+        (resolved.Port != root.Port)                                                                        ||
+        !string.IsNullOrEmpty (resolved.UserInfo)                                                           ||
         !resolved.AbsolutePath.StartsWith (value: prefix, comparisonType: StringComparison.Ordinal))
     {
       error = JsonApiUrls.LeavesBase;
@@ -85,6 +90,6 @@ public static partial class JsonApiUrls
   ///   Matches a path that starts with a URL scheme, such as <c>http:</c>.
   /// </summary>
   /// <returns>The pattern.</returns>
-  [GeneratedRegex (@"^[A-Za-z][A-Za-z0-9+.\-]*:", RegexOptions.CultureInvariant)]
+  [GeneratedRegex (pattern: @"^[A-Za-z][A-Za-z0-9+.\-]*:", options: RegexOptions.CultureInvariant)]
   private static partial Regex SchemePattern ();
 }

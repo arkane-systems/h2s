@@ -45,7 +45,8 @@ public class JsonApiHandlerTests
   {
     await using var factory = new DashboardApplicationFactory ();
 
-    Assert.Empty ((await WidgetHandlerTests.GetJsonAsync (client: factory.CreateClient (), query: "handler=WidgetKinds")).EnumerateArray ());
+    Assert.Empty ((await WidgetHandlerTests.GetJsonAsync (client: factory.CreateClient (), query: "handler=WidgetKinds"))
+                 .EnumerateArray ());
   }
 
   [Fact]
@@ -55,10 +56,13 @@ public class JsonApiHandlerTests
     await factory.AddJsonApiAsync ();
     HttpClient client = factory.CreateClient ();
 
-    int linkId = await WidgetHandlerTests.CreateLinkAsync (client: client, factory: factory, widgets: JsonApiHandlerTests.SlidesWidget);
+    int linkId = await WidgetHandlerTests.CreateLinkAsync (client: client,
+                                                           factory: factory,
+                                                           widgets: JsonApiHandlerTests.SlidesWidget);
 
     JsonElement widget = Assert.Single ((await WidgetHandlerTests.GetJsonAsync (client: client, query: $"handler=Link&id={linkId}"))
-                                       .GetProperty ("widgets").EnumerateArray ());
+                                       .GetProperty ("widgets")
+                                       .EnumerateArray ());
 
     Assert.Equal (expected: ("/json", "slideshow.slides", "Slides", "slides", ""),
                   actual: (widget.GetProperty ("values").GetProperty ("path").GetString (),
@@ -74,14 +78,16 @@ public class JsonApiHandlerTests
     string html = await response.Content.ReadAsStringAsync (TestContext.Current.CancellationToken);
 
     Assert.Equal (expected: HttpStatusCode.OK, actual: response.StatusCode);
-    Assert.Contains (expectedSubstring: "widget-ok", actualString: html);
+    Assert.Contains (expectedSubstring: "widget-ok",           actualString: html);
     Assert.Contains (expectedSubstring: "Slides is 2 slides.", actualString: html);
-    Assert.Contains (expectedSubstring: ">2 slides<", actualString: html);
+    Assert.Contains (expectedSubstring: ">2 slides<",          actualString: html);
   }
 
   [Theory]
-  [InlineData ("""{ "path": "//evil.example/json", "valuePath": "a" }""", "Path must be a path under the base URL, not a full address.")]
-  [InlineData ("""{ "path": "https://evil.example/json", "valuePath": "a" }""", "Path must be a path under the base URL, not a full address.")]
+  [InlineData ("""{ "path": "//evil.example/json", "valuePath": "a" }""",
+               "Path must be a path under the base URL, not a full address.")]
+  [InlineData ("""{ "path": "https://evil.example/json", "valuePath": "a" }""",
+               "Path must be a path under the base URL, not a full address.")]
   [InlineData ("""{ "path": "/json" }""", "Value is required.")]
   public async Task Links_RefuseAWidgetWhosePathOrValueIsWrong (string options, string detail)
   {
@@ -92,9 +98,12 @@ public class JsonApiHandlerTests
                                                                pagePath: "/Admin/Editor",
                                                                handler: "CreateLink",
                                                                fields: await JsonApiHandlerTests.LinkFieldsAsync (factory: factory,
-                                                                                                                  widgets: $$"""[{ "kind": "json-api/value", "options": {{options}} }]"""));
+                                                                                                                  widgets:
+                                                                                                                  $$"""[{ "kind": "json-api/value", "options": {{options}} }]"""));
 
-    await FormPoster.AssertProblemAsync (response: response, status: HttpStatusCode.BadRequest, detail: $"Widget 1 (Value): {detail}");
+    await FormPoster.AssertProblemAsync (response: response,
+                                         status: HttpStatusCode.BadRequest,
+                                         detail: $"Widget 1 (Value): {detail}");
   }
 
   [Fact]
@@ -104,8 +113,9 @@ public class JsonApiHandlerTests
     await factory.AddJsonApiAsync ();
 
     string preview = await factory.CreateClient ()
-                                  .GetStringAsync (requestUri: "/Admin/Editor?handler=WidgetPreview&placement=tile&index=0&widgets=" +
-                                                               Uri.EscapeDataString ("""[{ "kind": "json-api/value", "options": { "path": "/json", "valuePath": "slideshow.title", "name": "Title", "expected": "Sample Slide Show" } }]"""),
+                                  .GetStringAsync (requestUri:
+                                                   "/Admin/Editor?handler=WidgetPreview&placement=tile&index=0&widgets=" +
+                                                   Uri.EscapeDataString ("""[{ "kind": "json-api/value", "options": { "path": "/json", "valuePath": "slideshow.title", "name": "Title", "expected": "Sample Slide Show" } }]"""),
                                                    cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Contains (expectedSubstring: "widget-ok",                                actualString: preview);
@@ -130,7 +140,9 @@ public class JsonApiHandlerTests
     Assert.Equal (expected: ["baseUrl", "auth", "username", "headerName", "credential"],
                   actual: card.GetProperty ("options").EnumerateArray ().Select (o => o.GetProperty ("key").GetString ()));
     Assert.Equal (expected: ["none", "basic", "bearer", "header"],
-                  actual: card.GetProperty ("options")[1].GetProperty ("choices").EnumerateArray ()
+                  actual: card.GetProperty ("options")[1]
+                              .GetProperty ("choices")
+                              .EnumerateArray ()
                               .Select (c => c.GetProperty ("value").GetString ()));
   }
 
@@ -142,7 +154,8 @@ public class JsonApiHandlerTests
 
     JsonElement card = await JsonApiHandlerTests.PostOkAsync (client: client,
                                                               handler: "SaveConnection",
-                                                              fields: JsonApiHandlerTests.Fields (credential: JsonApiHandlerTests.Credential));
+                                                              fields: JsonApiHandlerTests.Fields (credential: JsonApiHandlerTests
+                                                                                                   .Credential));
 
     Assert.True (card.GetProperty ("isConfigured").GetBoolean ());
     Assert.True (card.GetProperty ("secretsSet").GetProperty ("credential").GetBoolean ());
@@ -163,13 +176,15 @@ public class JsonApiHandlerTests
       Assert.DoesNotContain (expectedSubstring: JsonApiHandlerTests.Credential, actualString: connection.OptionsJson);
       Assert.DoesNotContain (expectedSubstring: JsonApiHandlerTests.Credential, actualString: connection.SecretsJson!);
 
-      var stored = JsonApiSettings.From (new OptionValues (schema: new JsonApiIntegration ().ConnectionOptions, json: connection.OptionsJson));
+      JsonApiSettings? stored =
+        JsonApiSettings.From (new OptionValues (schema: new JsonApiIntegration ().ConnectionOptions, json: connection.OptionsJson));
 
       Assert.Equal (expected: (TestConnections.JsonApiBaseUrl, JsonApiAuth.Bearer), actual: (stored!.BaseUrl, stored.Auth));
     }
 
     // Saved again without it, the credential is kept.
-    JsonElement kept = await JsonApiHandlerTests.PostOkAsync (client: client, handler: "SaveConnection", fields: JsonApiHandlerTests.Fields ());
+    JsonElement kept =
+      await JsonApiHandlerTests.PostOkAsync (client: client, handler: "SaveConnection", fields: JsonApiHandlerTests.Fields ());
 
     Assert.True (kept.GetProperty ("secretsSet").GetProperty ("credential").GetBoolean ());
   }
@@ -189,14 +204,16 @@ public class JsonApiHandlerTests
                                                                 fields: JsonApiHandlerTests.Fields ());
 
     Assert.Equal (expected: "success", actual: tested.GetProperty ("level").GetString ());
-    Assert.Equal (expected: "Connected. https://api.home.arpa answered 200 OK.", actual: tested.GetProperty ("message").GetString ());
+    Assert.Equal (expected: "Connected. https://api.home.arpa answered 200 OK.",
+                  actual: tested.GetProperty ("message").GetString ());
 
     JsonElement refused = await JsonApiHandlerTests.PostOkAsync (client: client,
                                                                  handler: "TestConnection",
                                                                  fields: JsonApiHandlerTests.Fields (credential: "wrong"));
 
     Assert.Equal (expected: "danger", actual: refused.GetProperty ("level").GetString ());
-    Assert.Equal (expected: "https://api.home.arpa refused the credentials (401 Unauthorized).", actual: refused.GetProperty ("message").GetString ());
+    Assert.Equal (expected: "https://api.home.arpa refused the credentials (401 Unauthorized).",
+                  actual: refused.GetProperty ("message").GetString ());
 
     JsonElement cleared = await JsonApiHandlerTests.PostOkAsync (client: client,
                                                                  handler: "TestConnection",
@@ -207,13 +224,25 @@ public class JsonApiHandlerTests
   }
 
   [Theory]
-  [InlineData ("https://api.home.arpa/v1?key=1", JsonApiAuth.None,  "",      "",          JsonApiIntegration.InvalidBaseUrl)]
-  [InlineData ("ftp://api.home.arpa",            JsonApiAuth.None,  "",      "",          "Base URL must be an HTTP or HTTPS URL.")]
-  [InlineData ("https://api.home.arpa",          JsonApiAuth.Basic, "",      "",          JsonApiIntegration.UsernameRequired)]
-  [InlineData ("https://api.home.arpa",          JsonApiAuth.Header, "",     "",          JsonApiIntegration.HeaderNameRequired)]
-  [InlineData ("https://api.home.arpa",          JsonApiAuth.Header, "",     "Bad Name",  "Header name may only contain letters, numbers and the punctuation HTTP allows in a header name.")]
-  [InlineData ("https://api.home.arpa",          "digest",          "",      "",          "Authentication must be one of None, Basic, Bearer token, Custom header.")]
-  public async Task SaveConnection_RejectsInvalidValues (string baseUrl, string auth, string username, string headerName, string detail)
+  [InlineData ("https://api.home.arpa/v1?key=1", JsonApiAuth.None,   "", "", JsonApiIntegration.InvalidBaseUrl)]
+  [InlineData ("ftp://api.home.arpa",            JsonApiAuth.None,   "", "", "Base URL must be an HTTP or HTTPS URL.")]
+  [InlineData ("https://api.home.arpa",          JsonApiAuth.Basic,  "", "", JsonApiIntegration.UsernameRequired)]
+  [InlineData ("https://api.home.arpa",          JsonApiAuth.Header, "", "", JsonApiIntegration.HeaderNameRequired)]
+  [InlineData ("https://api.home.arpa",
+               JsonApiAuth.Header,
+               "",
+               "Bad Name",
+               "Header name may only contain letters, numbers and the punctuation HTTP allows in a header name.")]
+  [InlineData ("https://api.home.arpa",
+               "digest",
+               "",
+               "",
+               "Authentication must be one of None, Basic, Bearer token, Custom header.")]
+  public async Task SaveConnection_RejectsInvalidValues (string baseUrl,
+                                                         string auth,
+                                                         string username,
+                                                         string headerName,
+                                                         string detail)
   {
     await using var factory = new DashboardApplicationFactory ();
 
@@ -222,8 +251,10 @@ public class JsonApiHandlerTests
                                                                                handler: "SaveConnection",
                                                                                fields: JsonApiHandlerTests.Fields (baseUrl: baseUrl,
                                                                                                                    auth: auth,
-                                                                                                                   username: username,
-                                                                                                                   headerName: headerName)),
+                                                                                                                   username:
+                                                                                                                   username,
+                                                                                                                   headerName:
+                                                                                                                   headerName)),
                                          status: HttpStatusCode.BadRequest,
                                          detail: detail);
 
@@ -261,12 +292,18 @@ public class JsonApiHandlerTests
                                                cancellationToken: TestContext.Current.CancellationToken);
 
     Assert.Equal (expected: 1,
-                  actual: JsonApiHandlerTests.ReadCards (html).Single (c => c.GetProperty ("key").GetString () == "json-api")
-                                             .GetProperty ("widgetCount").GetInt32 ());
+                  actual: JsonApiHandlerTests.ReadCards (html)
+                                             .Single (c => c.GetProperty ("key").GetString () == "json-api")
+                                             .GetProperty ("widgetCount")
+                                             .GetInt32 ());
 
     JsonElement removed = await JsonApiHandlerTests.PostOkAsync (client: client,
                                                                  handler: "RemoveConnection",
-                                                                 fields: [new ("integration", "json-api")]);
+                                                                 fields:
+                                                                 [
+                                                                   new KeyValuePair<string, string> (key: "integration",
+                                                                                                     value: "json-api"),
+                                                                 ]);
 
     Assert.False (removed.GetProperty ("isConfigured").GetBoolean ());
 
@@ -323,10 +360,10 @@ public class JsonApiHandlerTests
 
       return
       [
-        new (key: "categoryId", value: categoryId.ToString ()),
-        new (key: "label", value: "API"),
-        new (key: "url", value: "https://api.home.arpa"),
-        new (key: "widgets", value: widgets),
+        new KeyValuePair<string, string> (key: "categoryId", value: categoryId.ToString ()),
+        new KeyValuePair<string, string> (key: "label",      value: "API"),
+        new KeyValuePair<string, string> (key: "url",        value: "https://api.home.arpa"),
+        new KeyValuePair<string, string> (key: "widgets",    value: widgets),
       ];
     }
   }

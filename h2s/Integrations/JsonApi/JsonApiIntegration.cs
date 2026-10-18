@@ -65,6 +65,33 @@ public sealed class JsonApiIntegration : IIntegration
   /// <returns>The result.</returns>
   private static ConnectionTestResult Result (ConnectionTestLevel level, string message) => new (Level: level, Message: message);
 
+  /// <summary>
+  ///   Says why a service couldn't be reached, telling an untrusted certificate from an unreachable server.
+  /// </summary>
+  /// <param name="settings">The connection's settings.</param>
+  /// <param name="context">The connection context.</param>
+  /// <returns>The test's result.</returns>
+  private static async Task<ConnectionTestResult> ExplainUnreachableAsync (JsonApiSettings settings, ConnectionContext context)
+  {
+    switch (await context.Services.GetRequiredService<UrlProbe> ()
+                         .CheckAsync (url: settings.BaseUrl, cancellationToken: context.CancellationToken))
+    {
+      case UrlReachability.Unreachable:
+        return JsonApiIntegration.Result (level: ConnectionTestLevel.Danger, message: $"Couldn't reach {settings.BaseUrl}.");
+
+      case UrlReachability.UntrustedCertificate:
+        return JsonApiIntegration.Result (level: ConnectionTestLevel.Warning,
+                                          message:
+                                          "The service answers, but the h2s server doesn't trust its certificate, so it can't read " +
+                                          "its values until the CA is mounted (see the README's section on trusting a homelab " +
+                                          "certificate authority).");
+
+      default:
+        return JsonApiIntegration.Result (level: ConnectionTestLevel.Warning,
+                                          message: $"{settings.BaseUrl} answers, but not to a request for JSON in time.");
+    }
+  }
+
   /// <inheritdoc />
   public string Key => JsonApiIntegration.IntegrationKey;
 
@@ -84,7 +111,7 @@ public sealed class JsonApiIntegration : IIntegration
     [
       new (Key: JsonApiIntegration.BaseUrlOption, Label: "Base URL", Type: OptionType.Url)
       {
-        IsRequired = true,
+        IsRequired  = true,
         Placeholder = "https://host.example.com/api",
         HelpText = "Where the service lives, with a path prefix if it has one. Each widget names a path under it. Requests " +
                    "never leave this host, and redirects aren't followed.",
@@ -184,32 +211,5 @@ public sealed class JsonApiIntegration : IIntegration
     return JsonApiIntegration.Result (level: ConnectionTestLevel.Warning,
                                       message: $"{settings.BaseUrl} answered {response.Status}. Widgets read paths under the " +
                                                "base URL, so that may be fine if nothing is served at the base itself.");
-  }
-
-  /// <summary>
-  ///   Says why a service couldn't be reached, telling an untrusted certificate from an unreachable server.
-  /// </summary>
-  /// <param name="settings">The connection's settings.</param>
-  /// <param name="context">The connection context.</param>
-  /// <returns>The test's result.</returns>
-  private static async Task<ConnectionTestResult> ExplainUnreachableAsync (JsonApiSettings settings, ConnectionContext context)
-  {
-    switch (await context.Services.GetRequiredService<UrlProbe> ()
-                         .CheckAsync (url: settings.BaseUrl, cancellationToken: context.CancellationToken))
-    {
-      case UrlReachability.Unreachable:
-        return JsonApiIntegration.Result (level: ConnectionTestLevel.Danger, message: $"Couldn't reach {settings.BaseUrl}.");
-
-      case UrlReachability.UntrustedCertificate:
-        return JsonApiIntegration.Result (level: ConnectionTestLevel.Warning,
-                                          message:
-                                          "The service answers, but the h2s server doesn't trust its certificate, so it can't read " +
-                                          "its values until the CA is mounted (see the README's section on trusting a homelab " +
-                                          "certificate authority).");
-
-      default:
-        return JsonApiIntegration.Result (level: ConnectionTestLevel.Warning,
-                                          message: $"{settings.BaseUrl} answers, but not to a request for JSON in time.");
-    }
   }
 }

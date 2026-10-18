@@ -50,7 +50,7 @@ public sealed class JsonValuePath
     var index = 0;
 
     // A leading $ is the root, but only when a dot or bracket follows; otherwise it's the start of a key.
-    if ((text[0] == '$') && (text[1] is '.' or '['))
+    if ((text[0] == '$') && text[1] is '.' or '[')
     {
       index = 1;
     }
@@ -76,14 +76,14 @@ public sealed class JsonValuePath
 
         int start = index;
 
-        while ((index < text.Length) && (text[index] is not ('.' or '[' or ']')))
+        while ((index < text.Length) && text[index] is not ('.' or '[' or ']'))
         {
           index++;
         }
 
         if (index == start)
         {
-          error = index < text.Length && text[index] == ']'
+          error = (index < text.Length) && (text[index] == ']')
                     ? $"Unexpected ']' at character {index + 1}."
                     : $"Expected a key at character {start + 1}.";
 
@@ -120,7 +120,8 @@ public sealed class JsonValuePath
     {
       if (step.Key != null)
       {
-        if ((value.ValueKind != JsonValueKind.Object) || !value.TryGetProperty (propertyName: step.Key, value: out JsonElement next))
+        if ((value.ValueKind != JsonValueKind.Object) ||
+            !value.TryGetProperty (propertyName: step.Key, value: out JsonElement next))
         {
           return false;
         }
@@ -154,7 +155,7 @@ public sealed class JsonValuePath
     int opened = index;
     index++;
 
-    if ((index < text.Length) && (text[index] is '"' or '\''))
+    if ((index < text.Length) && text[index] is '"' or '\'')
     {
       char quote = text[index];
       index++;
@@ -192,11 +193,14 @@ public sealed class JsonValuePath
         index++;
       }
 
-      if (!int.TryParse (s: text[start..index], style: NumberStyles.None, provider: CultureInfo.InvariantCulture, result: out int number))
+      if (!int.TryParse (s: text[start..index],
+                         style: NumberStyles.None,
+                         provider: CultureInfo.InvariantCulture,
+                         result: out int number))
       {
         error = index == start
                   ? $"Expected an array index or a quoted key at character {start + 1}."
-                  : $"The array index at character {start + 1} is too large.";
+                  : $"The array index at character {start                         + 1} is too large.";
 
         return false;
       }

@@ -57,14 +57,15 @@ public class JsonApiClient
   /// <param name="useCache">Whether a recent successful answer may be reused.</param>
   /// <param name="cancellationToken">A token used to cancel the request.</param>
   /// <returns>The answer.</returns>
-  public async Task<JsonApiResponse> GetAsync (JsonApiSettings  settings,
-                                               Uri              url,
-                                               bool             useCache          = true,
+  public async Task<JsonApiResponse> GetAsync (JsonApiSettings   settings,
+                                               Uri               url,
+                                               bool              useCache          = true,
                                                CancellationToken cancellationToken = default)
   {
     // Neither the credential nor anything else about the authentication goes into the cache's keys, only a hash of it.
-    string authentication = string.Join (separator: '\0', settings.Auth, settings.Username, settings.HeaderName, settings.Credential);
-    var    key            = $"json-api:{url.AbsoluteUri}:{Convert.ToHexString (SHA256.HashData (Encoding.UTF8.GetBytes (authentication)))}";
+    string authentication =
+      string.Join (separator: '\0', settings.Auth, settings.Username, settings.HeaderName, settings.Credential);
+    var key = $"json-api:{url.AbsoluteUri}:{Convert.ToHexString (SHA256.HashData (Encoding.UTF8.GetBytes (authentication)))}";
 
     if (useCache && this.cache.TryGetValue (key: key, value: out JsonApiResponse? cached) && (cached != null))
     {
@@ -114,7 +115,10 @@ public class JsonApiClient
 
       if (response.Content.Headers.ContentLength > JsonApiClient.MaxBodyBytes)
       {
-        return new JsonApiResponse (StatusCode: response.StatusCode, ReasonPhrase: response.ReasonPhrase, Body: null) { IsTooLarge = true };
+        return new JsonApiResponse (StatusCode: response.StatusCode, ReasonPhrase: response.ReasonPhrase, Body: null)
+               {
+                 IsTooLarge = true,
+               };
       }
 
       await using Stream stream = await response.Content.ReadAsStreamAsync (cancellationToken);
@@ -130,7 +134,10 @@ public class JsonApiClient
 
         if (body.Length > JsonApiClient.MaxBodyBytes)
         {
-          return new JsonApiResponse (StatusCode: response.StatusCode, ReasonPhrase: response.ReasonPhrase, Body: null) { IsTooLarge = true };
+          return new JsonApiResponse (StatusCode: response.StatusCode, ReasonPhrase: response.ReasonPhrase, Body: null)
+                 {
+                   IsTooLarge = true,
+                 };
         }
       }
 
@@ -163,7 +170,8 @@ public class JsonApiClient
       case JsonApiAuth.Basic when credential != null:
         request.Headers.Authorization =
           new AuthenticationHeaderValue (scheme: "Basic",
-                                         parameter: Convert.ToBase64String (Encoding.UTF8.GetBytes ($"{settings.Username}:{credential}")));
+                                         parameter:
+                                         Convert.ToBase64String (Encoding.UTF8.GetBytes ($"{settings.Username}:{credential}")));
 
         return true;
 
@@ -216,6 +224,5 @@ public sealed record JsonApiResponse (HttpStatusCode? StatusCode, string? Reason
   /// <summary>
   ///   Gets the status as a sentence would name it, such as <c>503 Service Unavailable</c>.
   /// </summary>
-  public string Status
-    => this.StatusCode is { } code ? $"{(int)code} {this.ReasonPhrase}".Trim () : "no answer";
+  public string Status => this.StatusCode is { } code ? $"{(int)code} {this.ReasonPhrase}".Trim () : "no answer";
 }
